@@ -73,9 +73,10 @@ async function handleSubmit(request, env) {
 
   const name = String(data.name || "").trim();
   const phone = String(data.phone || "").trim();
+  const telegram = String(data.telegram || "").trim();
   const type = data.type === "event" ? "event" : "apply";
 
-  if (!name || !phone) {
+  if (!name || !phone || !telegram) {
     return json({ ok: false, error: "validation" }, 400);
   }
 
@@ -87,6 +88,7 @@ async function handleSubmit(request, env) {
       "📝 Заявка на вступление\n\n" +
       "Имя: " + name + "\n" +
       "Телефон: " + phone + "\n" +
+      "Telegram: " + telegram + "\n" +
       "Компания/сфера: " + (company || "—") + "\n" +
       "Комментарий: " + (comment || "—");
   } else {
@@ -96,6 +98,7 @@ async function handleSubmit(request, env) {
       "📅 Запись на мероприятие\n\n" +
       "Мероприятие: " + (event || "—") + "\n" +
       "Имя: " + name + "\n" +
+      "Telegram: " + telegram + "\n" +
       "Телефон: " + phone + "\n" +
       "Комментарий: " + (comment || "—");
   }

@@ -266,23 +266,6 @@ a { color: inherit; }
   object-position: center 30%;
   display: block;
 }
-.hero-photo figcaption {
-  position: absolute;
-  z-index: 2;
-  left: 50%;
-  bottom: -14px;
-  transform: translateX(-50%);
-  background: var(--white);
-  color: var(--black);
-  font-family: var(--font-display);
-  font-size: 13px;
-  font-weight: 700;
-  padding: 10px 18px;
-  border-radius: 999px;
-  box-shadow: 0 10px 24px -10px rgba(11,11,12,.35);
-  white-space: nowrap;
-}
-
 /* ---------- About ---------- */
 .about-intro {
   display: flex;
@@ -309,23 +292,23 @@ a { color: inherit; }
 }
 .founder-photo {
   position: relative;
-  width: 88px;
-  height: 88px;
+  width: 176px;
+  height: 176px;
   flex-shrink: 0;
 }
 .founder-blob {
   position: absolute;
-  top: -12px; left: -16px;
-  width: 122px; height: 97px;
+  top: -24px; left: -32px;
+  width: 244px; height: 194px;
   z-index: 0;
 }
 .founder-photo img {
   position: relative;
   z-index: 1;
-  width: 88px; height: 88px;
+  width: 176px; height: 176px;
   border-radius: 50%;
   object-fit: cover;
-  object-position: center 18%;
+  object-position: center;
   display: block;
 }
 .founder figcaption {
@@ -413,31 +396,31 @@ a { color: inherit; }
   border: 1px solid var(--gray-100);
   overflow: hidden;
 }
-.why-card::before {
-  content: "";
+.why-photo {
   position: absolute;
-  top: -20px; right: -20px;
-  width: 110px; height: 94px;
-  opacity: .1;
+  top: -18px; right: -18px;
+  width: 110px;
+  object-fit: cover;
+  z-index: 0;
 }
 .why-card:nth-child(1) { background: #F2F6FF; }
-.why-card:nth-child(1)::before {
-  background: var(--blue);
+.why-card:nth-child(1) .why-photo {
+  height: 86.3px;
   clip-path: path("M 8.2 63.3 C 0.7 46.0 15.7 23.0 41.5 11.8 C 67.4 0.7 94.4 5.7 101.8 23.0 C 109.3 40.3 94.3 63.4 68.5 74.5 C 42.6 85.6 15.6 80.6 8.2 63.3 Z");
 }
 .why-card:nth-child(2) { background: #FFF1F3; }
-.why-card:nth-child(2)::before {
-  background: var(--crimson);
+.why-card:nth-child(2) .why-photo {
+  height: 87.4px;
   clip-path: path("M 2.6 27.0 C 4.0 22.1 12.9 19.1 17.7 15.0 C 22.4 10.9 25.6 3.8 31.0 2.4 C 36.3 1.1 43.4 6.5 49.7 6.9 C 56.0 7.2 63.3 2.6 68.7 4.4 C 74.1 6.3 77.0 14.1 82.1 17.7 C 87.2 21.3 96.0 21.5 99.3 26.0 C 102.5 30.5 100.4 38.9 101.7 44.8 C 103.0 50.8 108.9 57.1 107.2 61.7 C 105.4 66.4 95.9 68.9 91.2 72.8 C 86.6 76.7 84.4 83.8 79.2 85.1 C 73.9 86.4 66.2 80.9 60.0 80.6 C 53.8 80.4 47.4 85.2 42.1 83.5 C 36.7 81.7 33.3 73.9 28.0 70.2 C 22.6 66.5 13.2 65.6 10.0 61.3 C 6.8 57.0 10.0 50.2 8.8 44.5 C 7.6 38.7 1.1 31.9 2.6 27.0 Z");
 }
 .why-card:nth-child(3) { background: var(--gray-50); }
-.why-card:nth-child(3)::before {
-  background: var(--black);
+.why-card:nth-child(3) .why-photo {
+  height: 93.5px;
   clip-path: path("M 66.9 91.9 L 1.6 1.6 L 108.4 33.5 L 66.9 91.9 Z");
 }
 .why-card:nth-child(4) { background: #F2F6FF; }
-.why-card:nth-child(4)::before {
-  background: var(--blue);
+.why-card:nth-child(4) .why-photo {
+  height: 86.3px;
   clip-path: path("M 8.2 63.3 C 0.7 46.0 15.7 23.0 41.5 11.8 C 67.4 0.7 94.4 5.7 101.8 23.0 C 109.3 40.3 94.3 63.4 68.5 74.5 C 42.6 85.6 15.6 80.6 8.2 63.3 Z");
 }
 
@@ -464,7 +447,7 @@ a { color: inherit; }
 .events-list { display: flex; flex-direction: column; gap: 16px; }
 .event-card {
   display: grid;
-  grid-template-columns: 130px 1fr auto;
+  grid-template-columns: 150px 1fr auto;
   align-items: center;
   gap: 24px;
   padding: 24px;
@@ -484,8 +467,8 @@ a { color: inherit; }
   padding: 14px 8px;
   text-align: center;
 }
-.event-date .d { font-family: var(--font-display); font-size: 26px; font-weight: 700; color: var(--blue); line-height: 1; }
-.event-date .m { font-size: 12px; text-transform: uppercase; color: var(--gray-500); margin-top: 4px; letter-spacing: .04em; }
+.event-date .d { font-family: var(--font-display); font-size: 56px; font-weight: 700; color: var(--blue); line-height: 1; }
+.event-date .m { font-size: 15px; text-transform: uppercase; color: var(--gray-500); margin-top: 6px; letter-spacing: .04em; }
 .event-info .tag {
   display: inline-block;
   font-size: 11px;
@@ -759,7 +742,7 @@ a { color: inherit; }
   .why-grid { grid-template-columns: 1fr; }
   .steps { grid-template-columns: repeat(2, 1fr); }
   .footer-grid { grid-template-columns: 1fr; gap: 28px; }
-  .event-card { grid-template-columns: 90px 1fr; }
+  .event-card { grid-template-columns: 110px 1fr; }
   .event-actions { grid-column: 1 / -1; flex-direction: row; }
 }
 

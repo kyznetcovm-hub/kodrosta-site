@@ -61,7 +61,6 @@ import { EVENTS } from "../events-data.js";
           '</div>' +
           '<div class="event-actions">' +
             '<button class="btn btn--primary btn--sm js-open-event" type="button" data-event-id="' + e.id + '">Записаться</button>' +
-            '<a class="btn btn--ghost btn--sm" target="_blank" rel="noopener" href="' + googleCalUrl(e) + '">В Google Calendar</a>' +
           '</div>' +
         '</article>'
       );
@@ -74,24 +73,6 @@ import { EVENTS } from "../events-data.js";
         openEventModal(ev);
       });
     });
-  }
-
-  // ---- ICS / Google Calendar ------------------------------------------------
-  function toICSDate(iso) {
-    return iso.replace(/[-:]/g, "").split(".")[0];
-  }
-
-  // Добавить одно конкретное событие (кнопка на карточке мероприятия) —
-  // не путать с подпиской на весь календарь (см. setupCalendarSub).
-  function googleCalUrl(e) {
-    var params = new URLSearchParams({
-      action: "TEMPLATE",
-      text: e.title,
-      dates: toICSDate(e.start) + "/" + toICSDate(e.end),
-      details: e.description,
-      location: e.place
-    });
-    return "https://calendar.google.com/calendar/render?" + params.toString();
   }
 
   // Подписка на весь календарь клуба — единый живой фид /calendar.ics
@@ -184,6 +165,9 @@ import { EVENTS } from "../events-data.js";
     if (!name.value.trim()) return "Укажите, пожалуйста, имя.";
     if (!PHONE_RE.test(phone.value.trim())) return "Проверьте номер телефона.";
 
+    var telegram = form.querySelector('[name="telegram"]');
+    if (!telegram.value.trim()) return "Укажите ваш Telegram.";
+
     var companyField = form.querySelector('[name="company"]');
     if (companyField && !companyField.value.trim()) return "Укажите компанию или сферу деятельности.";
 
@@ -219,6 +203,7 @@ import { EVENTS } from "../events-data.js";
         type: type,
         name: form.querySelector('[name="name"]').value.trim(),
         phone: form.querySelector('[name="phone"]').value.trim(),
+        telegram: form.querySelector('[name="telegram"]').value.trim(),
         comment: form.querySelector('[name="comment"]') ? form.querySelector('[name="comment"]').value.trim() : "",
         company: form.querySelector('[name="company"]') ? form.querySelector('[name="company"]').value.trim() : "",
         event: form.querySelector('[name="event"]') ? form.querySelector('[name="event"]').value : "",
