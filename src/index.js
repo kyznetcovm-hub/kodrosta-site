@@ -13,7 +13,7 @@ export default {
       return handleSubmit(request, env);
     }
 
-    if (url.pathname === "/calendar.ics" && request.method === "GET") {
+    if (url.pathname === "/calendar.ics" && (request.method === "GET" || request.method === "HEAD")) {
       return handleCalendarFeed();
     }
 
