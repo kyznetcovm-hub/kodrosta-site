@@ -162,9 +162,7 @@ a { color: inherit; }
   color: var(--black);
 }
 .logo-mark {
-  width: 34px; height: 34px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--blue) 55%, var(--crimson) 55%);
+  width: 34px; height: 29px;
   flex-shrink: 0;
 }
 .nav-links {
@@ -241,12 +239,62 @@ a { color: inherit; }
 .hero-audience b { color: var(--black); font-family: var(--font-display); font-size: 15px; }
 
 /* ---------- About ---------- */
+.about-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 40px;
+  flex-wrap: wrap;
+  margin-bottom: 48px;
+}
 .about-lead {
   font-size: clamp(18px, 2.4vw, 22px);
-  max-width: 800px;
+  max-width: 720px;
   color: var(--black);
-  margin-bottom: 48px;
+  margin-bottom: 0;
   font-weight: 500;
+  flex: 1 1 420px;
+}
+.founder {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 0 auto;
+  margin: 0;
+}
+.founder-photo {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  flex-shrink: 0;
+}
+.founder-blob {
+  position: absolute;
+  top: -12px; left: -16px;
+  width: 122px; height: 97px;
+  z-index: 0;
+}
+.founder-photo img {
+  position: relative;
+  z-index: 1;
+  width: 88px; height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center 18%;
+  display: block;
+}
+.founder figcaption {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  color: var(--gray-500);
+  max-width: 230px;
+}
+.founder figcaption b {
+  color: var(--black);
+  font-family: var(--font-display);
+  font-size: 14px;
+  margin-bottom: 3px;
 }
 .about-grid {
   display: grid;
@@ -323,19 +371,30 @@ a { color: inherit; }
 .why-card::before {
   content: "";
   position: absolute;
-  top: -30px; right: -30px;
-  width: 110px; height: 110px;
-  border-radius: 50%;
-  opacity: .08;
+  top: -20px; right: -20px;
+  width: 110px; height: 94px;
+  opacity: .1;
 }
 .why-card:nth-child(1) { background: #F2F6FF; }
-.why-card:nth-child(1)::before { background: var(--blue); }
+.why-card:nth-child(1)::before {
+  background: var(--blue);
+  clip-path: path("M 8.2 63.3 C 0.7 46.0 15.7 23.0 41.5 11.8 C 67.4 0.7 94.4 5.7 101.8 23.0 C 109.3 40.3 94.3 63.4 68.5 74.5 C 42.6 85.6 15.6 80.6 8.2 63.3 Z");
+}
 .why-card:nth-child(2) { background: #FFF1F3; }
-.why-card:nth-child(2)::before { background: var(--crimson); }
+.why-card:nth-child(2)::before {
+  background: var(--crimson);
+  clip-path: path("M 2.6 27.0 C 4.0 22.1 12.9 19.1 17.7 15.0 C 22.4 10.9 25.6 3.8 31.0 2.4 C 36.3 1.1 43.4 6.5 49.7 6.9 C 56.0 7.2 63.3 2.6 68.7 4.4 C 74.1 6.3 77.0 14.1 82.1 17.7 C 87.2 21.3 96.0 21.5 99.3 26.0 C 102.5 30.5 100.4 38.9 101.7 44.8 C 103.0 50.8 108.9 57.1 107.2 61.7 C 105.4 66.4 95.9 68.9 91.2 72.8 C 86.6 76.7 84.4 83.8 79.2 85.1 C 73.9 86.4 66.2 80.9 60.0 80.6 C 53.8 80.4 47.4 85.2 42.1 83.5 C 36.7 81.7 33.3 73.9 28.0 70.2 C 22.6 66.5 13.2 65.6 10.0 61.3 C 6.8 57.0 10.0 50.2 8.8 44.5 C 7.6 38.7 1.1 31.9 2.6 27.0 Z");
+}
 .why-card:nth-child(3) { background: var(--gray-50); }
-.why-card:nth-child(3)::before { background: var(--black); }
+.why-card:nth-child(3)::before {
+  background: var(--black);
+  clip-path: path("M 66.9 91.9 L 1.6 1.6 L 108.4 33.5 L 66.9 91.9 Z");
+}
 .why-card:nth-child(4) { background: #F2F6FF; }
-.why-card:nth-child(4)::before { background: var(--blue); }
+.why-card:nth-child(4)::before {
+  background: var(--blue);
+  clip-path: path("M 8.2 63.3 C 0.7 46.0 15.7 23.0 41.5 11.8 C 67.4 0.7 94.4 5.7 101.8 23.0 C 109.3 40.3 94.3 63.4 68.5 74.5 C 42.6 85.6 15.6 80.6 8.2 63.3 Z");
+}
 
 .why-index {
   font-family: var(--font-display);
@@ -458,19 +517,19 @@ a { color: inherit; }
 .apply-band::after {
   content: "";
   position: absolute;
-  right: -60px; top: -60px;
-  width: 220px; height: 220px;
+  right: -60px; top: -50px;
+  width: 220px; height: 175px;
   background: var(--crimson);
-  border-radius: 50%;
+  clip-path: path("M 5.1 53.9 C 8.1 44.1 25.8 38.2 35.3 30.0 C 44.8 21.8 51.3 7.6 62.0 4.9 C 72.6 2.2 86.9 13.1 99.5 13.7 C 112.0 14.4 126.5 5.3 137.3 8.9 C 148.1 12.5 154.0 28.2 164.2 35.4 C 174.4 42.5 192.0 42.9 198.5 52.0 C 205.1 61.0 200.8 77.7 203.4 89.6 C 206.1 101.5 217.8 114.2 214.3 123.5 C 210.9 132.8 191.8 137.8 182.5 145.6 C 173.2 153.4 168.7 167.5 158.3 170.1 C 147.9 172.7 132.4 161.8 120.0 161.3 C 107.6 160.7 94.8 170.4 84.1 166.9 C 73.4 163.4 66.6 147.7 55.9 140.4 C 45.2 133.0 26.4 131.3 20.0 122.7 C 13.6 114.1 20.1 100.4 17.6 88.9 C 15.1 77.4 2.2 63.7 5.1 53.9 Z");
   opacity: .9;
 }
 .apply-band::before {
   content: "";
   position: absolute;
-  right: 40px; bottom: -80px;
-  width: 160px; height: 160px;
+  right: 30px; bottom: -70px;
+  width: 160px; height: 136px;
   background: var(--black);
-  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  clip-path: path("M 97.3 133.7 L 2.3 2.3 L 157.7 48.8 L 97.3 133.7 Z");
   opacity: .85;
 }
 .apply-band-text { position: relative; z-index: 1; max-width: 520px; }
