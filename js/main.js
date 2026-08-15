@@ -2,54 +2,17 @@
 // Код Роста — логика одностраничника
 // Заявки/записи отправляются на /api/submit (обрабатывается Worker'ом),
 // который пересылает их в Telegram-группу через бота. См. src/index.js.
+// Мероприятия — в events-data.js, общий модуль с Worker'ом (используется
+// там же для живого фида /calendar.ics).
 // ============================================================================
+
+import { EVENTS } from "../events-data.js";
 
 (function () {
   "use strict";
 
   // ---- Настройки ------------------------------------------------------------
   var MANAGER_TELEGRAM = "https://t.me/Kodrosta";
-
-  // ---- Мероприятия. На старте ведутся вручную — обновляйте этот массив. ---
-  // TODO: подключить синхронизацию с ботом/таблицей events, когда он будет готов.
-  var EVENTS = [
-    {
-      id: "business-banya-august",
-      title: "Мужская Бизнес-баня",
-      tag: "Нетворкинг",
-      start: "2026-08-06T18:00:00",
-      end: "2026-08-06T22:00:00",
-      place: "Баня на дровах, адрес уточняется при записи",
-      description: "Баня на дровах с индивидуальным парением и разговор за столом про семейные форматы мероприятий для сообщества Код Роста."
-    },
-    {
-      id: "business-review-shargorodsky",
-      title: "Бизнес-разборы с Максимом Шаргородским",
-      tag: "Экспертиза резидентов",
-      start: "2026-08-11T14:00:00",
-      end: "2026-08-11T18:00:00",
-      place: "Место уточняется при записи",
-      description: "Не лекция и не тренинг — метод построен на 1500 часах разборов с предпринимателями из 18 городов России, Беларуси и Казахстана. Участие бесплатное. Для участия — вступите в чат мероприятия."
-    },
-    {
-      id: "fire-safety-training",
-      title: "Обучение по пожарной безопасности для руководителей и ответственных лиц",
-      tag: "Обучение",
-      start: "2026-08-19T16:00:00",
-      end: "2026-08-19T18:00:00",
-      place: "Место уточняется при записи",
-      description: "С 1 сентября 2025 года действует приказ МЧС № 1120 вместо прежнего 806-го. Штраф за необученного ответственного — от 20 000 ₽ на должностное лицо и от 300 000 ₽ на юрлицо, одна проверка может дать оба сразу. Проводит учебный центр «Эко Старт» Альбины Хамитовой, резидента клуба. По итогам — удостоверение на 5 лет. Мест ограниченное количество."
-    },
-    {
-      id: "family-day",
-      title: "Семейный день Клуба",
-      tag: "Семейный формат",
-      start: "2026-08-29T10:00:00",
-      end: "2026-08-29T15:00:00",
-      place: "У воды, адрес уточняется при записи",
-      description: "Новый формат, придуманный самими резидентами: выезд на полдня к воде без ночёвки. Для взрослых — мангальная зона, пляжный волейбол, бизнес-игра и мастер-классы. Для детей — няня и мастер-классы. В заявке укажите, сколько взрослых и детей и какого возраста дети."
-    }
-  ];
 
   var MONTHS_SHORT = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
   var MONTHS_FULL = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
@@ -118,42 +81,8 @@
     return iso.replace(/[-:]/g, "").split(".")[0];
   }
 
-  function buildICS() {
-    var lines = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//Код Роста//Calendar//RU",
-      "CALSCALE:GREGORIAN",
-      "X-WR-CALNAME:Код Роста — мероприятия"
-    ];
-    EVENTS.forEach(function (e) {
-      lines.push(
-        "BEGIN:VEVENT",
-        "UID:" + e.id + "@kodrosta.ru",
-        "DTSTART:" + toICSDate(e.start),
-        "DTEND:" + toICSDate(e.end),
-        "SUMMARY:" + e.title,
-        "LOCATION:" + e.place,
-        "DESCRIPTION:" + e.description.replace(/,/g, "\\,"),
-        "END:VEVENT"
-      );
-    });
-    lines.push("END:VCALENDAR");
-    return lines.join("\r\n");
-  }
-
-  function downloadICS() {
-    var blob = new Blob([buildICS()], { type: "text/calendar;charset=utf-8" });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url;
-    a.download = "kodrosta-events.ics";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-
+  // Добавить одно конкретное событие (кнопка на карточке мероприятия) —
+  // не путать с подпиской на весь календарь (см. setupCalendarSub).
   function googleCalUrl(e) {
     var params = new URLSearchParams({
       action: "TEMPLATE",
@@ -165,15 +94,16 @@
     return "https://calendar.google.com/calendar/render?" + params.toString();
   }
 
+  // Подписка на весь календарь клуба — единый живой фид /calendar.ics
+  // (отдаёт Worker, см. src/index.js), а не разовый снимок событий.
   function setupCalendarSub() {
-    var btn = document.querySelector(".js-download-ics");
-    if (btn) btn.addEventListener("click", downloadICS);
+    var feedUrl = location.origin + "/calendar.ics";
 
-    var link = document.getElementById("js-google-cal-link");
-    if (link && EVENTS.length) {
-      var next = EVENTS.slice().sort(function (a, b) { return new Date(a.start) - new Date(b.start); })[0];
-      link.href = googleCalUrl(next);
-    }
+    var iosLink = document.getElementById("js-ios-cal-link");
+    if (iosLink) iosLink.href = feedUrl.replace(/^https?:/, "webcal:");
+
+    var androidLink = document.getElementById("js-android-cal-link");
+    if (androidLink) androidLink.href = "https://calendar.google.com/calendar/render?cid=" + encodeURIComponent(feedUrl);
   }
 
   // ---- Модалки ---------------------------------------------------------------
@@ -356,8 +286,22 @@
   var yearEl = document.getElementById("js-year");
   if (yearEl) yearEl.textContent = new Date().getFullYear();
 
+  // ---- Cookie consent -----------------------------------------------------------
+  function setupCookieBanner() {
+    var banner = document.getElementById("cookie-banner");
+    if (!banner) return;
+    if (localStorage.getItem("cookieConsent") === "1") return;
+    banner.classList.add("is-visible");
+    var acceptBtn = banner.querySelector(".js-cookie-accept");
+    acceptBtn.addEventListener("click", function () {
+      localStorage.setItem("cookieConsent", "1");
+      banner.classList.remove("is-visible");
+    });
+  }
+
   // ---- Init ---------------------------------------------------------------------
   renderEvents();
   setupCalendarSub();
   animateCounters();
+  setupCookieBanner();
 })();

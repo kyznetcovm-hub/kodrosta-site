@@ -1,6 +1,9 @@
-// Worker-точка входа: раздаёт статику сайта и обрабатывает POST /api/submit,
-// пересылая заявки в Telegram-группу через бота.
+// Worker-точка входа: раздаёт статику сайта, обрабатывает POST /api/submit
+// (пересылка заявок в Telegram-группу через бота) и отдаёт живой фид
+// GET /calendar.ics для подписки на календарь (iPhone/Android).
 // BOT_TOKEN и CHAT_ID заданы как секреты проекта в Cloudflare (см. README).
+
+import { EVENTS } from "../events-data.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -10,9 +13,50 @@ export default {
       return handleSubmit(request, env);
     }
 
+    if (url.pathname === "/calendar.ics" && request.method === "GET") {
+      return handleCalendarFeed();
+    }
+
     return env.ASSETS.fetch(request);
   }
 };
+
+function toICSDate(iso) {
+  return iso.replace(/[-:]/g, "").split(".")[0];
+}
+
+function handleCalendarFeed() {
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Код Роста//Calendar//RU",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "X-WR-CALNAME:Код Роста — мероприятия",
+    "REFRESH-INTERVAL;VALUE=DURATION:PT12H"
+  ];
+  for (const e of EVENTS) {
+    lines.push(
+      "BEGIN:VEVENT",
+      "UID:" + e.id + "@codrosta.club",
+      "DTSTART:" + toICSDate(e.start),
+      "DTEND:" + toICSDate(e.end),
+      "SUMMARY:" + e.title,
+      "LOCATION:" + e.place,
+      "DESCRIPTION:" + e.description.replace(/,/g, "\\,"),
+      "END:VEVENT"
+    );
+  }
+  lines.push("END:VCALENDAR");
+
+  return new Response(lines.join("\r\n"), {
+    headers: {
+      "content-type": "text/calendar; charset=utf-8",
+      "content-disposition": 'inline; filename="kodrosta-events.ics"',
+      "cache-control": "public, max-age=1800"
+    }
+  });
+}
 
 async function handleSubmit(request, env) {
   let data;

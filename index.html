@@ -45,14 +45,12 @@
   <section class="hero" id="hero">
     <div class="hero-shapes" aria-hidden="true">
       <svg width="100%" height="100%" viewBox="0 0 1440 760" preserveAspectRatio="xMaxYMin slice" style="position:absolute; inset:0;">
-        <path transform="translate(870,-40) scale(2.0)" d="M 22.88,177.66 C 2.00,129.10 43.95,64.43 116.59,33.21 C 189.22,2.00 265.03,16.07 285.91,64.63 C 306.79,113.19 264.84,177.87 192.20,209.08 C 119.57,240.29 43.76,226.23 22.88,177.66 Z" fill="#296EF7"/>
-        <path transform="translate(1080,250) scale(2.06)" d="M 4.73,50.00 C 7.47,40.89 23.94,35.39 32.73,27.81 C 41.51,20.22 47.53,7.03 57.44,4.51 C 67.35,2.00 80.56,12.10 92.21,12.72 C 103.86,13.34 117.33,4.90 127.34,8.24 C 137.35,11.59 142.81,26.13 152.27,32.79 C 161.72,39.45 178.02,39.82 184.08,48.20 C 190.14,56.59 186.18,72.06 188.63,83.11 C 191.07,94.15 201.98,105.84 198.74,114.49 C 195.50,123.14 177.87,127.78 169.21,134.99 C 160.55,142.20 156.44,155.31 146.78,157.73 C 137.12,160.15 122.73,150.03 111.27,149.53 C 99.81,149.03 87.91,157.98 78.00,154.75 C 68.09,151.52 61.74,136.98 51.83,130.15 C 41.93,123.31 24.48,121.70 18.56,113.74 C 12.65,105.79 18.63,93.05 16.32,82.43 C 14.02,71.80 2.00,59.10 4.73,50.00 Z" fill="#EB344A"/>
-        <path transform="translate(980,370) scale(3.37)" d="M 83.01,114.05 L 2.00,2.00 L 134.48,41.60 L 83.01,114.05 Z" fill="#0B0B0C"/>
+        <path transform="translate(1120,-60) scale(1.35)" d="M 22.88,177.66 C 2.00,129.10 43.95,64.43 116.59,33.21 C 189.22,2.00 265.03,16.07 285.91,64.63 C 306.79,113.19 264.84,177.87 192.20,209.08 C 119.57,240.29 43.76,226.23 22.88,177.66 Z" fill="#296EF7" opacity="0.5"/>
       </svg>
     </div>
-    <div class="container">
+    <div class="container hero-grid">
       <div class="hero-inner">
-        <h1>Клуб предпринимателей, который <span class="hl">говорит с властью</span> на одном языке</h1>
+        <h1>Сообщество проактивных предпринимателей, которые хотят <span class="hl">развивать экономику страны</span></h1>
         <p class="hero-sub">Код Роста — первое GR-сообщество, представляющее интересы малого и среднего бизнеса. Не инфобиз с тарифами и вебинарами — прямой диалог с чиновниками, нетворкинг резидентов и форматы, которых больше нигде нет.</p>
         <div class="hero-actions">
           <button class="btn btn--primary js-open-apply" type="button">Подать заявку на вступление</button>
@@ -64,6 +62,13 @@
           <div><b>120 млн ₽</b> средний оборот участников</div>
         </div>
       </div>
+      <figure class="hero-photo">
+        <svg class="hero-photo-shape" viewBox="0 0 308.79 242.29" aria-hidden="true">
+          <path d="M 22.88,177.66 C 2.00,129.10 43.95,64.43 116.59,33.21 C 189.22,2.00 265.03,16.07 285.91,64.63 C 306.79,113.19 264.84,177.87 192.20,209.08 C 119.57,240.29 43.76,226.23 22.88,177.66 Z" fill="#EB344A"/>
+        </svg>
+        <img src="assets/founder-with-rais.jpg" alt="Основатель клуба Михаил Кузнецов с главой Республики Татарстан">
+        <figcaption>С главой Республики Татарстан</figcaption>
+      </figure>
     </div>
   </section>
 
@@ -189,8 +194,32 @@
           <p>Добавьте календарь клуба в телефон — новые мероприятия будут появляться автоматически, в Google Calendar, Apple Calendar или Outlook.</p>
         </div>
         <div class="calendar-sub-actions">
-          <button class="btn btn--primary btn--sm js-download-ics" type="button">Скачать .ics</button>
-          <a class="btn btn--ghost btn--sm" id="js-google-cal-link" href="#" target="_blank" rel="noopener">Добавить в Google Calendar</a>
+          <a class="btn btn--primary btn--sm" id="js-ios-cal-link" href="#" rel="noopener">Подписаться на календарь iPhone</a>
+          <a class="btn btn--ghost btn--sm" id="js-android-cal-link" href="#" target="_blank" rel="noopener">Подписаться на календарь Android</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== WHY AN ENTREPRENEUR NEEDS IT ===================== -->
+  <section class="section section--tight" id="reasons">
+    <div class="container">
+      <span class="eyebrow">Зачем предпринимателю Код Роста</span>
+      <div class="about-grid">
+        <div class="about-card">
+          <span class="num-tag">01</span>
+          <h3>Канал коммуникаций</h3>
+          <p>Закрытый чат резидентов, разборы и нетворкинг — рабочие связи, а не разовые визитки.</p>
+        </div>
+        <div class="about-card">
+          <span class="num-tag">02</span>
+          <h3>Канал продаж</h3>
+          <p>«Покупай у своих» — резиденты в первую очередь ищут подрядчиков и клиентов внутри клуба.</p>
+        </div>
+        <div class="about-card">
+          <span class="num-tag">03</span>
+          <h3>Прямая связь с властью</h3>
+          <p>Бизнес-завтраки с аппаратом уполномоченного и министерствами — вопросы бизнеса доходят до тех, кто принимает решения.</p>
         </div>
       </div>
     </div>
@@ -238,13 +267,7 @@
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
-        <a href="#top" class="logo">
-          <svg class="logo-mark" viewBox="0 0 50.45 43.13" aria-hidden="true">
-            <path d="M 6.07,14.23 C 9.13,6.22 20.19,3.00 30.77,7.05 C 41.35,11.10 47.45,20.88 44.38,28.90 C 41.31,36.92 30.25,40.13 19.67,36.08 C 9.09,32.03 3.00,22.25 6.07,14.23 Z" fill="#296EF7"/>
-            <path d="M 4.40,35.23 L 4.31,19.88 L 34.67,4.36 L 34.75,14.57 L 46.14,6.64 L 46.14,14.74 L 18.06,38.77 L 18.06,25.95 L 4.40,35.23 Z" fill="#ffffff"/>
-          </svg>
-          Код Роста
-        </a>
+        <a href="#top" class="logo"><span class="footer-logo-mark"></span>Код Роста</a>
         <p>Клуб предпринимателей и первое GR-сообщество, представляющее интересы малого и среднего бизнеса.</p>
       </div>
       <div class="footer-col">
@@ -261,8 +284,14 @@
       </div>
     </div>
     <div class="footer-bottom">
-      <span>© <span id="js-year"></span> Код Роста. Реквизиты предоставляются по запросу.</span>
-      <a href="privacy.html">Политика обработки персональных данных</a>
+      <div class="footer-requisites">
+        <span>ООО «Клуб предпринимателей» · ИНН 1658250026 · ОГРН 1231600061120</span>
+        <span>420061, г. Казань, ул. Ершова, д. 1А, офис 341</span>
+      </div>
+      <div class="footer-bottom-links">
+        <span>© <span id="js-year"></span> Код Роста</span>
+        <a href="privacy.html">Реквизиты и политика обработки персональных данных</a>
+      </div>
     </div>
   </div>
 </footer>
@@ -326,6 +355,12 @@
   </div>
 </div>
 
-<script src="js/main.js"></script>
+<!-- ===================== COOKIE CONSENT ===================== -->
+<div class="cookie-banner js-cookie-banner" id="cookie-banner">
+  <p>Мы используем файлы cookie для корректной работы сайта. Подробнее — в <a href="privacy.html" target="_blank">политике обработки персональных данных</a>.</p>
+  <button class="btn btn--primary btn--sm js-cookie-accept" type="button">Принять</button>
+</div>
+
+<script type="module" src="js/main.js"></script>
 </body>
 </html>
