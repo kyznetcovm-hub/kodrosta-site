@@ -1,12 +1,20 @@
-// Cloudflare Pages Function: POST /api/submit
-// Принимает данные форм с сайта и пересылает их в Telegram-группу через бота.
-// Требует переменные окружения в настройках проекта Cloudflare Pages:
-//   BOT_TOKEN — токен бота (Settings → Environment variables, тип Secret)
-//   CHAT_ID   — id группы, куда слать сообщения (например -1004298235304)
+// Worker-точка входа: раздаёт статику сайта и обрабатывает POST /api/submit,
+// пересылая заявки в Telegram-группу через бота.
+// BOT_TOKEN и CHAT_ID заданы как секреты проекта в Cloudflare (см. README).
 
-export async function onRequestPost(context) {
-  const { request, env } = context;
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
 
+    if (url.pathname === "/api/submit" && request.method === "POST") {
+      return handleSubmit(request, env);
+    }
+
+    return env.ASSETS.fetch(request);
+  }
+};
+
+async function handleSubmit(request, env) {
   let data;
   try {
     data = await request.json();
