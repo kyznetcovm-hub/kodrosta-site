@@ -4,6 +4,7 @@
 // BOT_TOKEN и CHAT_ID заданы как секреты проекта в Cloudflare (см. README).
 
 import { EVENTS } from "../events-data.js";
+import { handleTelegramUpdate, recordFormTouch } from "./engagement.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -13,6 +14,10 @@ export default {
       return handleSubmit(request, env);
     }
 
+    if (url.pathname === "/api/telegram-webhook" && request.method === "POST") {
+      return handleTelegramWebhook(request, env);
+    }
+
     if (url.pathname === "/calendar.ics" && (request.method === "GET" || request.method === "HEAD")) {
       return handleCalendarFeed();
     }
@@ -20,6 +25,21 @@ export default {
     return env.ASSETS.fetch(request);
   }
 };
+
+async function handleTelegramWebhook(request, env) {
+  let update;
+  try {
+    update = await request.json();
+  } catch (e) {
+    return json({ ok: false }, 400);
+  }
+  try {
+    await handleTelegramUpdate(update, env);
+  } catch (err) {
+    console.error("handleTelegramUpdate failed", err);
+  }
+  return json({ ok: true });
+}
 
 function toICSDate(iso) {
   return iso.replace(/[-:]/g, "").split(".")[0];
@@ -116,6 +136,13 @@ async function handleSubmit(request, env) {
   if (!tgResp.ok) {
     return json({ ok: false, error: "telegram_failed" }, 502);
   }
+
+  await recordFormTouch(env, {
+    phone,
+    telegramHandle: telegram,
+    kind: type === "apply" ? "apply" : "event_signup",
+    note: type === "apply" ? null : String(data.event || "").trim() || null,
+  });
 
   return json({ ok: true });
 }

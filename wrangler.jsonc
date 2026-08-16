@@ -5,5 +5,18 @@
   "assets": {
     "directory": ".",
     "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kodrosta-engagement",
+      "database_id": "6edb94c1-238e-4643-9300-36f51a463c57"
+    }
+  ],
+  "vars": {
+    "ADMIN_USERNAMES": "mytolstoy,Kodrosta",
+    "COOLING_WARN_DAYS": "45",
+    "COOLING_CRITICAL_DAYS": "90",
+    "RESIDENTS_CHAT_ID": "-1002274713400"
   }
 }
