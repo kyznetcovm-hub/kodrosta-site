@@ -60,7 +60,9 @@ import { EVENTS } from "../events-data.js";
             '<p>' + e.description + '</p>' +
           '</div>' +
           '<div class="event-actions">' +
-            '<button class="btn btn--primary btn--sm js-open-event" type="button" data-event-id="' + e.id + '">Записаться</button>' +
+            (e.registerUrl
+              ? '<a class="btn btn--primary btn--sm" target="_blank" rel="noopener" href="' + e.registerUrl + '">Записаться</a>'
+              : '<button class="btn btn--primary btn--sm js-open-event" type="button" data-event-id="' + e.id + '">Записаться</button>') +
           '</div>' +
         '</article>'
       );
