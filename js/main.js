@@ -50,6 +50,7 @@ import { EVENTS } from "../events-data.js";
 
     list.innerHTML = upcoming.map(function (e) {
       var d = fmtDate(e.start);
+      var hasFull = Array.isArray(e.fullDescription) && e.fullDescription.length > 0;
       return (
         '<article class="event-card">' +
           '<div class="event-date"><span class="d">' + d.day + '</span><span class="m">' + d.month + '</span></div>' +
@@ -57,7 +58,11 @@ import { EVENTS } from "../events-data.js";
             '<span class="tag">' + e.tag + '</span>' +
             '<h3>' + e.title + '</h3>' +
             '<div class="meta">' + fmtFull(e.start) + ' · ' + e.place + '</div>' +
-            '<p>' + e.description + '</p>' +
+            '<p class="event-desc-short">' + e.description + '</p>' +
+            (hasFull
+              ? '<div class="event-desc-full" hidden>' + e.fullDescription.map(function (p) { return '<p>' + p + '</p>'; }).join("") + '</div>' +
+                '<button class="event-desc-toggle js-desc-toggle" type="button">Читать полностью</button>'
+              : '') +
           '</div>' +
           '<div class="event-actions">' +
             (e.registerUrl
@@ -67,6 +72,19 @@ import { EVENTS } from "../events-data.js";
         '</article>'
       );
     }).join("");
+
+    // Разворачивание полного описания мероприятия
+    list.querySelectorAll(".js-desc-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var info = btn.closest(".event-info");
+        var short = info.querySelector(".event-desc-short");
+        var full = info.querySelector(".event-desc-full");
+        var expanding = full.hidden;
+        full.hidden = !expanding;
+        short.hidden = expanding;
+        btn.textContent = expanding ? "Свернуть" : "Читать полностью";
+      });
+    });
 
     // Кнопки записи на конкретное событие
     list.querySelectorAll(".js-open-event").forEach(function (btn) {
