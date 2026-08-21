@@ -273,6 +273,7 @@ import { EVENTS } from "../events-data.js";
           if (!result.ok) throw new Error(result.error || "unknown");
           showStatus(form, "ok", "Спасибо! Заявка отправлена, менеджер скоро свяжется с вами.");
           form.reset();
+          if (typeof ym === "function") ym(111842641, "reachGoal", "form_submit", { type: type });
         })
         .catch(function () {
           showStatus(
