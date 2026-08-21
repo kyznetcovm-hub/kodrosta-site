@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://codrosta.club/sitemap.xml

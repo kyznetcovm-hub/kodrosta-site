@@ -73,6 +73,8 @@ import { EVENTS } from "../events-data.js";
       );
     }).join("");
 
+    injectEventsSchema(upcoming);
+
     // Разворачивание полного описания мероприятия
     list.querySelectorAll(".js-desc-toggle").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -93,6 +95,31 @@ import { EVENTS } from "../events-data.js";
         openEventModal(ev);
       });
     });
+  }
+
+  // JSON-LD для ближайших мероприятий — собирается из EVENTS, чтобы не расходиться со списком
+  function injectEventsSchema(upcoming) {
+    var schema = upcoming.map(function (e) {
+      return {
+        "@context": "https://schema.org",
+        "@type": "Event",
+        "name": e.title,
+        "startDate": e.start,
+        "endDate": e.end,
+        "eventStatus": "https://schema.org/EventScheduled",
+        "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+        "location": { "@type": "Place", "name": e.place },
+        "description": e.description,
+        "organizer": { "@type": "Organization", "name": "Код Роста", "url": "https://codrosta.club/" }
+      };
+    });
+    var existing = document.getElementById("events-schema");
+    if (existing) existing.remove();
+    var script = document.createElement("script");
+    script.type = "application/ld+json";
+    script.id = "events-schema";
+    script.textContent = JSON.stringify(schema);
+    document.head.appendChild(script);
   }
 
   // Подписка на весь календарь клуба — единый живой фид /calendar.ics
