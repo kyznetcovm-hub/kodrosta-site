@@ -680,6 +680,8 @@ a { color: inherit; }
 .faq-question[aria-expanded="true"] .faq-icon::after { transform: translate(-50%, -50%) rotate(90deg) scaleY(0); }
 .faq-answer { padding: 0 4px 22px; max-width: 640px; }
 .faq-answer p { color: var(--gray-700); font-size: 15.5px; line-height: 1.6; }
+.faq-answer ul { margin: 0 0 1em; padding-left: 20px; }
+.faq-answer li { color: var(--gray-700); font-size: 15.5px; line-height: 1.6; margin-bottom: 8px; }
 .faq-answer a { color: var(--blue); }
 
 /* ---------- Footer ---------- */
