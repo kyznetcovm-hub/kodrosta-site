@@ -332,9 +332,23 @@ import { EVENTS } from "../events-data.js";
     });
   }
 
+  // ---- FAQ аккордеон -------------------------------------------------------------
+  function setupFaq() {
+    document.querySelectorAll(".js-faq-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var item = btn.closest(".faq-item");
+        var answer = item.querySelector(".faq-answer");
+        var expanding = answer.hidden;
+        answer.hidden = !expanding;
+        btn.setAttribute("aria-expanded", String(expanding));
+      });
+    });
+  }
+
   // ---- Init ---------------------------------------------------------------------
   renderEvents();
   setupCalendarSub();
   animateCounters();
   setupCookieBanner();
+  setupFaq();
 })();
