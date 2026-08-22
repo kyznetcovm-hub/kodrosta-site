@@ -332,6 +332,20 @@ import { EVENTS } from "../events-data.js";
     });
   }
 
+  // ---- Анимация появления шагов «Как вступить» -------------------------------------
+  function setupStepsFlowReveal() {
+    var flow = document.querySelector(".js-steps-flow");
+    if (!flow) return;
+    var observer = new IntersectionObserver(function (entries, obs) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        flow.classList.add("is-visible");
+        obs.unobserve(flow);
+      });
+    }, { threshold: 0.35 });
+    observer.observe(flow);
+  }
+
   // ---- FAQ аккордеон -------------------------------------------------------------
   function setupFaq() {
     document.querySelectorAll(".js-faq-toggle").forEach(function (btn) {
@@ -351,4 +365,5 @@ import { EVENTS } from "../events-data.js";
   animateCounters();
   setupCookieBanner();
   setupFaq();
+  setupStepsFlowReveal();
 })();
