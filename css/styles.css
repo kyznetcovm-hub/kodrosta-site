@@ -393,29 +393,25 @@ a { color: inherit; }
 }
 .why-photo-wrap {
   position: absolute;
-  top: -22px; right: -14px;
-  width: 108px;
-  height: 96px;
+  top: -14px; right: -14px;
+  width: 158px;
+  height: 128px;
   z-index: 1;
 }
 .why-photo-shape {
   position: absolute;
   bottom: 0; left: 0;
-  width: 80px; height: 80px;
-  border-radius: 24px;
-  transform: rotate(14deg);
+  width: 132px; height: 104px;
 }
 .why-photo-circle {
   position: absolute;
   top: 0; right: 0;
-  width: 78px; height: 78px;
+  width: 128px; height: 128px;
   border-radius: 50%;
   overflow: hidden;
   z-index: 1;
 }
 .why-photo-circle img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.why-card:nth-child(odd) .why-photo-shape { background: var(--blue); }
-.why-card:nth-child(even) .why-photo-shape { background: var(--crimson); }
 
 .why-index {
   font-family: var(--font-display);
@@ -425,7 +421,7 @@ a { color: inherit; }
   margin-bottom: 14px;
   letter-spacing: .06em;
 }
-.why-card h3 { font-size: 19px; margin-bottom: 10px; padding-right: 110px; position: relative; z-index: 1; }
+.why-card h3 { font-size: 19px; margin-bottom: 10px; padding-right: 160px; position: relative; z-index: 1; }
 .why-card p { color: var(--gray-700); font-size: 15px; margin: 0; position: relative; z-index: 1; }
 
 /* ---------- Events ---------- */
@@ -878,6 +874,10 @@ a { color: inherit; }
 }
 
 @media (max-width: 720px) {
+  .why-photo-wrap { width: 118px; height: 96px; }
+  .why-photo-shape { width: 98px; height: 78px; }
+  .why-photo-circle { width: 96px; height: 96px; }
+  .why-card h3 { padding-right: 120px; }
   .section { padding: 64px 0; }
   .hero { padding: 128px 0 72px; }
   .hero-actions .btn { width: 100%; }
