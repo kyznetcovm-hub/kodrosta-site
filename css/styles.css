@@ -388,35 +388,34 @@ a { color: inherit; }
   padding: 30px 28px;
   border-radius: var(--radius);
   border: 1px solid var(--gray-100);
+  background: var(--gray-50);
   overflow: visible;
 }
-.why-photo {
+.why-photo-wrap {
   position: absolute;
-  top: -28px; right: -28px;
-  width: 145px;
-  object-fit: cover;
+  top: -22px; right: -14px;
+  width: 108px;
+  height: 96px;
   z-index: 1;
 }
-.why-card:nth-child(1) { background: #F2F6FF; }
-.why-card:nth-child(1) .why-photo {
-  height: 113.8px;
-  clip-path: path("M 10.8 83.4 C 0.9 60.6 20.7 30.3 54.7 15.6 C 88.8 0.9 124.4 7.5 134.2 30.3 C 144.1 53.1 124.3 83.6 90.3 98.2 C 56.2 112.8 20.6 106.2 10.8 83.4 Z");
+.why-photo-shape {
+  position: absolute;
+  bottom: 0; left: 0;
+  width: 80px; height: 80px;
+  border-radius: 24px;
+  transform: rotate(14deg);
 }
-.why-card:nth-child(2) { background: #FFF1F3; }
-.why-card:nth-child(2) .why-photo {
-  height: 115.2px;
-  clip-path: path("M 3.4 35.6 C 5.3 29.1 17.0 25.2 23.3 19.8 C 29.5 14.4 33.7 5.0 40.9 3.2 C 47.8 1.4 57.2 8.6 65.5 9.1 C 73.8 9.5 83.4 3.4 90.6 5.8 C 97.7 8.3 101.5 18.6 108.2 23.3 C 114.9 28.1 126.5 28.3 130.9 34.3 C 135.1 40.2 132.3 51.3 134.1 59.1 C 135.8 67.0 143.6 75.3 141.3 81.3 C 138.9 87.5 126.4 90.8 120.2 96.0 C 114.2 101.1 111.3 110.5 104.4 112.2 C 97.4 113.9 87.3 106.6 79.1 106.2 C 70.9 106.0 62.5 112.3 55.5 110.1 C 48.4 107.7 43.9 97.4 36.9 92.5 C 29.8 87.7 17.4 86.5 13.2 80.8 C 9.0 75.1 13.2 66.2 11.6 58.7 C 10.0 51.0 1.4 42.0 3.4 35.6 Z");
+.why-photo-circle {
+  position: absolute;
+  top: 0; right: 0;
+  width: 78px; height: 78px;
+  border-radius: 50%;
+  overflow: hidden;
+  z-index: 1;
 }
-.why-card:nth-child(3) { background: var(--gray-50); }
-.why-card:nth-child(3) .why-photo {
-  height: 123.3px;
-  clip-path: path("M 88.2 121.1 L 2.1 2.1 L 142.9 44.2 L 88.2 121.1 Z");
-}
-.why-card:nth-child(4) { background: #F2F6FF; }
-.why-card:nth-child(4) .why-photo {
-  height: 86.3px;
-  clip-path: path("M 8.2 63.3 C 0.7 46.0 15.7 23.0 41.5 11.8 C 67.4 0.7 94.4 5.7 101.8 23.0 C 109.3 40.3 94.3 63.4 68.5 74.5 C 42.6 85.6 15.6 80.6 8.2 63.3 Z");
-}
+.why-photo-circle img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.why-card:nth-child(odd) .why-photo-shape { background: var(--blue); }
+.why-card:nth-child(even) .why-photo-shape { background: var(--crimson); }
 
 .why-index {
   font-family: var(--font-display);
@@ -426,7 +425,7 @@ a { color: inherit; }
   margin-bottom: 14px;
   letter-spacing: .06em;
 }
-.why-card h3 { font-size: 19px; margin-bottom: 10px; padding-right: 100px; position: relative; z-index: 1; }
+.why-card h3 { font-size: 19px; margin-bottom: 10px; padding-right: 110px; position: relative; z-index: 1; }
 .why-card p { color: var(--gray-700); font-size: 15px; margin: 0; position: relative; z-index: 1; }
 
 /* ---------- Events ---------- */
