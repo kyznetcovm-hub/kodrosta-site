@@ -451,8 +451,12 @@ a { color: inherit; }
   justify-content: center;
   padding-bottom: 18px;
   pointer-events: none;
+  opacity: 1;
+  transition: opacity .25s ease;
 }
+.events-fade.is-hidden { opacity: 0; }
 .events-fade .btn { pointer-events: auto; }
+.events-fade.is-hidden .btn { pointer-events: none; }
 .event-card {
   display: grid;
   grid-template-columns: 150px 1fr auto;

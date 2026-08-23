@@ -135,6 +135,18 @@
     });
   }
 
+  // Пока внутри списка есть что доскроллить — градиент виден (и сам едет вместе со
+  // скроллом за счёт position:sticky). Как только докрутили до последней карточки —
+  // прячем градиент, чтобы не намекать на несуществующий "ещё есть, крутите дальше".
+  function setupEventsFadeOnScroll(list) {
+    list.addEventListener("scroll", function () {
+      var fade = list.querySelector(".events-fade");
+      if (!fade) return;
+      var atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 4;
+      fade.classList.toggle("is-hidden", atBottom);
+    });
+  }
+
   // Показываем не больше 4 карточек мероприятий целиком, остальное — скроллом внутри блока
   function setupEventsScrollCap(list, total) {
     var hint = document.querySelector("#events .section-head p");
@@ -440,5 +452,8 @@
   setupFaq();
   setupStepsFlowReveal();
   var eventsListEl = document.querySelector(".js-events-list");
-  if (eventsListEl) setupEventsResizeRecalc(eventsListEl);
+  if (eventsListEl) {
+    setupEventsResizeRecalc(eventsListEl);
+    setupEventsFadeOnScroll(eventsListEl);
+  }
 })();
