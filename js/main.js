@@ -127,6 +127,11 @@
       list.classList.remove("is-scrollable");
       return;
     }
+    // Класс добавляем до замера высот: он даёт padding-right, из-за которого текст
+    // может переноситься на другую строку — если измерить карточки ДО этого,
+    // получим заниженную высоту и обрежем 5-ю карточку раньше времени.
+    list.classList.add("is-scrollable");
+
     var cards = list.querySelectorAll(".event-card");
     var height = 0;
     for (var i = 0; i < 4 && i < cards.length; i++) {
@@ -137,8 +142,7 @@
     // иначе при maxHeight ровно по 4 карточки 5-я вообще не рендерится в области просмотра
     var fifthCardHeight = cards.length > 4 ? cards[4].getBoundingClientRect().height : 0;
     if (fifthCardHeight) height += 16 + fifthCardHeight;
-    list.style.maxHeight = Math.ceil(height) + "px";
-    list.classList.add("is-scrollable");
+    list.style.maxHeight = Math.ceil(height + 8) + "px"; // небольшой запас на подпиксельные округления
 
     var fade = list.querySelector(".events-fade");
     if (fade) {
