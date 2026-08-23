@@ -133,8 +133,19 @@
       height += cards[i].getBoundingClientRect().height;
       if (i > 0) height += 16; // gap
     }
+    // приоткрываем 5-е событие целиком, чтобы градиенту было что закрывать —
+    // иначе при maxHeight ровно по 4 карточки 5-я вообще не рендерится в области просмотра
+    var fifthCardHeight = cards.length > 4 ? cards[4].getBoundingClientRect().height : 0;
+    if (fifthCardHeight) height += 16 + fifthCardHeight;
     list.style.maxHeight = Math.ceil(height) + "px";
     list.classList.add("is-scrollable");
+
+    var fade = list.querySelector(".events-fade");
+    if (fade) {
+      var fadeHeight = Math.max(260, Math.ceil(fifthCardHeight) + 24);
+      fade.style.height = fadeHeight + "px";
+      fade.style.marginTop = "-" + fadeHeight + "px";
+    }
     if (hint && hint.dataset.baseText === undefined) hint.dataset.baseText = hint.textContent;
     if (hint) hint.textContent = hint.dataset.baseText + " Показаны ближайшие 4 из " + total + " — нажмите «Показать больше событий», чтобы увидеть остальные.";
   }
