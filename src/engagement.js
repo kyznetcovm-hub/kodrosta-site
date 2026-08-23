@@ -7,7 +7,7 @@
 // текст по формату EVENT_TEMPLATE.md (сообщение начинается со строки "Дата:") —
 // это тоже обрабатывается здесь же, тем же вебхуком.
 
-import { parseEventMessage, insertEvent, deleteEvent, listAllEvents } from "./events-store.js";
+import { parseEventMessage, insertEvent, deleteEvent, listAllEvents, listUpcomingEvents } from "./events-store.js";
 
 export function normalizePhone(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
@@ -73,6 +73,8 @@ export async function recordFormTouch(env, { phone, telegramHandle, kind, note }
 }
 
 export async function handleTelegramUpdate(update, env) {
+  if (update.callback_query) return handleCallbackQuery(update.callback_query, env);
+
   const msg = update.message;
   if (!msg || !env.DB) return;
 
@@ -94,12 +96,89 @@ export async function handleTelegramUpdate(update, env) {
   if (text.startsWith("/events")) return handleListEventsCommand(msg, env);
   if (text.startsWith("/delevent")) return handleDeleteEventCommand(msg, env, text);
   if (/^Дата\s*[:：]/im.test(text)) return handleNewEventCommand(msg, env, text);
+  if (text.startsWith("/menu")) return handleMenu(msg, env);
   if (text.startsWith("/start")) return handleStart(msg, env);
 
   // Личка, ничего не распознали — подсказываем ID на будущее (не групповой чат)
   if (chat.type === "private") {
     return sendMessage(env, from.id, `Не понял сообщение как команду. Ваш Telegram ID: ${from.id}`);
   }
+}
+
+// ---- Кнопочное меню для админов -------------------------------------------
+
+function adminMenuKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "📋 Посмотреть события", callback_data: "menu:events" }],
+      [{ text: "🗑 Удалить событие", callback_data: "menu:delete" }],
+      [{ text: "➕ Создать событие", callback_data: "menu:create" }],
+      [{ text: "📊 Отчёт вовлечённости", callback_data: "menu:report" }],
+    ],
+  };
+}
+
+async function handleMenu(msg, env) {
+  if (!isAdmin(msg.from.username, env)) return;
+  return sendMessage(env, msg.from.id, "Что нужно сделать?", adminMenuKeyboard());
+}
+
+const EVENT_TEMPLATE_TEXT = [
+  "Скопируйте, заполните и пришлите этим же сообщением обратно мне:",
+  "",
+  "Дата: ",
+  "Время: с — до",
+  "Место проведения (название): ",
+  "Адрес: ",
+  "Название мероприятия: ",
+  "Категория (Обучение / Нетворкинг / Диалог с властью / Экспертиза резидентов / Семейный формат / другое): ",
+  "Описание: ",
+  "",
+  "Регистрация: (необязательно — оставьте пустым, если запись через сайт)",
+].join("\n");
+
+async function handleCallbackQuery(cq, env) {
+  const from = cq.from || {};
+  const data = cq.data || "";
+  const fakeMsg = { from };
+
+  if (!isAdmin(from.username, env)) {
+    return answerCallback(env, cq.id, "Доступно только менеджеру клуба");
+  }
+
+  await answerCallback(env, cq.id);
+
+  if (data === "menu:events") return handleListEventsCommand(fakeMsg, env);
+  if (data === "menu:report") return handleCoolingCommand(fakeMsg, env);
+  if (data === "menu:create") return sendMessage(env, from.id, EVENT_TEMPLATE_TEXT);
+  if (data === "menu:delete") return handleDeletePicker(fakeMsg, env);
+  if (data.startsWith("de:")) return handleDeleteFromPicker(fakeMsg, env, data.slice(3));
+}
+
+async function handleDeletePicker(msg, env) {
+  if (!env.DB) return;
+  const events = await listUpcomingEvents(env.DB);
+  if (!events.length) return sendMessage(env, msg.from.id, "Ближайших мероприятий нет — удалять нечего.");
+  const buttons = events.map((e) => [
+    { text: `${formatRuDateTime(e.start)} — ${e.title}`.slice(0, 60), callback_data: `de:${e.id}` },
+  ]);
+  return sendMessage(env, msg.from.id, "Какое мероприятие удалить?", { inline_keyboard: buttons });
+}
+
+async function handleDeleteFromPicker(msg, env, id) {
+  if (!env.DB) return;
+  const removed = await deleteEvent(env.DB, id);
+  return sendMessage(env, msg.from.id, removed ? `Удалено: ${id}` : `Не нашёл мероприятие с id ${id}`);
+}
+
+async function answerCallback(env, callbackQueryId, text) {
+  const body = { callback_query_id: callbackQueryId };
+  if (text) { body.text = text; body.show_alert = true; }
+  await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 async function handleNewEventCommand(msg, env, text) {
@@ -221,6 +300,8 @@ async function handleContact(msg, env) {
 }
 
 async function handleStart(msg, env) {
+  if (isAdmin(msg.from.username, env)) return handleMenu(msg, env);
+
   const keyboard = {
     keyboard: [[{ text: "Поделиться контактом", request_contact: true }]],
     resize_keyboard: true,

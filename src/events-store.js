@@ -29,7 +29,8 @@ export function slugifyTitle(title) {
     return TRANSLIT.hasOwnProperty(ch) ? TRANSLIT[ch] : ch;
   }).join("");
   s = s.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  return s.slice(0, 60) || "event";
+  // короче 64 байт — влезает в callback_data кнопок Telegram вместе с префиксом "de:"
+  return s.slice(0, 50) || "event";
 }
 
 // Достаёт значение поля "Метка: значение" из текста, регистронезависимо,
