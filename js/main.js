@@ -79,7 +79,7 @@
           '</div>' +
         '</article>'
       );
-    }).join("") + (upcoming.length > 4 ? '<div class="events-fade" aria-hidden="true"></div>' : "");
+    }).join("") + (upcoming.length > 4 ? '<div class="events-fade" aria-hidden="true"><span class="events-fade-hint">Прокрутите ↓</span></div>' : "");
 
     injectEventsSchema(upcoming);
     setupEventsScrollCap(list, upcoming.length);
