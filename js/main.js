@@ -10,6 +10,7 @@
   "use strict";
 
   var EVENTS = [];
+  var eventsExpanded = false;
 
   // ---- Настройки ------------------------------------------------------------
   var MANAGER_TELEGRAM = "https://t.me/Kodrosta";
@@ -111,12 +112,27 @@
     var showMoreBtn = list.querySelector(".js-events-show-more");
     if (showMoreBtn) {
       showMoreBtn.addEventListener("click", function () {
+        eventsExpanded = true;
         list.style.maxHeight = "";
         list.classList.remove("is-scrollable");
         var fade = list.querySelector(".events-fade");
         if (fade) fade.remove();
       });
     }
+  }
+
+  // Пересчитываем ограничение при изменении размера окна (поворот телефона и т.п.) —
+  // высоты карточек другие на новой ширине, старое значение maxHeight иначе "поедет".
+  // Если пользователь уже раскрыл список кнопкой — не сворачиваем обратно.
+  function setupEventsResizeRecalc(list) {
+    var resizeTimer;
+    window.addEventListener("resize", function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        if (eventsExpanded) return;
+        setupEventsScrollCap(list, EVENTS.length);
+      }, 200);
+    });
   }
 
   // Показываем не больше 4 карточек мероприятий целиком, остальное — скроллом внутри блока
@@ -423,4 +439,6 @@
   setupCookieBanner();
   setupFaq();
   setupStepsFlowReveal();
+  var eventsListEl = document.querySelector(".js-events-list");
+  if (eventsListEl) setupEventsResizeRecalc(eventsListEl);
 })();
