@@ -434,6 +434,15 @@ a { color: inherit; }
   margin-bottom: 32px;
 }
 .events-list { display: flex; flex-direction: column; gap: 16px; }
+.events-list.is-scrollable { overflow-y: auto; padding-right: 6px; scrollbar-width: thin; }
+.events-fade {
+  position: sticky;
+  bottom: 0; left: 0; right: 0;
+  height: 56px;
+  margin-top: -56px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0), var(--white));
+  pointer-events: none;
+}
 .event-card {
   display: grid;
   grid-template-columns: 150px 1fr auto;

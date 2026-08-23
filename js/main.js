@@ -79,9 +79,10 @@
           '</div>' +
         '</article>'
       );
-    }).join("");
+    }).join("") + (upcoming.length > 4 ? '<div class="events-fade" aria-hidden="true"></div>' : "");
 
     injectEventsSchema(upcoming);
+    setupEventsScrollCap(list, upcoming.length);
 
     // Разворачивание полного описания мероприятия
     list.querySelectorAll(".js-desc-toggle").forEach(function (btn) {
@@ -103,6 +104,26 @@
         openEventModal(ev);
       });
     });
+  }
+
+  // Показываем не больше 4 карточек мероприятий целиком, остальное — скроллом внутри блока
+  function setupEventsScrollCap(list, total) {
+    var hint = document.querySelector("#events .section-head p");
+    if (total <= 4) {
+      list.style.maxHeight = "";
+      list.classList.remove("is-scrollable");
+      return;
+    }
+    var cards = list.querySelectorAll(".event-card");
+    var height = 0;
+    for (var i = 0; i < 4 && i < cards.length; i++) {
+      height += cards[i].getBoundingClientRect().height;
+      if (i > 0) height += 16; // gap
+    }
+    list.style.maxHeight = Math.ceil(height) + "px";
+    list.classList.add("is-scrollable");
+    if (hint && hint.dataset.baseText === undefined) hint.dataset.baseText = hint.textContent;
+    if (hint) hint.textContent = hint.dataset.baseText + " Показаны ближайшие 4 из " + total + " — прокрутите список, чтобы увидеть остальные.";
   }
 
   // JSON-LD для ближайших мероприятий — собирается из EVENTS, чтобы не расходиться со списком
