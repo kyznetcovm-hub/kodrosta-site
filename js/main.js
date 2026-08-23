@@ -2,14 +2,14 @@
 // Код Роста — логика одностраничника
 // Заявки/записи отправляются на /api/submit (обрабатывается Worker'ом),
 // который пересылает их в Telegram-группу через бота. См. src/index.js.
-// Мероприятия — в events-data.js, общий модуль с Worker'ом (используется
-// там же для живого фида /calendar.ics).
+// Мероприятия — из /api/events (Worker читает их из D1, публикуются через
+// Telegram-бота — см. src/events-store.js и src/engagement.js).
 // ============================================================================
-
-import { EVENTS } from "../events-data.js";
 
 (function () {
   "use strict";
+
+  var EVENTS = [];
 
   // ---- Настройки ------------------------------------------------------------
   var MANAGER_TELEGRAM = "https://t.me/Kodrosta";
@@ -38,11 +38,19 @@ import { EVENTS } from "../events-data.js";
   function renderEvents() {
     var list = document.querySelector(".js-events-list");
     if (!list) return;
-    var now = new Date();
-    var upcoming = EVENTS
-      .filter(function (e) { return new Date(e.start) >= now; })
-      .sort(function (a, b) { return new Date(a.start) - new Date(b.start); });
 
+    fetch("/api/events")
+      .then(function (res) { return res.ok ? res.json() : []; })
+      .then(function (data) {
+        EVENTS = Array.isArray(data) ? data : [];
+        renderEventsList(list, EVENTS);
+      })
+      .catch(function () {
+        renderEventsList(list, []);
+      });
+  }
+
+  function renderEventsList(list, upcoming) {
     if (!upcoming.length) {
       list.innerHTML = '<p style="color:var(--gray-500)">Новые мероприятия скоро появятся — следите за <a href="' + 'https://t.me/codrosta' + '" target="_blank" rel="noopener" style="color:var(--blue)">Telegram-каналом</a>.</p>';
       return;

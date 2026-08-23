@@ -1,10 +1,12 @@
 // Worker-точка входа: раздаёт статику сайта, обрабатывает POST /api/submit
-// (пересылка заявок в Telegram-группу через бота) и отдаёт живой фид
-// GET /calendar.ics для подписки на календарь (iPhone/Android).
+// (пересылка заявок в Telegram-группу через бота), отдаёт живой фид
+// GET /calendar.ics для подписки на календарь (iPhone/Android) и GET /api/events
+// для клиентского рендера списка мероприятий. Мероприятия хранятся в D1
+// (см. events-store.js) — публикуются через Telegram-бота, см. engagement.js.
 // BOT_TOKEN и CHAT_ID заданы как секреты проекта в Cloudflare (см. README).
 
-import { EVENTS } from "../events-data.js";
 import { handleTelegramUpdate, recordFormTouch } from "./engagement.js";
+import { listUpcomingEvents } from "./events-store.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -18,13 +20,25 @@ export default {
       return handleTelegramWebhook(request, env);
     }
 
+    if (url.pathname === "/api/events" && request.method === "GET") {
+      return handleEventsApi(env);
+    }
+
     if (url.pathname === "/calendar.ics" && (request.method === "GET" || request.method === "HEAD")) {
-      return handleCalendarFeed();
+      return handleCalendarFeed(env);
     }
 
     return env.ASSETS.fetch(request);
   }
 };
+
+async function handleEventsApi(env) {
+  if (!env.DB) return json([]);
+  const events = await listUpcomingEvents(env.DB);
+  return new Response(JSON.stringify(events), {
+    headers: { "content-type": "application/json", "cache-control": "public, max-age=60" }
+  });
+}
 
 async function handleTelegramWebhook(request, env) {
   let update;
@@ -45,7 +59,7 @@ function toICSDate(iso) {
   return iso.replace(/[-:]/g, "").split(".")[0];
 }
 
-function handleCalendarFeed() {
+async function handleCalendarFeed(env) {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -55,7 +69,8 @@ function handleCalendarFeed() {
     "X-WR-CALNAME:Код Роста — мероприятия",
     "REFRESH-INTERVAL;VALUE=DURATION:PT12H"
   ];
-  for (const e of EVENTS) {
+  const events = env.DB ? await listUpcomingEvents(env.DB) : [];
+  for (const e of events) {
     lines.push(
       "BEGIN:VEVENT",
       "UID:" + e.id + "@codrosta.club",

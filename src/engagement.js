@@ -2,6 +2,12 @@
 // запись касаний из общего чата и с сайта, админ-команды /cooling, /award, /attended.
 // Только даты последнего касания — без баллов и рейтинга (сознательное решение,
 // публичный рейтинг мог бы демотивировать тех, кто внизу списка).
+//
+// Публикация мероприятий на сайт (см. events-store.js): админ присылает боту
+// текст по формату EVENT_TEMPLATE.md (сообщение начинается со строки "Дата:") —
+// это тоже обрабатывается здесь же, тем же вебхуком.
+
+import { parseEventMessage, insertEvent, deleteEvent, listAllEvents } from "./events-store.js";
 
 export function normalizePhone(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
@@ -85,7 +91,79 @@ export async function handleTelegramUpdate(update, env) {
   if (text.startsWith("/cooling")) return handleCoolingCommand(msg, env);
   if (text.startsWith("/award")) return handleAwardCommand(msg, env, text);
   if (text.startsWith("/attended")) return handleAttendedCommand(msg, env, text);
+  if (text.startsWith("/events")) return handleListEventsCommand(msg, env);
+  if (text.startsWith("/delevent")) return handleDeleteEventCommand(msg, env, text);
+  if (/^Дата\s*[:：]/im.test(text)) return handleNewEventCommand(msg, env, text);
   if (text.startsWith("/start")) return handleStart(msg, env);
+
+  // Личка, ничего не распознали — подсказываем ID на будущее (не групповой чат)
+  if (chat.type === "private") {
+    return sendMessage(env, from.id, `Не понял сообщение как команду. Ваш Telegram ID: ${from.id}`);
+  }
+}
+
+async function handleNewEventCommand(msg, env, text) {
+  if (!isAdmin(msg.from.username, env)) {
+    return sendMessage(env, msg.from.id, "Публиковать мероприятия может только менеджер клуба.");
+  }
+  if (!env.DB) return sendMessage(env, msg.from.id, "База данных ещё не подключена.");
+
+  const result = parseEventMessage(text);
+  if (!result.ok) {
+    return sendMessage(
+      env,
+      msg.from.id,
+      `Не хватает или не разобрано:\n${result.missing.map((m) => "• " + m).join("\n")}\n\nПришлите сообщение ещё раз по формату из EVENT_TEMPLATE.md.`
+    );
+  }
+
+  const id = await insertEvent(env.DB, result.event, msg.from.username);
+  const e = result.event;
+  const preview = [
+    `✅ Опубликовано на сайте (id: ${id})`,
+    "",
+    `<b>${escapeHtml(e.title)}</b>`,
+    `${escapeHtml(e.tag)}`,
+    `${formatRuDateTime(e.start)} — ${formatRuTime(e.end)}`,
+    `${escapeHtml(e.place)}`,
+    "",
+    escapeHtml(e.description),
+    "",
+    `Удалить: /delevent ${id}`,
+  ].join("\n");
+  return sendMessage(env, msg.from.id, preview);
+}
+
+async function handleDeleteEventCommand(msg, env, text) {
+  if (!isAdmin(msg.from.username, env)) return;
+  if (!env.DB) return;
+  const id = text.split(/\s+/)[1];
+  if (!id) return sendMessage(env, msg.from.id, "Формат: /delevent id (id пришёл в подтверждении при публикации, или смотрите /events)");
+  const removed = await deleteEvent(env.DB, id);
+  return sendMessage(env, msg.from.id, removed ? `Удалено: ${id}` : `Не нашёл мероприятие с id ${id}`);
+}
+
+async function handleListEventsCommand(msg, env) {
+  if (!isAdmin(msg.from.username, env)) return;
+  if (!env.DB) return;
+  const events = await listAllEvents(env.DB);
+  if (!events.length) return sendMessage(env, msg.from.id, "Мероприятий пока нет.");
+  const lines = events.map((e) => `• ${formatRuDateTime(e.start)} — ${escapeHtml(e.title)} (id: ${e.id})`);
+  return sendMessage(env, msg.from.id, `<b>Мероприятия:</b>\n${lines.join("\n")}`);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+const MONTHS_FULL_RU = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+function formatRuDateTime(iso) {
+  const d = new Date(iso);
+  return `${d.getDate()} ${MONTHS_FULL_RU[d.getMonth()]}, ${formatRuTime(iso)}`;
+}
+function formatRuTime(iso) {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 async function handleGroupMessage(msg, env) {
