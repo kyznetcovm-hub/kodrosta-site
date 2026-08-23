@@ -422,7 +422,7 @@ a { color: inherit; }
   letter-spacing: .06em;
 }
 .why-card h3 { font-size: 19px; margin-bottom: 10px; padding-right: 160px; position: relative; z-index: 1; }
-.why-card p { color: var(--gray-700); font-size: 15px; margin: 0; position: relative; z-index: 1; }
+.why-card p { color: var(--gray-700); font-size: 15px; margin: 0; padding-right: 160px; position: relative; z-index: 1; }
 
 /* ---------- Events ---------- */
 .events-toolbar {
@@ -880,6 +880,7 @@ a { color: inherit; }
   .why-photo-shape { width: 98px; height: 78px; }
   .why-photo-circle { width: 96px; height: 96px; }
   .why-card h3 { padding-right: 120px; }
+  .why-card p { padding-right: 120px; }
   .section { padding: 64px 0; }
   .hero { padding: 128px 0 72px; }
   .hero-actions .btn { width: 100%; }
