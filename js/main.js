@@ -79,7 +79,9 @@
           '</div>' +
         '</article>'
       );
-    }).join("") + (upcoming.length > 4 ? '<div class="events-fade" aria-hidden="true"><span class="events-fade-hint">Прокрутите ↓</span></div>' : "");
+    }).join("") + (upcoming.length > 4
+      ? '<div class="events-fade" aria-hidden="true"><button class="btn btn--primary btn--sm js-events-show-more" type="button">Показать больше событий</button></div>'
+      : "");
 
     injectEventsSchema(upcoming);
     setupEventsScrollCap(list, upcoming.length);
@@ -104,6 +106,17 @@
         openEventModal(ev);
       });
     });
+
+    // «Показать больше событий» — снимаем ограничение по высоте целиком
+    var showMoreBtn = list.querySelector(".js-events-show-more");
+    if (showMoreBtn) {
+      showMoreBtn.addEventListener("click", function () {
+        list.style.maxHeight = "";
+        list.classList.remove("is-scrollable");
+        var fade = list.querySelector(".events-fade");
+        if (fade) fade.remove();
+      });
+    }
   }
 
   // Показываем не больше 4 карточек мероприятий целиком, остальное — скроллом внутри блока
@@ -123,7 +136,7 @@
     list.style.maxHeight = Math.ceil(height) + "px";
     list.classList.add("is-scrollable");
     if (hint && hint.dataset.baseText === undefined) hint.dataset.baseText = hint.textContent;
-    if (hint) hint.textContent = hint.dataset.baseText + " Показаны ближайшие 4 из " + total + " — прокрутите список, чтобы увидеть остальные.";
+    if (hint) hint.textContent = hint.dataset.baseText + " Показаны ближайшие 4 из " + total + " — нажмите «Показать больше событий», чтобы увидеть остальные.";
   }
 
   // JSON-LD для ближайших мероприятий — собирается из EVENTS, чтобы не расходиться со списком
