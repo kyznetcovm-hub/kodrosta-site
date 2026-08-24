@@ -122,21 +122,27 @@ export async function handleTelegramUpdate(update, env) {
 function adminMenuKeyboard() {
   return {
     inline_keyboard: [
-      [{ text: "📋 Посмотреть события", callback_data: "menu:events" }],
-      [{ text: "🗑 Удалить событие", callback_data: "menu:delete" }],
-      [{ text: "➕ Создать событие", callback_data: "menu:create" }],
-      [{ text: "📊 Отчёт вовлечённости", callback_data: "menu:report" }],
-      [{ text: "✏️ О клубе", callback_data: "content:about" }],
-      [{ text: "✏️ Цифры клуба", callback_data: "content:numbers" }],
-      [{ text: "✏️ Зачем вступать", callback_data: "content:why" }],
-      [{ text: "✏️ Как вступить", callback_data: "content:how" }],
+      [{ text: "📋 События", callback_data: "menu:events" }, { text: "🗑 Удалить", callback_data: "menu:delete" }],
+      [{ text: "➕ Создать", callback_data: "menu:create" }, { text: "📊 Отчёт", callback_data: "menu:report" }],
+      [{ text: "✏️ О клубе", callback_data: "content:about" }, { text: "✏️ Цифры клуба", callback_data: "content:numbers" }],
+      [{ text: "✏️ Зачем вступать", callback_data: "content:why" }, { text: "✏️ Как вступить", callback_data: "content:how" }],
       [{ text: "✏️ Вопросы", callback_data: "content:faq" }],
     ],
   };
 }
 
+function backButtonRow() {
+  return [{ text: "⬅️ Назад", callback_data: "menu:home" }];
+}
+
+// Показывает главное меню и заодно убирает "залипшую" обычную клавиатуру снизу
+// (например, кнопку "Поделиться контактом") — обычная клавиатура и инлайн-кнопки
+// живут в разных слоях интерфейса Telegram, одним сообщением их не заменить,
+// поэтому шлём два: сначала снимаем старую клавиатуру, потом показываем меню.
 async function handleMenu(msg, env) {
   if (!isAdmin(msg.from.username, env)) return;
+  if (env.DB) await clearPendingEdit(env.DB, msg.from.id);
+  await sendMessage(env, msg.from.id, "Меню", { remove_keyboard: true });
   return sendMessage(env, msg.from.id, "Что нужно сделать?", adminMenuKeyboard());
 }
 
@@ -165,9 +171,10 @@ async function handleCallbackQuery(cq, env) {
 
   await answerCallback(env, cq.id);
 
+  if (data === "menu:home") return handleMenu(fakeMsg, env);
   if (data === "menu:events") return handleListEventsCommand(fakeMsg, env);
   if (data === "menu:report") return handleCoolingCommand(fakeMsg, env);
-  if (data === "menu:create") return sendMessage(env, from.id, EVENT_TEMPLATE_TEXT);
+  if (data === "menu:create") return sendMessage(env, from.id, EVENT_TEMPLATE_TEXT, { inline_keyboard: [backButtonRow()] });
   if (data === "menu:delete") return handleDeletePicker(fakeMsg, env);
   if (data.startsWith("de:")) return handleDeleteFromPicker(fakeMsg, env, data.slice(3));
   if (data.startsWith("content:")) return handleContentEditPrompt(fakeMsg, env, data.slice(8));
@@ -187,7 +194,7 @@ async function handleContentEditPrompt(msg, env, section) {
     "",
     "Пришлите текст целиком в таком же виде — с теми же метками — с изменениями. Что не тронете, останется как есть.",
   ].join("\n");
-  return sendMessage(env, msg.from.id, text);
+  return sendMessage(env, msg.from.id, text, { inline_keyboard: [backButtonRow()] });
 }
 
 async function handleContentEditReply(msg, env, text, section) {
@@ -200,7 +207,8 @@ async function handleContentEditReply(msg, env, text, section) {
     return sendMessage(
       env,
       msg.from.id,
-      "Не нашёл ни одной метки вида «Название: значение» в сообщении. Пришлите текст с теми же метками, что были в шаблоне, либо /menu, чтобы начать заново."
+      "Не нашёл ни одной метки вида «Название: значение» в сообщении. Пришлите текст с теми же метками, что были в шаблоне, либо нажмите «Назад».",
+      { inline_keyboard: [backButtonRow()] }
     );
   }
   await setSectionValues(env.DB, parsed, msg.from.username);
@@ -209,23 +217,34 @@ async function handleContentEditReply(msg, env, text, section) {
     .filter((f) => parsed[f.key] !== undefined)
     .map((f) => "• " + f.label)
     .join("\n");
-  return sendMessage(env, msg.from.id, `✅ Обновлено в разделе «${SECTIONS[section].label}»:\n${changed}\n\nПроверьте на сайте — обновится сразу.`);
+  return sendMessage(
+    env, msg.from.id,
+    `✅ Обновлено в разделе «${SECTIONS[section].label}»:\n${changed}\n\nПроверьте на сайте — обновится сразу.`,
+    { inline_keyboard: [backButtonRow()] }
+  );
 }
 
 async function handleDeletePicker(msg, env) {
   if (!env.DB) return;
   const events = await listUpcomingEvents(env.DB);
-  if (!events.length) return sendMessage(env, msg.from.id, "Ближайших мероприятий нет — удалять нечего.");
+  if (!events.length) {
+    return sendMessage(env, msg.from.id, "Ближайших мероприятий нет — удалять нечего.", { inline_keyboard: [backButtonRow()] });
+  }
   const buttons = events.map((e) => [
     { text: `${formatRuDateTime(e.start)} — ${e.title}`.slice(0, 60), callback_data: `de:${e.id}` },
   ]);
+  buttons.push(backButtonRow());
   return sendMessage(env, msg.from.id, "Какое мероприятие удалить?", { inline_keyboard: buttons });
 }
 
 async function handleDeleteFromPicker(msg, env, id) {
   if (!env.DB) return;
   const removed = await deleteEvent(env.DB, id);
-  return sendMessage(env, msg.from.id, removed ? `Удалено: ${id}` : `Не нашёл мероприятие с id ${id}`);
+  return sendMessage(
+    env, msg.from.id,
+    removed ? `Удалено: ${id}` : `Не нашёл мероприятие с id ${id}`,
+    { inline_keyboard: [backButtonRow()] }
+  );
 }
 
 async function answerCallback(env, callbackQueryId, text) {
@@ -283,9 +302,10 @@ async function handleListEventsCommand(msg, env) {
   if (!isAdmin(msg.from.username, env)) return;
   if (!env.DB) return;
   const events = await listAllEvents(env.DB);
-  if (!events.length) return sendMessage(env, msg.from.id, "Мероприятий пока нет.");
+  const keyboard = { inline_keyboard: [backButtonRow()] };
+  if (!events.length) return sendMessage(env, msg.from.id, "Мероприятий пока нет.", keyboard);
   const lines = events.map((e) => `• ${formatRuDateTime(e.start)} — ${escapeHtml(e.title)} (id: ${e.id})`);
-  return sendMessage(env, msg.from.id, `<b>Мероприятия:</b>\n${lines.join("\n")}`);
+  return sendMessage(env, msg.from.id, `<b>Мероприятия:</b>\n${lines.join("\n")}`, keyboard);
 }
 
 function escapeHtml(s) {
@@ -414,7 +434,8 @@ async function handleCoolingCommand(msg, env) {
   ].join("\n");
 
   for (let i = 0; i < report.length; i += 3500) {
-    await sendMessage(env, msg.from.id, report.slice(i, i + 3500));
+    const isLast = i + 3500 >= report.length;
+    await sendMessage(env, msg.from.id, report.slice(i, i + 3500), isLast ? { inline_keyboard: [backButtonRow()] } : undefined);
   }
 }
 
