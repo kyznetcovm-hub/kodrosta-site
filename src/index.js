@@ -7,6 +7,7 @@
 
 import { handleTelegramUpdate, recordFormTouch } from "./engagement.js";
 import { listUpcomingEvents } from "./events-store.js";
+import { getAllContent } from "./content-store.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -24,6 +25,10 @@ export default {
       return handleEventsApi(env);
     }
 
+    if (url.pathname === "/api/content" && request.method === "GET") {
+      return handleContentApi(env);
+    }
+
     if (url.pathname === "/calendar.ics" && (request.method === "GET" || request.method === "HEAD")) {
       return handleCalendarFeed(env);
     }
@@ -31,6 +36,14 @@ export default {
     return env.ASSETS.fetch(request);
   }
 };
+
+async function handleContentApi(env) {
+  if (!env.DB) return json({});
+  const content = await getAllContent(env.DB);
+  return new Response(JSON.stringify(content), {
+    headers: { "content-type": "application/json", "cache-control": "public, max-age=60" }
+  });
+}
 
 async function handleEventsApi(env) {
   if (!env.DB) return json([]);

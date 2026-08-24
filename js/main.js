@@ -373,6 +373,48 @@
     });
   });
 
+  // ---- Живой текст блоков "О клубе"/"Цифры"/"Зачем вступать"/"Как вступить"/"Вопросы" ----
+  // Правится через Telegram-бота (src/content-store.js) — здесь просто подменяем
+  // текст в уже отрендеренной статике, если для поля есть значение с сайта.
+  function setupSiteContent() {
+    fetch("/api/content")
+      .then(function (res) { return res.ok ? res.json() : {}; })
+      .then(function (content) { applySiteContent(content || {}); })
+      .catch(function () { applySiteContent({}); });
+  }
+
+  function applySiteContent(content) {
+    document.querySelectorAll("[data-field]").forEach(function (el) {
+      var key = el.getAttribute("data-field");
+      var value = content[key];
+      if (!value) return;
+      if (el.classList.contains("faq-answer")) {
+        el.innerHTML = value.split(/\n\s*\n/).map(function (p) {
+          return "<p>" + p.trim().replace(/\n/g, "<br>") + "</p>";
+        }).join("");
+      } else {
+        el.textContent = value;
+      }
+    });
+
+    document.querySelectorAll("[data-number-field]").forEach(function (el) {
+      var key = el.getAttribute("data-number-field");
+      var value = content[key];
+      if (!value) return;
+      var m = String(value).match(/^(\d+)(.*)$/);
+      var countSpan = el.querySelector("[data-count]");
+      var suffixSpan = el.querySelector(".suffix");
+      if (m) {
+        if (countSpan) countSpan.setAttribute("data-count", m[1]);
+        if (suffixSpan) suffixSpan.textContent = m[2].trim();
+      } else if (countSpan) {
+        // не нашли ведущее число — не ломаем анимацию, просто не трогаем это поле
+      }
+    });
+
+    animateCounters();
+  }
+
   // ---- Анимация счётчиков в блоке «Цифры клуба» -------------------------------
   function animateCounters() {
     var counters = document.querySelectorAll("[data-count]");
@@ -447,7 +489,7 @@
   // ---- Init ---------------------------------------------------------------------
   renderEvents();
   setupCalendarSub();
-  animateCounters();
+  setupSiteContent();
   setupCookieBanner();
   setupFaq();
   setupStepsFlowReveal();

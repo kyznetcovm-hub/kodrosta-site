@@ -8,6 +8,10 @@
 // это тоже обрабатывается здесь же, тем же вебхуком.
 
 import { parseEventMessage, insertEvent, deleteEvent, listAllEvents, listUpcomingEvents } from "./events-store.js";
+import {
+  SECTIONS, SECTION_ORDER, renderSectionTemplate, parseSectionReply,
+  getSectionValues, setSectionValues, setPendingEdit, getPendingEdit, clearPendingEdit,
+} from "./content-store.js";
 
 export function normalizePhone(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
@@ -90,6 +94,14 @@ export async function handleTelegramUpdate(update, env) {
   if (msg.contact) return handleContact(msg, env);
 
   const text = (msg.text || "").trim();
+
+  // Если админ сейчас редактирует раздел сайта — любое НЕкомандное сообщение
+  // воспринимается как новое содержимое этого раздела, а не как что-то ещё.
+  if (!text.startsWith("/") && isAdmin(from.username, env)) {
+    const pending = await getPendingEdit(env.DB, from.id);
+    if (pending) return handleContentEditReply(msg, env, text, pending.section);
+  }
+
   if (text.startsWith("/cooling")) return handleCoolingCommand(msg, env);
   if (text.startsWith("/award")) return handleAwardCommand(msg, env, text);
   if (text.startsWith("/attended")) return handleAttendedCommand(msg, env, text);
@@ -114,6 +126,11 @@ function adminMenuKeyboard() {
       [{ text: "🗑 Удалить событие", callback_data: "menu:delete" }],
       [{ text: "➕ Создать событие", callback_data: "menu:create" }],
       [{ text: "📊 Отчёт вовлечённости", callback_data: "menu:report" }],
+      [{ text: "✏️ О клубе", callback_data: "content:about" }],
+      [{ text: "✏️ Цифры клуба", callback_data: "content:numbers" }],
+      [{ text: "✏️ Зачем вступать", callback_data: "content:why" }],
+      [{ text: "✏️ Как вступить", callback_data: "content:how" }],
+      [{ text: "✏️ Вопросы", callback_data: "content:faq" }],
     ],
   };
 }
@@ -153,6 +170,46 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:create") return sendMessage(env, from.id, EVENT_TEMPLATE_TEXT);
   if (data === "menu:delete") return handleDeletePicker(fakeMsg, env);
   if (data.startsWith("de:")) return handleDeleteFromPicker(fakeMsg, env, data.slice(3));
+  if (data.startsWith("content:")) return handleContentEditPrompt(fakeMsg, env, data.slice(8));
+}
+
+// ---- Редактирование текстовых блоков сайта --------------------------------
+
+async function handleContentEditPrompt(msg, env, section) {
+  if (!env.DB || !SECTIONS[section]) return;
+  const values = await getSectionValues(env.DB, section);
+  const template = renderSectionTemplate(section, values);
+  await setPendingEdit(env.DB, msg.from.id, section);
+  const text = [
+    `Сейчас в разделе «${SECTIONS[section].label}» вот так:`,
+    "",
+    template,
+    "",
+    "Пришлите текст целиком в таком же виде — с теми же метками — с изменениями. Что не тронете, останется как есть.",
+  ].join("\n");
+  return sendMessage(env, msg.from.id, text);
+}
+
+async function handleContentEditReply(msg, env, text, section) {
+  if (!SECTIONS[section]) {
+    await clearPendingEdit(env.DB, msg.from.id);
+    return;
+  }
+  const parsed = parseSectionReply(section, text);
+  if (Object.keys(parsed).length === 0) {
+    return sendMessage(
+      env,
+      msg.from.id,
+      "Не нашёл ни одной метки вида «Название: значение» в сообщении. Пришлите текст с теми же метками, что были в шаблоне, либо /menu, чтобы начать заново."
+    );
+  }
+  await setSectionValues(env.DB, parsed, msg.from.username);
+  await clearPendingEdit(env.DB, msg.from.id);
+  const changed = SECTIONS[section].fields
+    .filter((f) => parsed[f.key] !== undefined)
+    .map((f) => "• " + f.label)
+    .join("\n");
+  return sendMessage(env, msg.from.id, `✅ Обновлено в разделе «${SECTIONS[section].label}»:\n${changed}\n\nПроверьте на сайте — обновится сразу.`);
 }
 
 async function handleDeletePicker(msg, env) {
