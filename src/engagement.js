@@ -126,9 +126,9 @@ function adminMenuKeyboard() {
   return {
     inline_keyboard: [
       [{ text: "🟦 РЕДАКТИРОВАТЬ САЙТ 🟦", callback_data: "noop" }],
-      [{ text: "О клубе", callback_data: "content:about" }, { text: "Цифры клуба", callback_data: "content:numbers" }],
-      [{ text: "Зачем вступать", callback_data: "content:why" }, { text: "Как вступить", callback_data: "content:how" }],
-      [{ text: "Вопросы", callback_data: "content:faq" }],
+      [{ text: "01 · О клубе", callback_data: "content:about" }, { text: "02 · Цифры клуба", callback_data: "content:numbers" }],
+      [{ text: "03 · Зачем вступать", callback_data: "content:why" }, { text: "04 · Как вступить", callback_data: "content:how" }],
+      [{ text: "05 · Вопросы ▸", callback_data: "menu:faq" }],
 
       [{ text: "🟥 РЕДАКТИРОВАТЬ МЕРОПРИЯТИЯ 🟥", callback_data: "noop" }],
       [{ text: "📋 События", callback_data: "menu:events" }, { text: "🗑 Удалить", callback_data: "menu:delete" }],
@@ -186,12 +186,27 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:report") return handleCoolingCommand(fakeMsg, env);
   if (data === "menu:create") return sendMessage(env, from.id, EVENT_TEMPLATE_TEXT, { inline_keyboard: [backButtonRow()] });
   if (data === "menu:delete") return handleDeletePicker(fakeMsg, env);
+  if (data === "menu:faq") return handleFaqPicker(fakeMsg, env);
   if (data === "menu:match") return sendMatchHelp(fakeMsg, env);
   if (data.startsWith("de:")) return handleDeleteFromPicker(fakeMsg, env, data.slice(3));
   if (data.startsWith("content:")) return handleContentEditPrompt(fakeMsg, env, data.slice(8));
 }
 
 // ---- Редактирование текстовых блоков сайта --------------------------------
+
+// Подменю «05 · Вопросы»: шесть кнопок, каждая — отдельный вопрос FAQ.
+async function handleFaqPicker(msg, env) {
+  if (!isAdmin(msg.from.username, env)) return;
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: "Сколько стоит", callback_data: "content:faq1" }, { text: "Кто может вступить", callback_data: "content:faq2" }],
+      [{ text: "Что после заявки", callback_data: "content:faq3" }, { text: "Можно не резидентам", callback_data: "content:faq4" }],
+      [{ text: "В чём отличие", callback_data: "content:faq5" }, { text: "Как подать заявку", callback_data: "content:faq6" }],
+      backButtonRow(),
+    ],
+  };
+  return sendMessage(env, msg.from.id, "Какой вопрос отредактировать?", keyboard);
+}
 
 async function handleContentEditPrompt(msg, env, section) {
   if (!env.DB || !SECTIONS[section]) return;

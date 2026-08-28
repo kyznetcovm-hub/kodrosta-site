@@ -78,6 +78,52 @@ export var SECTIONS = {
       { key: "faq.q6.answer", label: "Ответ 6" },
     ],
   },
+
+  // Отдельные под-разделы для каждого вопроса — чтобы в боте править по одному
+  // (кнопки «05 · Вопросы» → список из шести). Ключи те же, что и в faq выше,
+  // поэтому фронт (index.html / js/main.js) менять не нужно.
+  faq1: {
+    label: "Сколько стоит",
+    fields: [
+      { key: "faq.q1.question", label: "Вопрос" },
+      { key: "faq.q1.answer", label: "Ответ" },
+    ],
+  },
+  faq2: {
+    label: "Кто может вступить",
+    fields: [
+      { key: "faq.q2.question", label: "Вопрос" },
+      { key: "faq.q2.answer", label: "Ответ" },
+    ],
+  },
+  faq3: {
+    label: "Что после заявки",
+    fields: [
+      { key: "faq.q3.question", label: "Вопрос" },
+      { key: "faq.q3.answer", label: "Ответ" },
+    ],
+  },
+  faq4: {
+    label: "Можно не резидентам",
+    fields: [
+      { key: "faq.q4.question", label: "Вопрос" },
+      { key: "faq.q4.answer", label: "Ответ" },
+    ],
+  },
+  faq5: {
+    label: "В чём отличие",
+    fields: [
+      { key: "faq.q5.question", label: "Вопрос" },
+      { key: "faq.q5.answer", label: "Ответ" },
+    ],
+  },
+  faq6: {
+    label: "Как подать заявку",
+    fields: [
+      { key: "faq.q6.question", label: "Вопрос" },
+      { key: "faq.q6.answer", label: "Ответ" },
+    ],
+  },
 };
 
 export var SECTION_ORDER = ["about", "numbers", "why", "how", "faq"];
