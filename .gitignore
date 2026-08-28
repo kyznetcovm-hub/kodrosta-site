@@ -2,3 +2,9 @@
 node_modules/
 .wrangler/
 .claude/settings.local.json
+
+# Локальные инструменты выгрузки участников групп (scripts/) — секреты и результаты
+scripts/kodrosta_config.json
+scripts/kodrosta_session.session
+scripts/residents.csv
+scripts/out/

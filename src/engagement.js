@@ -103,6 +103,7 @@ export async function handleTelegramUpdate(update, env) {
   }
 
   if (text.startsWith("/cooling")) return handleCoolingCommand(msg, env);
+  if (text.startsWith("/match")) return handleMatchCommand(msg, env, text);
   if (text.startsWith("/award")) return handleAwardCommand(msg, env, text);
   if (text.startsWith("/attended")) return handleAttendedCommand(msg, env, text);
   if (text.startsWith("/events")) return handleListEventsCommand(msg, env);
@@ -124,6 +125,7 @@ function adminMenuKeyboard() {
     inline_keyboard: [
       [{ text: "📋 События", callback_data: "menu:events" }, { text: "🗑 Удалить", callback_data: "menu:delete" }],
       [{ text: "➕ Создать", callback_data: "menu:create" }, { text: "📊 Отчёт", callback_data: "menu:report" }],
+      [{ text: "📇 Сверка участников", callback_data: "menu:match" }],
       [{ text: "✏️ О клубе", callback_data: "content:about" }, { text: "✏️ Цифры клуба", callback_data: "content:numbers" }],
       [{ text: "✏️ Зачем вступать", callback_data: "content:why" }, { text: "✏️ Как вступить", callback_data: "content:how" }],
       [{ text: "✏️ Вопросы", callback_data: "content:faq" }],
@@ -176,6 +178,7 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:report") return handleCoolingCommand(fakeMsg, env);
   if (data === "menu:create") return sendMessage(env, from.id, EVENT_TEMPLATE_TEXT, { inline_keyboard: [backButtonRow()] });
   if (data === "menu:delete") return handleDeletePicker(fakeMsg, env);
+  if (data === "menu:match") return sendMatchHelp(fakeMsg, env);
   if (data.startsWith("de:")) return handleDeleteFromPicker(fakeMsg, env, data.slice(3));
   if (data.startsWith("content:")) return handleContentEditPrompt(fakeMsg, env, data.slice(8));
 }
@@ -433,6 +436,107 @@ async function handleCoolingCommand(msg, env) {
     `🟢 Активны: ${lists.ok.length}`,
   ].join("\n");
 
+  for (let i = 0; i < report.length; i += 3500) {
+    const isLast = i + 3500 >= report.length;
+    await sendMessage(env, msg.from.id, report.slice(i, i + 3500), isLast ? { inline_keyboard: [backButtonRow()] } : undefined);
+  }
+}
+
+// ---- Сверка участников группы со списком резидентов ----------------------
+// Админ присылает в личку боту: "/match" и следом (в том же сообщении) —
+// список участников Telegram-группы: @ники через пробел, запятую или с новой
+// строки (можно вставить и целиком колонку username из выгрузки скрипта).
+// Бот отвечает: кто уже резидент, а кого нет — то есть кому слать приглашение.
+
+async function sendMatchHelp(msg, env) {
+  if (!isAdmin(msg.from.username, env)) return;
+  return sendMessage(
+    env, msg.from.id,
+    [
+      "Пришлите одним сообщением:",
+      "",
+      "<code>/match</code>",
+      "и следом — список участников группы: @ники через пробел, запятую или с новой строки.",
+      "",
+      "В ответ пришлю два списка: кто уже резидент клуба, и кого в базе нет — то есть кому можно отправить приглашение.",
+    ].join("\n"),
+    { inline_keyboard: [backButtonRow()] }
+  );
+}
+
+const MATCH_STOPWORDS = new Set([
+  "username", "user", "first", "last", "name", "phone", "id", "premium",
+  "true", "false", "null", "members", "member",
+]);
+
+async function handleMatchCommand(msg, env, text) {
+  if (!isAdmin(msg.from.username, env)) return;
+  if (!env.DB) return sendMessage(env, msg.from.id, "База данных не подключена.");
+
+  const payload = text.replace(/^\/match(@\w+)?/i, " ");
+
+  // @ники в любом месте текста
+  const handles = new Set();
+  for (const m of payload.match(/@[A-Za-z0-9_]{4,32}/g) || []) {
+    handles.add(normalizeUsername(m));
+  }
+  // «голые» ники отдельными токенами (например, колонка username из CSV)
+  for (const tok of payload.split(/[\s,;|]+/)) {
+    if (/^[A-Za-z0-9_]{5,32}$/.test(tok) && /[A-Za-z]/.test(tok) && !MATCH_STOPWORDS.has(tok.toLowerCase())) {
+      handles.add(normalizeUsername(tok));
+    }
+  }
+  // телефоны -> последние 10 цифр
+  const phones = new Set();
+  for (const m of payload.match(/\+?\d[\d\s()\-]{9,}\d/g) || []) {
+    const d = m.replace(/\D/g, "").slice(-10);
+    if (d.length === 10) phones.add(d);
+  }
+
+  if (!handles.size && !phones.size) {
+    return sendMatchHelp(msg, env);
+  }
+
+  const { results } = await env.DB.prepare(
+    "SELECT full_name, telegram_username, phone FROM residents"
+  ).all();
+  const byUser = new Map();
+  const byPhone = new Map();
+  for (const r of results) {
+    if (r.telegram_username) byUser.set(String(r.telegram_username).toLowerCase(), r);
+    if (r.phone) byPhone.set(String(r.phone).slice(-10), r);
+  }
+
+  const found = [];
+  const invite = [];
+  for (const h of handles) {
+    if (!h) continue;
+    const r = byUser.get(h);
+    if (r) found.push(`@${h} — ${escapeHtml(r.full_name)}`);
+    else invite.push("@" + h);
+  }
+  for (const p of phones) {
+    const r = byPhone.get(p);
+    if (r) found.push(`тел …${p.slice(-4)} — ${escapeHtml(r.full_name)}`);
+    else invite.push("+7" + p);
+  }
+
+  const total = handles.size + phones.size;
+  const lines = [
+    "<b>Сверка со списком резидентов</b>",
+    `В присланном списке распознано: ${total}`,
+    "",
+    `✅ Уже резиденты: ${found.length}`,
+    ...(found.length ? found.map((s) => "• " + s) : ["  —"]),
+    "",
+    `✉️ Не в базе — на приглашение: ${invite.length}`,
+    ...(invite.length ? invite.map((s) => "• " + s) : ["  —"]),
+  ];
+  if (invite.length) {
+    lines.push("", "Одной строкой для рассылки:", invite.join(" "));
+  }
+
+  const report = lines.join("\n");
   for (let i = 0; i < report.length; i += 3500) {
     const isLast = i + 3500 >= report.length;
     await sendMessage(env, msg.from.id, report.slice(i, i + 3500), isLast ? { inline_keyboard: [backButtonRow()] } : undefined);
