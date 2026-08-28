@@ -120,15 +120,22 @@ export async function handleTelegramUpdate(update, env) {
 
 // ---- Кнопочное меню для админов -------------------------------------------
 
+// Кнопки с callback_data "noop" — это заголовки-разделители, а не действия:
+// по нажатию ничего не происходит (см. handleCallbackQuery).
 function adminMenuKeyboard() {
   return {
     inline_keyboard: [
+      [{ text: "✏️ РЕДАКТИРОВАТЬ САЙТ", callback_data: "noop" }],
+      [{ text: "О клубе", callback_data: "content:about" }, { text: "Цифры клуба", callback_data: "content:numbers" }],
+      [{ text: "Зачем вступать", callback_data: "content:why" }, { text: "Как вступить", callback_data: "content:how" }],
+      [{ text: "Вопросы", callback_data: "content:faq" }],
+
+      [{ text: "📅 РЕДАКТИРОВАТЬ МЕРОПРИЯТИЯ", callback_data: "noop" }],
       [{ text: "📋 События", callback_data: "menu:events" }, { text: "🗑 Удалить", callback_data: "menu:delete" }],
-      [{ text: "➕ Создать", callback_data: "menu:create" }, { text: "📊 Отчёт", callback_data: "menu:report" }],
+      [{ text: "➕ Создать", callback_data: "menu:create" }],
+
+      [{ text: "📊 Вовлечённость", callback_data: "menu:report" }],
       [{ text: "📇 Сверка участников", callback_data: "menu:match" }],
-      [{ text: "✏️ О клубе", callback_data: "content:about" }, { text: "✏️ Цифры клуба", callback_data: "content:numbers" }],
-      [{ text: "✏️ Зачем вступать", callback_data: "content:why" }, { text: "✏️ Как вступить", callback_data: "content:how" }],
-      [{ text: "✏️ Вопросы", callback_data: "content:faq" }],
     ],
   };
 }
@@ -173,6 +180,7 @@ async function handleCallbackQuery(cq, env) {
 
   await answerCallback(env, cq.id);
 
+  if (data === "noop") return; // нажали на заголовок-разделитель — ничего не делаем
   if (data === "menu:home") return handleMenu(fakeMsg, env);
   if (data === "menu:events") return handleListEventsCommand(fakeMsg, env);
   if (data === "menu:report") return handleCoolingCommand(fakeMsg, env);
