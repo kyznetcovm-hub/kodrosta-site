@@ -125,12 +125,12 @@ export async function handleTelegramUpdate(update, env) {
 function adminMenuKeyboard() {
   return {
     inline_keyboard: [
-      [{ text: "✏️ РЕДАКТИРОВАТЬ САЙТ", callback_data: "noop" }],
+      [{ text: "🟦 РЕДАКТИРОВАТЬ САЙТ 🟦", callback_data: "noop" }],
       [{ text: "О клубе", callback_data: "content:about" }, { text: "Цифры клуба", callback_data: "content:numbers" }],
       [{ text: "Зачем вступать", callback_data: "content:why" }, { text: "Как вступить", callback_data: "content:how" }],
       [{ text: "Вопросы", callback_data: "content:faq" }],
 
-      [{ text: "📅 РЕДАКТИРОВАТЬ МЕРОПРИЯТИЯ", callback_data: "noop" }],
+      [{ text: "🟥 РЕДАКТИРОВАТЬ МЕРОПРИЯТИЯ 🟥", callback_data: "noop" }],
       [{ text: "📋 События", callback_data: "menu:events" }, { text: "🗑 Удалить", callback_data: "menu:delete" }],
       [{ text: "➕ Создать", callback_data: "menu:create" }],
 
