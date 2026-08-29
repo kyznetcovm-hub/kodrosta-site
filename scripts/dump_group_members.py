@@ -49,7 +49,7 @@ RESIDENTS_CSV = os.path.join(HERE, "residents.csv")
 
 try:
     from telethon import TelegramClient
-    from telethon.errors import SessionPasswordNeededError, ApiIdPublishedFloodError
+    from telethon.errors import SessionPasswordNeededError, ApiIdPublishedFloodError, FloodWaitError
     from telethon.tl.types import User
 except ImportError:
     print(
@@ -329,6 +329,12 @@ async def main():
         print("Нужен свой: https://my.telegram.org → войти → «API development tools» →")
         print("создать приложение (название и краткое имя — kodrosta, платформа — Рабочий стол) →")
         print("скопировать api_id и api_hash. Потом запусти скрипт заново и вставь их.")
+        sys.exit(1)
+    except FloodWaitError as e:
+        await client.disconnect()
+        mins = (e.seconds + 59) // 60
+        print(f"\nTelegram просит подождать ещё ~{mins} мин перед следующей попыткой входа.")
+        print("Это временно. Запусти скрипт снова позже.")
         sys.exit(1)
 
     res_usernames, res_phones = load_residents()
