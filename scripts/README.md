@@ -29,13 +29,18 @@ python3 -m pip install --user telethon
 
 Если ответит `No module named pip` — сначала выполни `python3 -m ensurepip --user`, потом строку выше ещё раз.
 
-### 2. Получить api_id и api_hash
+### 2. Ключ приложения — скорее всего НЕ нужен
 
-1. Открой в браузере https://my.telegram.org
-2. Введи свой номер телефона (тот же, что в Telegram) → в Telegram придёт код → введи его на сайте.
-3. На странице нажми **API development tools**.
-4. Заполни: **App title** — `kodrosta`, **Short name** — `kodrosta`, **Platform** — Desktop. Нажми **Create application**.
-5. На следующей странице скопируй два значения: **App api_id** (число) и **App api_hash** (длинная строка). Держи их под рукой.
+Скрипт при первом запуске предложит нажать Enter и использовать встроенный ключ
+(официальный ключ Telegram Desktop). Обычно этого достаточно — на my.telegram.org
+идти не надо.
+
+Свой ключ нужен, только если Telegram встроенный не принял (скрипт напишет об этом
+и подскажет, что делать):
+
+1. https://my.telegram.org → войти по номеру и коду из Telegram.
+2. **API development tools** → **App title** и **Short name** — `kodrosta`, **Platform** — Desktop → **Create application**.
+3. Скопировать **App api_id** (число) и **App api_hash** (длинная строка) — скрипт спросит их при следующем запуске.
 
 ### 3. Выгрузить вкладку «вступившие» в файл
 

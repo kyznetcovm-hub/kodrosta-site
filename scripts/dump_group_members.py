@@ -49,7 +49,7 @@ RESIDENTS_CSV = os.path.join(HERE, "residents.csv")
 
 try:
     from telethon import TelegramClient
-    from telethon.errors import SessionPasswordNeededError
+    from telethon.errors import SessionPasswordNeededError, ApiIdPublishedFloodError
     from telethon.tl.types import User
 except ImportError:
     print(
@@ -96,6 +96,15 @@ def slugify(title):
 # Конфиг: api_id / api_hash
 # --------------------------------------------------------------------------
 
+# Публичный ключ официального клиента Telegram Desktop. Ключ идентифицирует
+# ПРИЛОЖЕНИЕ, а не аккаунт — вход всё равно по номеру телефона и коду.
+# Часто срабатывает и позволяет вообще не ходить на my.telegram.org.
+# Если Telegram его не примет — будет ошибка ApiIdPublishedFloodError, тогда
+# нужен свой ключ с my.telegram.org.
+BUILTIN_API_ID = 2040
+BUILTIN_API_HASH = "b18441a1ff607e10a989891a5462e627"
+
+
 def load_config():
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -103,10 +112,14 @@ def load_config():
         if cfg.get("api_id") and cfg.get("api_hash"):
             return int(cfg["api_id"]), str(cfg["api_hash"])
 
-    print("\nПервый запуск. Нужны api_id и api_hash с https://my.telegram.org")
-    print("(там же → «API development tools» → создать приложение, Platform: Desktop).\n")
-    api_id = input("Вставь api_id (только цифры) и нажми Enter: ").strip()
-    api_hash = input("Вставь api_hash (длинная строка) и нажми Enter: ").strip()
+    print("\nНужен ключ приложения Telegram.")
+    print("• Просто нажми Enter — попробуем встроенный ключ (ничего получать не надо).")
+    print("• Или вставь свой api_id с https://my.telegram.org (раздел «API development tools»).\n")
+    api_id = input("api_id (или Enter для встроенного): ").strip()
+    if not api_id:
+        print("Использую встроенный ключ.\n")
+        return BUILTIN_API_ID, BUILTIN_API_HASH
+    api_hash = input("Теперь вставь api_hash (длинная строка): ").strip()
     if not api_id.isdigit() or len(api_hash) < 20:
         print("api_id должен быть числом, api_hash — длинной строкой. Запусти скрипт заново.")
         sys.exit(1)
@@ -283,22 +296,40 @@ async def dump_group(client, dialog, res_usernames, res_phones):
         print("  " + " ".join("@" + u for _, u in invite))
 
 
+def _drop_session():
+    for suffix in (".session", ".session-journal"):
+        try:
+            os.remove(SESSION_PATH + suffix)
+        except OSError:
+            pass
+
+
 async def main():
     api_id, api_hash = load_config()
     client = TelegramClient(SESSION_PATH, api_id, api_hash)
-    await client.connect()
 
-    if not await client.is_user_authorized():
-        print("\nВход в Telegram (нужен один раз).")
-        phone = input("Номер телефона как в Telegram, в формате +79XXXXXXXXX: ").strip()
-        await client.send_code_request(phone)
-        code = input("Код подтверждения (придёт сообщением в Telegram): ").strip()
-        try:
-            await client.sign_in(phone, code)
-        except SessionPasswordNeededError:
-            pw = getpass("Пароль двухэтапной проверки (не отображается при вводе): ")
-            await client.sign_in(password=pw)
-        print("Готово, вошли. Сессия сохранена — в следующий раз вход не потребуется.\n")
+    try:
+        await client.connect()
+
+        if not await client.is_user_authorized():
+            print("\nВход в Telegram (нужен один раз).")
+            phone = input("Номер телефона как в Telegram, в формате +79XXXXXXXXX: ").strip()
+            await client.send_code_request(phone)
+            code = input("Код подтверждения (придёт сообщением в Telegram): ").strip()
+            try:
+                await client.sign_in(phone, code)
+            except SessionPasswordNeededError:
+                pw = getpass("Пароль двухэтапной проверки (не отображается при вводе): ")
+                await client.sign_in(password=pw)
+            print("Готово, вошли. Сессия сохранена — в следующий раз вход не потребуется.\n")
+    except ApiIdPublishedFloodError:
+        await client.disconnect()
+        _drop_session()
+        print("\nTelegram не принял встроенный ключ (такое бывает).")
+        print("Нужен свой: https://my.telegram.org → войти → «API development tools» →")
+        print("создать приложение (название и краткое имя — kodrosta, платформа — Рабочий стол) →")
+        print("скопировать api_id и api_hash. Потом запусти скрипт заново и вставь их.")
+        sys.exit(1)
 
     res_usernames, res_phones = load_residents()
     groups = await pick_groups(client)
