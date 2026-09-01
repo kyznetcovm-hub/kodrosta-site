@@ -164,6 +164,7 @@ async def dump_touches(client, dialog):
     rows = []
     last_message_day = {}   # user_id -> "YYYY-MM-DD", для дедупа kind=message раз в день
     seen_visit_card = set()  # user_id, кому уже засчитали visit_card
+    topic_msg_counts = {}    # topic_id -> сколько сообщений реально встретилось — проверить, что все темы разобрались
 
     count = 0
     async for message in client.iter_messages(entity, reverse=True):
@@ -191,6 +192,8 @@ async def dump_touches(client, dialog):
                     is_reply = True
             elif rt.reply_to_msg_id:
                 is_reply = True
+
+        topic_msg_counts[topic_id] = topic_msg_counts.get(topic_id, 0) + 1
 
         if not text and not has_media_no_text:
             continue  # совсем пустое служебное — пропускаем
@@ -229,6 +232,21 @@ async def dump_touches(client, dialog):
     no_username = sum(1 for r in rows if not r[1])
     if no_username:
         print(f"  (из них без @username — не сопоставится с резидентом при загрузке: {no_username})")
+
+    if is_forum:
+        print("\nСообщений по темам (проверка, что разобрались все):")
+        empty_topics = []
+        for tid, ttitle in topics.items():
+            n = topic_msg_counts.get(tid, 0)
+            if n:
+                print(f"  {ttitle}: {n}")
+            else:
+                empty_topics.append(ttitle)
+        unknown = sum(n for tid, n in topic_msg_counts.items() if tid not in topics)
+        if unknown:
+            print(f"  (тема не опознана по названию, но сообщения учтены: {unknown})")
+        if empty_topics:
+            print(f"  Без сообщений вообще (или тема создана позже последнего сообщения): {', '.join(empty_topics)}")
 
 
 async def dump_event_signups(client, dialog):

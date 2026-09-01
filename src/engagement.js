@@ -205,6 +205,7 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:delete") return handleDeletePicker(fakeMsg, env);
   if (data === "menu:faq") return handleFaqPicker(fakeMsg, env);
   if (data === "menu:matchgroups") return handleMatchGroupsPicker(fakeMsg, env);
+  if (data.startsWith("cool:")) return handleCoolingDetail(fakeMsg, env, data.slice(5));
   if (data === "menu:match") return sendMatchHelp(fakeMsg, env);
   if (data.startsWith("mg:")) return handleMatchGroup(fakeMsg, env, data.slice(3));
   if (data.startsWith("de:")) return handleDeleteFromPicker(fakeMsg, env, data.slice(3));
@@ -504,8 +505,9 @@ async function handleStart(msg, env) {
   );
 }
 
-async function handleCoolingCommand(msg, env) {
-  if (!isAdmin(msg.from.username, env)) return;
+// Считает разбивку резидентов по свежести последнего касания. Общее для краткой
+// сводки (кнопки) и полного списка по одной категории.
+async function computeCoolingLists(env) {
   const db = env.DB;
   const warnDays = Number(env.COOLING_WARN_DAYS || 45);
   const critDays = Number(env.COOLING_CRITICAL_DAYS || 90);
@@ -530,24 +532,70 @@ async function handleCoolingCommand(msg, env) {
     else lists.ok.push(line);
   }
 
-  const report = [
+  return { lists, warnDays, critDays };
+}
+
+const COOLING_CATEGORIES = {
+  crit: { emoji: "🔴", label: "Критично" },
+  warn: { emoji: "🟡", label: "Охлаждаются" },
+  nodata: { emoji: "⚪️", label: "Нет данных" },
+  ok: { emoji: "🟢", label: "Активны" },
+};
+
+// Короткая сводка — 4 строки с кнопками, полный список открывается по нажатию.
+async function handleCoolingCommand(msg, env) {
+  if (!isAdmin(msg.from.username, env)) return;
+  const { lists, warnDays, critDays } = await computeCoolingLists(env);
+
+  const text = [
     `<b>Отчёт по вовлечённости</b> · ${new Date().toLocaleDateString("ru-RU")}`,
     "",
     `🔴 Критично (${critDays}+ дней): ${lists.crit.length}`,
-    ...(lists.crit.length ? lists.crit : ["  —"]),
-    "",
     `🟡 Охлаждаются (${warnDays}–${critDays} дней): ${lists.warn.length}`,
-    ...(lists.warn.length ? lists.warn : ["  —"]),
-    "",
     `⚪️ Нет данных: ${lists.nodata.length}`,
-    ...(lists.nodata.length ? lists.nodata : ["  —"]),
-    "",
     `🟢 Активны: ${lists.ok.length}`,
+    "",
+    "Нажмите на категорию, чтобы посмотреть список.",
   ].join("\n");
 
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: `🔴 ${lists.crit.length}`, callback_data: "cool:crit" },
+        { text: `🟡 ${lists.warn.length}`, callback_data: "cool:warn" },
+      ],
+      [
+        { text: `⚪️ ${lists.nodata.length}`, callback_data: "cool:nodata" },
+        { text: `🟢 ${lists.ok.length}`, callback_data: "cool:ok" },
+      ],
+      backButtonRow(),
+    ],
+  };
+  return sendMessage(env, msg.from.id, text, keyboard);
+}
+
+// Полный список одной категории — открывается по нажатию кнопки в сводке.
+async function handleCoolingDetail(msg, env, category) {
+  if (!isAdmin(msg.from.username, env)) return;
+  const cat = COOLING_CATEGORIES[category];
+  if (!cat) return;
+  const { lists, warnDays, critDays } = await computeCoolingLists(env);
+  const items = lists[category];
+
+  const rangeLabel =
+    category === "crit" ? ` (${critDays}+ дней)` :
+    category === "warn" ? ` (${warnDays}–${critDays} дней)` : "";
+
+  const report = [
+    `<b>${cat.emoji} ${cat.label}${rangeLabel}</b> — ${items.length}`,
+    "",
+    ...(items.length ? items : ["  —"]),
+  ].join("\n");
+
+  const backRow = [{ text: "⬅️ К сводке", callback_data: "menu:report" }];
   for (let i = 0; i < report.length; i += 3500) {
     const isLast = i + 3500 >= report.length;
-    await sendMessage(env, msg.from.id, report.slice(i, i + 3500), isLast ? { inline_keyboard: [backButtonRow()] } : undefined);
+    await sendMessage(env, msg.from.id, report.slice(i, i + 3500), isLast ? { inline_keyboard: [backRow] } : undefined);
   }
 }
 
