@@ -5,6 +5,7 @@ node_modules/
 
 # Локальные инструменты выгрузки участников групп (scripts/) — секреты и результаты
 scripts/kodrosta_config.json
-scripts/kodrosta_session.session
+scripts/*.session
+scripts/*.session-journal
 scripts/residents.csv
 scripts/out/

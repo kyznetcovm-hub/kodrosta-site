@@ -43,7 +43,11 @@ from datetime import timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(HERE, "kodrosta_config.json")
-SESSION_PATH = os.path.join(HERE, "kodrosta_session")  # тот же файл, что у dump_group_members.py
+# Название сессии — первым аргументом: python3 backfill_touches.py kodrosta_official
+# (для другого аккаунта, например @Kodrosta). Без аргумента — обычная личная сессия,
+# та же, что у dump_group_members.py, повторно логиниться не надо.
+SESSION_NAME = sys.argv[1] if len(sys.argv) > 1 else "kodrosta_session"
+SESSION_PATH = os.path.join(HERE, SESSION_NAME)
 OUT_DIR = os.path.join(HERE, "out")
 
 try:
