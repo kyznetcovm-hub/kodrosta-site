@@ -314,6 +314,42 @@ async def dump_phone_touches(client, dialog):
     print(f"\nВсего сообщений: {count}, с телефоном: {len(rows)}, без телефона: {no_phone}  →  {out_path}")
 
 
+async def dump_dm_touches(client):
+    """Личные диалоги: считаем касанием только ВХОДЯЩЕЕ последнее сообщение —
+    то есть человек написал вам, а не наоборот. Берём только последнее сообщение
+    в каждом диалоге (не всю историю), содержимое переписки никуда не идёт —
+    только сам факт и дата. Сопоставление с базой резидентов — на этапе загрузки;
+    всё, что не совпало с резидентом, отбрасывается и нигде не остаётся."""
+    print("\n─── Личные диалоги (входящие сообщения) ───")
+    rows = []
+    total = 0
+    skipped_outgoing = 0
+    async for d in client.iter_dialogs():
+        if not d.is_user:
+            continue
+        entity = d.entity
+        if not isinstance(entity, User) or entity.bot or entity.deleted or getattr(entity, "is_self", False):
+            continue
+        total += 1
+        msg = d.message
+        if not msg or msg.out:
+            skipped_outgoing += 1
+            continue  # последнее сообщение написали вы сами — это не касание резидента
+        username = (entity.username or "").lower()
+        ts = msg.date.astimezone(timezone.utc).isoformat()
+        rows.append((entity.id, username, entity.first_name or "", entity.last_name or "", "dm", None, ts))
+
+    os.makedirs(OUT_DIR, exist_ok=True)
+    me = await client.get_me()
+    slug = "dm_" + (me.username or str(me.id))
+    out_path = os.path.join(OUT_DIR, f"touches_{slug}.csv")
+    with open(out_path, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["telegram_user_id", "username", "first_name", "last_name", "kind", "note", "ts"])
+        w.writerows(rows)
+    print(f"Личных диалогов: {total}, из них последнее сообщение входящее: {len(rows)}  →  {out_path}")
+
+
 async def dump_event_signups(client, dialog):
     """Режим для группы мероприятия: сам факт участия = регистрация, без разбора сообщений."""
     entity = dialog.entity
@@ -372,6 +408,10 @@ async def main():
         mins = (e.seconds + 59) // 60
         print(f"\nTelegram просит подождать ещё ~{mins} мин. Запусти скрипт снова позже.")
         sys.exit(1)
+
+    dm_answer = input("\nРазобрать личные диалоги (входящие сообщения от людей)? (да/нет): ").strip().lower()
+    if dm_answer in ("да", "d", "y", "yes", "1", "ага", "угу"):
+        await dump_dm_touches(client)
 
     groups = await pick_groups(client)
     for d in groups:
