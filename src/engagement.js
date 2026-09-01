@@ -7,7 +7,10 @@
 // текст по формату EVENT_TEMPLATE.md (сообщение начинается со строки "Дата:") —
 // это тоже обрабатывается здесь же, тем же вебхуком.
 
-import { parseEventMessage, insertEvent, deleteEvent, listAllEvents, listUpcomingEvents } from "./events-store.js";
+import {
+  parseEventMessage, insertEvent, updateEvent, getEventById, deleteEvent,
+  listAllEvents, listUpcomingEvents, renderEventTemplate,
+} from "./events-store.js";
 import {
   SECTIONS, SECTION_ORDER, renderSectionTemplate, parseSectionReply,
   getSectionValues, setSectionValues, setPendingEdit, getPendingEdit, clearPendingEdit,
@@ -104,10 +107,13 @@ export async function handleTelegramUpdate(update, env) {
 
   const text = (msg.text || "").trim();
 
-  // Если админ сейчас редактирует раздел сайта — любое НЕкомандное сообщение
-  // воспринимается как новое содержимое этого раздела, а не как что-то ещё.
+  // Если админ сейчас редактирует раздел сайта или мероприятие — любое НЕкомандное
+  // сообщение воспринимается как новое содержимое, а не как что-то ещё.
   if (!text.startsWith("/") && isAdmin(from.username, env)) {
     const pending = await getPendingEdit(env.DB, from.id);
+    if (pending && pending.section.startsWith("event:")) {
+      return handleEventEditReply(msg, env, text, pending.section.slice(6));
+    }
     if (pending) return handleContentEditReply(msg, env, text, pending.section);
   }
 
@@ -201,6 +207,8 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:match") return sendMatchHelp(fakeMsg, env);
   if (data.startsWith("mg:")) return handleMatchGroup(fakeMsg, env, data.slice(3));
   if (data.startsWith("de:")) return handleDeleteFromPicker(fakeMsg, env, data.slice(3));
+  if (data.startsWith("ev:")) return handleEventDetail(fakeMsg, env, data.slice(3));
+  if (data.startsWith("eved:")) return handleEventEditPrompt(fakeMsg, env, data.slice(5));
   if (data.startsWith("content:")) return handleContentEditPrompt(fakeMsg, env, data.slice(8));
 }
 
@@ -340,10 +348,75 @@ async function handleListEventsCommand(msg, env) {
   if (!isAdmin(msg.from.username, env)) return;
   if (!env.DB) return;
   const events = await listAllEvents(env.DB);
-  const keyboard = { inline_keyboard: [backButtonRow()] };
-  if (!events.length) return sendMessage(env, msg.from.id, "Мероприятий пока нет.", keyboard);
-  const lines = events.map((e) => `• ${formatRuDateTime(e.start)} — ${escapeHtml(e.title)} (id: ${e.id})`);
-  return sendMessage(env, msg.from.id, `<b>Мероприятия:</b>\n${lines.join("\n")}`, keyboard);
+  if (!events.length) {
+    return sendMessage(env, msg.from.id, "Мероприятий пока нет.", { inline_keyboard: [backButtonRow()] });
+  }
+  const buttons = events.map((e) => [
+    { text: `${formatRuDateTime(e.start)} — ${e.title}`.slice(0, 60), callback_data: `ev:${e.id}` },
+  ]);
+  buttons.push(backButtonRow());
+  return sendMessage(env, msg.from.id, "Мероприятия клуба — нажмите, чтобы посмотреть и изменить:", { inline_keyboard: buttons });
+}
+
+async function handleEventDetail(msg, env, id) {
+  if (!env.DB) return;
+  const e = await getEventById(env.DB, id);
+  if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
+  const text = [
+    `<b>${escapeHtml(e.title)}</b>`,
+    escapeHtml(e.tag),
+    `${formatRuDateTime(e.start)} — ${formatRuTime(e.end)}`,
+    escapeHtml(e.place),
+    "",
+    escapeHtml(e.description),
+  ].join("\n");
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: "✏️ Изменить", callback_data: `eved:${id}` }, { text: "🗑 Удалить", callback_data: `de:${id}` }],
+      backButtonRow(),
+    ],
+  };
+  return sendMessage(env, msg.from.id, text, keyboard);
+}
+
+async function handleEventEditPrompt(msg, env, id) {
+  if (!env.DB) return;
+  const e = await getEventById(env.DB, id);
+  if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
+  const template = renderEventTemplate(e);
+  await setPendingEdit(env.DB, msg.from.id, "event:" + id);
+  const text = [
+    "Сейчас у этого мероприятия вот так:",
+    "",
+    template,
+    "",
+    "Пришлите текст целиком в таком же виде — с изменениями. Что не тронете, останется как есть.",
+  ].join("\n");
+  return sendMessage(env, msg.from.id, text, { inline_keyboard: [backButtonRow()] });
+}
+
+async function handleEventEditReply(msg, env, text, id) {
+  if (!env.DB) return;
+  const existing = await getEventById(env.DB, id);
+  if (!existing) {
+    await clearPendingEdit(env.DB, msg.from.id);
+    return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id} — возможно, его уже удалили.`, { inline_keyboard: [backButtonRow()] });
+  }
+  const result = parseEventMessage(text);
+  if (!result.ok) {
+    return sendMessage(
+      env, msg.from.id,
+      `Не хватает или не разобрано:\n${result.missing.map((m) => "• " + m).join("\n")}\n\nПришлите весь текст ещё раз с исправлениями, либо «Назад».`,
+      { inline_keyboard: [backButtonRow()] }
+    );
+  }
+  await updateEvent(env.DB, id, result.event);
+  await clearPendingEdit(env.DB, msg.from.id);
+  return sendMessage(
+    env, msg.from.id,
+    `✅ Мероприятие обновлено (id: ${id}). Проверьте на сайте — обновится сразу.`,
+    { inline_keyboard: [backButtonRow()] }
+  );
 }
 
 function escapeHtml(s) {

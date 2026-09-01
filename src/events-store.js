@@ -17,6 +17,11 @@ const MONTHS_RU = {
   "декабря": 11, "дек": 11,
 };
 
+const MONTHS_FULL_ARRAY = [
+  "января", "февраля", "марта", "апреля", "мая", "июня",
+  "июля", "августа", "сентября", "октября", "ноября", "декабря",
+];
+
 const TRANSLIT = {
   а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i",
   й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t",
@@ -194,9 +199,52 @@ export async function insertEvent(db, event, createdBy) {
   return id;
 }
 
+export async function updateEvent(db, id, event) {
+  await db.prepare(
+    "UPDATE events SET title = ?, tag = ?, start = ?, end = ?, place = ?, description = ?, full_description = ?, register_url = ? WHERE id = ?"
+  ).bind(
+    event.title, event.tag, event.start, event.end, event.place, event.description,
+    event.fullDescription ? JSON.stringify(event.fullDescription) : null,
+    event.registerUrl, id
+  ).run();
+}
+
+export async function getEventById(db, id) {
+  var row = await db.prepare("SELECT * FROM events WHERE id = ?").bind(id).first();
+  return row ? rowToEvent(row) : null;
+}
+
 export async function deleteEvent(db, id) {
   var res = await db.prepare("DELETE FROM events WHERE id = ?").bind(id).run();
   return res.meta && res.meta.changes > 0;
+}
+
+// Обратное превращение события в текст по формату EVENT_TEMPLATE.md — чтобы
+// показать админу "сейчас так" перед редактированием (см. handleEventEditPrompt).
+export function renderEventTemplate(event) {
+  var start = new Date(event.start);
+  var end = new Date(event.end);
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function hm(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  var place = event.place || "";
+  var addressSplit = place.indexOf(", ");
+  var placeName = addressSplit === -1 ? place : place.slice(0, addressSplit);
+  var address = addressSplit === -1 ? "" : place.slice(addressSplit + 2);
+  var description = event.fullDescription && event.fullDescription.length
+    ? event.fullDescription.join("\n\n")
+    : event.description;
+
+  return [
+    "Дата: " + start.getDate() + " " + MONTHS_FULL_ARRAY[start.getMonth()],
+    "Время: " + hm(start) + " — " + hm(end),
+    "Место проведения: " + placeName,
+    "Адрес: " + address,
+    "Название мероприятия: " + event.title,
+    "Категория: " + event.tag,
+    "Описание: " + description,
+    "",
+    "Регистрация: " + (event.registerUrl || ""),
+  ].join("\n");
 }
 
 export async function listUpcomingEvents(db) {
