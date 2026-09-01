@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS touches (
     resident_id  INTEGER,            -- NULL, если отправитель не опознан как резидент
     chat_id      INTEGER,            -- telegram id отправителя, если применимо
     kind         TEXT NOT NULL,      -- message | reply | question | linked | attended
-                                      -- | visit_card | sale_post | online | event_signup | apply
+                                      -- | visit_card | sale_post | online | event_signup | apply | renewal
     note         TEXT,
     ts           TEXT NOT NULL       -- ISO 8601
 );

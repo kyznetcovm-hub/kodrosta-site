@@ -911,7 +911,7 @@ async function handleSetupCommand(msg, env) {
 
 async function handleAwardCommand(msg, env, text) {
   if (!isAdmin(msg.from.username, env)) return;
-  const KINDS = ["visit_card", "sale_post", "online"];
+  const KINDS = ["visit_card", "sale_post", "online", "renewal"];
   const [rawUsername, kind, ...rest] = text.split(/\s+/).slice(1);
   if (!rawUsername || !KINDS.includes(kind)) {
     return sendMessage(env, msg.from.id, `Формат: /award @username вид [комментарий]\nВиды: ${KINDS.join(", ")}`);
