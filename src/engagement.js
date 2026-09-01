@@ -90,16 +90,17 @@ export async function handleTelegramUpdate(update, env) {
   const from = msg.from || {};
   if (from.is_bot) return;
 
-  const residentsChatId = Number(env.RESIDENTS_CHAT_ID);
   const chat = msg.chat || {};
 
   // Служебные сообщения о вступлении/выходе в ЛЮБОЙ группе с ботом — копим состав.
   if (msg.new_chat_members || msg.left_chat_member) {
     await recordServiceMembership(msg, env);
-    if (!residentsChatId || chat.id !== residentsChatId) return;
   }
 
-  if (residentsChatId && chat.id === residentsChatId) {
+  // Касания считаем в клубном чате резидентов И в любой другой группе, где бот —
+  // администратор (например, группы записи на конкретное мероприятие: бот добавлен
+  // туда первым, значит те, кто там появляется — тоже наши резиденты на связи).
+  if (await isTrackedGroup(env, chat)) {
     return handleGroupMessage(msg, env);
   }
 
@@ -659,6 +660,19 @@ async function reportResidentMatch(env, userId, handlesIn, phonesIn, headerLine)
 // Полного списка «задним числом» бот не получает — только тех, кто вступает
 // после его добавления. Всё копится в tg_group_members, сверка — кнопкой.
 
+// Считать ли сообщения этой группы касаниями резидентов. Клубный чат резидентов —
+// всегда (даже если бота там временно разжаловали из админов), плюс любая другая
+// группа/супергруппа, где бот сейчас администратор (см. tg_groups, наполняется
+// через my_chat_member/chat_member — см. handleSetupCommand).
+async function isTrackedGroup(env, chat) {
+  if (chat.type !== "group" && chat.type !== "supergroup") return false;
+  const residentsChatId = Number(env.RESIDENTS_CHAT_ID);
+  if (residentsChatId && chat.id === residentsChatId) return true;
+  if (!env.DB) return false;
+  const row = await env.DB.prepare("SELECT is_admin FROM tg_groups WHERE chat_id = ?").bind(chat.id).first();
+  return !!(row && row.is_admin);
+}
+
 let groupTablesReady = false;
 async function ensureGroupTables(env) {
   if (groupTablesReady) return;
@@ -725,6 +739,7 @@ async function handleChatMember(upd, env) {
   await ensureGroupTables(env);
   await touchGroup(env, chat, null);
   await upsertGroupMember(env, chat.id, u, ncm.status || "member");
+  if (ACTIVE_STATUSES.includes(ncm.status)) await recordEventSignupIfResident(env, chat, u);
 }
 
 async function recordServiceMembership(msg, env) {
@@ -734,10 +749,27 @@ async function recordServiceMembership(msg, env) {
   await ensureGroupTables(env);
   await touchGroup(env, chat, null);
   for (const u of msg.new_chat_members || []) {
-    if (u && u.id && !u.is_bot) await upsertGroupMember(env, chat.id, u, "member");
+    if (u && u.id && !u.is_bot) {
+      await upsertGroupMember(env, chat.id, u, "member");
+      await recordEventSignupIfResident(env, chat, u);
+    }
   }
   const left = msg.left_chat_member;
   if (left && left.id && !left.is_bot) await upsertGroupMember(env, chat.id, left, "left");
+}
+
+// Вступление в группу мероприятия (не в клубный чат резидентов) — сам факт
+// членства считаем регистрацией на мероприятие, без ожидания сообщения от человека.
+async function recordEventSignupIfResident(env, chat, user) {
+  const residentsChatId = Number(env.RESIDENTS_CHAT_ID);
+  if (residentsChatId && chat.id === residentsChatId) return;
+  if (!user.username) return;
+  const resident = await findResidentByUsername(env.DB, user.username);
+  if (!resident) return;
+  if (!resident.chat_id) {
+    await env.DB.prepare("UPDATE residents SET chat_id = ? WHERE id = ?").bind(user.id, resident.id).run();
+  }
+  await recordTouch(env.DB, resident.id, user.id, "event_signup", chat.title || null);
 }
 
 // Кнопка «Сверка участников» -> список групп бота.
