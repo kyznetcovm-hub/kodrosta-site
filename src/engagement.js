@@ -9,7 +9,7 @@
 
 import {
   parseEventMessage, insertEvent, updateEvent, getEventById, deleteEvent,
-  listAllEvents, listUpcomingEvents, renderEventTemplate,
+  listUpcomingEvents, renderEventTemplate,
 } from "./events-store.js";
 import {
   SECTIONS, SECTION_ORDER, renderSectionTemplate, parseSectionReply,
@@ -347,9 +347,9 @@ async function handleDeleteEventCommand(msg, env, text) {
 async function handleListEventsCommand(msg, env) {
   if (!isAdmin(msg.from.username, env)) return;
   if (!env.DB) return;
-  const events = await listAllEvents(env.DB);
+  const events = await listUpcomingEvents(env.DB);
   if (!events.length) {
-    return sendMessage(env, msg.from.id, "Мероприятий пока нет.", { inline_keyboard: [backButtonRow()] });
+    return sendMessage(env, msg.from.id, "Актуальных мероприятий нет.", { inline_keyboard: [backButtonRow()] });
   }
   const buttons = events.map((e) => [
     { text: `${formatRuDateTime(e.start)} — ${e.title}`.slice(0, 60), callback_data: `ev:${e.id}` },
