@@ -260,6 +260,60 @@ async def dump_touches(client, dialog):
             print(f"  Без сообщений вообще (или тема создана позже последнего сообщения): {', '.join(empty_topics)}")
 
 
+PHONE_RE = re.compile(r"\+?\d[\d\s()\-]{9,}\d")
+
+
+def normalize_phone(raw):
+    digits = re.sub(r"\D", "", raw or "")
+    if len(digits) == 11 and digits.startswith("8"):
+        return "7" + digits[1:]
+    if len(digits) == 11 and digits.startswith("7"):
+        return digits
+    if len(digits) == 10:
+        return "7" + digits
+    return None
+
+
+async def dump_phone_touches(client, dialog):
+    """Режим для старого чата, куда САЙТ ПРИСЫЛАЛ ТЕКСТОМ заявки (имя+телефон) —
+    участники группы тут ни при чём, телефон нужно вытащить из текста сообщения."""
+    entity = dialog.entity
+    title = dialog.name
+    slug = slugify(title) + "_" + str(entity.id)
+    print(f"\n─── {title} (телефоны из текста сообщений) ───")
+
+    rows = []
+    count = 0
+    no_phone = 0
+    async for message in client.iter_messages(entity, reverse=True):
+        count += 1
+        if count % 1000 == 0:
+            print(f"  …обработано сообщений: {count}")
+        if not isinstance(message, Message):
+            continue
+        text = (message.message or "").strip()
+        if not text:
+            continue
+        m = PHONE_RE.search(text)
+        if not m:
+            no_phone += 1
+            continue
+        phone = normalize_phone(m.group())
+        if not phone:
+            continue
+        ts = message.date.astimezone(timezone.utc).isoformat()
+        snippet = text.replace("\n", " ")[:120]
+        rows.append((phone, "apply", snippet, ts))
+
+    os.makedirs(OUT_DIR, exist_ok=True)
+    out_path = os.path.join(OUT_DIR, f"phones_{slug}.csv")
+    with open(out_path, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["phone", "kind", "note", "ts"])
+        w.writerows(rows)
+    print(f"\nВсего сообщений: {count}, с телефоном: {len(rows)}, без телефона: {no_phone}  →  {out_path}")
+
+
 async def dump_event_signups(client, dialog):
     """Режим для группы мероприятия: сам факт участия = регистрация, без разбора сообщений."""
     entity = dialog.entity
@@ -324,10 +378,13 @@ async def main():
         print("\nЧто это за группа?")
         print("  1. Клубный чат резидентов (или похожий) — разобрать всю историю сообщений по темам")
         print("  2. Группа мероприятия — участники группы это уже регистрация")
+        print("  3. Старый чат сайта — заявки текстом (имя+телефон), участники группы тут не при чём")
         mode = input("Номер: ").strip()
         try:
             if mode == "2":
                 await dump_event_signups(client, d)
+            elif mode == "3":
+                await dump_phone_touches(client, d)
             else:
                 await dump_touches(client, d)
         except Exception as e:
