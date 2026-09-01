@@ -149,7 +149,7 @@ async def get_topics_map(client, entity):
 async def dump_touches(client, dialog):
     entity = dialog.entity
     title = dialog.name
-    slug = slugify(title)
+    slug = slugify(title) + "_" + str(entity.id)  # id в имени — чтобы одноимённые чаты не затирали друг друга
 
     print(f"\n─── {title} ───")
     print("Читаю участников (для сопоставления отправителей)…")
@@ -175,9 +175,20 @@ async def dump_touches(client, dialog):
         if not isinstance(message, Message):
             continue  # служебное сообщение (вступление/выход/смена фото и т.п.)
         sender_id = message.sender_id
-        if not sender_id or sender_id not in people:
-            continue  # бот, аноним-канал или уже вышедший из группы (нет в участниках)
-        username, first_name, last_name = people[sender_id]
+        if not sender_id:
+            continue  # аноним-канал и т.п. — определить человека невозможно
+
+        if sender_id in people:
+            username, first_name, last_name = people[sender_id]
+        else:
+            # отправителя уже нет среди текущих участников (кикнули/вышел после
+            # мероприятия) — берём данные прямо из самого сообщения, а не из
+            # списка участников, иначе вся его история молча пропадёт
+            sender = message.sender or await message.get_sender()
+            if not isinstance(sender, User) or sender.bot or sender.deleted:
+                continue
+            username, first_name, last_name = (sender.username or "").lower(), sender.first_name or "", sender.last_name or ""
+            people[sender_id] = (username, first_name, last_name)
 
         text = (message.message or "").strip()
         has_media_no_text = bool(message.media) and not text
@@ -253,7 +264,7 @@ async def dump_event_signups(client, dialog):
     """Режим для группы мероприятия: сам факт участия = регистрация, без разбора сообщений."""
     entity = dialog.entity
     title = dialog.name
-    slug = slugify(title)
+    slug = slugify(title) + "_" + str(entity.id)  # id в имени — чтобы одноимённые чаты не затирали друг друга
     print(f"\n─── {title} (регистрация на мероприятие) ───")
 
     rows = []
