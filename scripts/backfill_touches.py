@@ -50,11 +50,13 @@ try:
     from telethon import TelegramClient
     from telethon.errors import SessionPasswordNeededError, ApiIdPublishedFloodError, FloodWaitError
     from telethon.tl.types import User, Message
-    from telethon.tl.functions.channels import GetForumTopicsRequest
-except ImportError:
+    from telethon.tl.functions.messages import GetForumTopicsRequest
+except ImportError as e:
     print(
-        "\nНе установлена библиотека Telethon.\n"
-        "Выполни в Терминале одну команду и запусти скрипт заново:\n\n"
+        f"\nНе смог импортировать Telethon ({e}).\n"
+        "Если библиотека точно установлена — это, вероятно, баг в скрипте (несовпадение "
+        "версии Telethon), напишите разработчику с текстом ошибки выше.\n"
+        "Если не установлена — выполни в Терминале одну команду и запусти скрипт заново:\n\n"
         "    python3 -m pip install --user telethon\n"
     )
     sys.exit(1)
@@ -130,7 +132,7 @@ async def get_topics_map(client, entity):
     offset_topic = 0
     while True:
         res = await client(GetForumTopicsRequest(
-            channel=entity, offset_date=0, offset_id=0, offset_topic=offset_topic, limit=100,
+            peer=entity, offset_date=None, offset_id=0, offset_topic=offset_topic, limit=100,
         ))
         if not res.topics:
             break
