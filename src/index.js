@@ -8,6 +8,7 @@
 import { handleTelegramUpdate, recordFormTouch } from "./engagement.js";
 import { listUpcomingEvents } from "./events-store.js";
 import { getAllContent } from "./content-store.js";
+import { syncResidentsFromSheet } from "./sheets-sync.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -34,8 +35,38 @@ export default {
     }
 
     return env.ASSETS.fetch(request);
+  },
+
+  // Раз в сутки (см. triggers.crons в wrangler.jsonc) — синхронизация вкладки
+  // «Вступившие» гугл-таблицы с базой резидентов, отчёт шлётся админам в личку.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runScheduledSheetSync(env));
   }
 };
+
+async function runScheduledSheetSync(env) {
+  let report;
+  try {
+    report = await syncResidentsFromSheet(env);
+  } catch (err) {
+    report = "Синхронизация с таблицей упала с ошибкой: " + (err && err.message ? err.message : String(err));
+  }
+  if (!env.DB || !env.BOT_TOKEN) return;
+  const admins = String(env.ADMIN_USERNAMES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (!admins.length) return;
+  const placeholders = admins.map(() => "?").join(",");
+  const stmt = env.DB.prepare(
+    "SELECT chat_id FROM residents WHERE telegram_username IN (" + placeholders + ") AND chat_id IS NOT NULL"
+  );
+  const { results } = await stmt.bind.apply(stmt, admins).all();
+  for (const r of results || []) {
+    await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/sendMessage", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chat_id: r.chat_id, text: report, parse_mode: "HTML" })
+    });
+  }
+}
 
 async function handleContentApi(env) {
   if (!env.DB) return json({});

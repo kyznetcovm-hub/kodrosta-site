@@ -15,6 +15,7 @@ import {
   SECTIONS, SECTION_ORDER, renderSectionTemplate, parseSectionReply,
   getSectionValues, setSectionValues, setPendingEdit, getPendingEdit, clearPendingEdit,
 } from "./content-store.js";
+import { syncResidentsFromSheet } from "./sheets-sync.js";
 
 export function normalizePhone(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
@@ -123,6 +124,7 @@ export async function handleTelegramUpdate(update, env) {
   if (text.startsWith("/cooling")) return handleCoolingCommand(msg, env);
   if (text.startsWith("/setup")) return handleSetupCommand(msg, env);
   if (text.startsWith("/match")) return handleMatchCommand(msg, env, text);
+  if (text.startsWith("/syncsheet")) return handleSyncSheetCommand(msg, env);
   if (text.startsWith("/award")) return handleAwardCommand(msg, env, text);
   if (text.startsWith("/attended")) return handleAttendedCommand(msg, env, text);
   if (text.startsWith("/events")) return handleListEventsCommand(msg, env);
@@ -159,6 +161,7 @@ function adminMenuKeyboard() {
 
       [{ text: "🟨 СВЕРКА УЧАСТНИКОВ 🟨", callback_data: "noop" }],
       [{ text: "📇 Сверка участников", callback_data: "menu:matchgroups" }],
+      [{ text: "🔄 Синхронизировать с таблицей", callback_data: "menu:syncsheet" }],
     ],
   };
 }
@@ -211,6 +214,7 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:signups") return handleEventSignupsPicker(fakeMsg, env);
   if (data === "menu:faq") return handleFaqPicker(fakeMsg, env);
   if (data === "menu:matchgroups") return handleMatchGroupsPicker(fakeMsg, env);
+  if (data === "menu:syncsheet") return handleSyncSheetCommand(fakeMsg, env);
   if (data.startsWith("cool:")) return handleCoolingDetail(fakeMsg, env, data.slice(5));
   if (data === "menu:match") return sendMatchHelp(fakeMsg, env);
   if (data.startsWith("mg:")) return handleMatchGroup(fakeMsg, env, data.slice(3));
@@ -961,6 +965,21 @@ async function recordEventSignupIfResident(env, chat, user) {
 }
 
 // Кнопка «Сверка участников» -> список групп бота.
+// Ручной запуск синхронизации с гугл-таблицей (та же функция, что и по расписанию —
+// см. scheduled в src/index.js). Не удаляет и не деактивирует резидентов, только
+// обновляет telegram_username у существующих и добавляет новых по телефону.
+async function handleSyncSheetCommand(msg, env) {
+  if (!isAdmin(msg.from.username, env)) return;
+  await sendMessage(env, msg.from.id, "Синхронизирую с таблицей…");
+  let report;
+  try {
+    report = await syncResidentsFromSheet(env);
+  } catch (err) {
+    report = "Не получилось: " + (err && err.message ? err.message : String(err));
+  }
+  return sendMessage(env, msg.from.id, report, { inline_keyboard: [backButtonRow()] });
+}
+
 async function handleMatchGroupsPicker(msg, env) {
   if (!isAdmin(msg.from.username, env)) return;
   if (!env.DB) return;
