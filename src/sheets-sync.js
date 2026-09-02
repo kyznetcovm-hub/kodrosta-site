@@ -145,7 +145,11 @@ export async function syncResidentsFromSheet(env) {
 
   const { results: existing } = await env.DB.prepare("SELECT id, full_name, phone, telegram_username FROM residents").all();
   const byPhone = new Map();
-  for (const r of existing) if (r.phone) byPhone.set(r.phone, r);
+  const byUsername = new Map();
+  for (const r of existing) {
+    if (r.phone) byPhone.set(r.phone, r);
+    if (r.telegram_username) byUsername.set(r.telegram_username.toLowerCase(), r);
+  }
 
   let updated = 0;
   let inserted = 0;
@@ -153,17 +157,31 @@ export async function syncResidentsFromSheet(env) {
   const insertedNames = [];
 
   for (const p of parsed) {
-    const match = p.phone ? byPhone.get(p.phone) : null;
+    // Сначала по телефону, а если не нашли — по username: резидент мог быть
+    // заведён раньше без телефона (например, вручную), и теперь в таблице
+    // телефон появился — не должны создавать ему дубликат.
+    const match = (p.phone && byPhone.get(p.phone)) || (p.telegramUsername && byUsername.get(p.telegramUsername)) || null;
     if (match) {
+      const sets = [];
+      const binds = [];
       if (p.telegramUsername && p.telegramUsername !== (match.telegram_username || "").toLowerCase()) {
-        await env.DB.prepare("UPDATE residents SET telegram_username = ? WHERE id = ?")
-          .bind(p.telegramUsername, match.id).run();
+        sets.push("telegram_username = ?");
+        binds.push(p.telegramUsername);
+      }
+      if (p.phone && !match.phone) {
+        sets.push("phone = ?");
+        binds.push(p.phone);
+      }
+      if (sets.length) {
+        binds.push(match.id);
+        await env.DB.prepare(`UPDATE residents SET ${sets.join(", ")} WHERE id = ?`).bind(...binds).run();
         updated++;
         updatedNames.push(match.full_name);
       }
     } else if (p.phone) {
-      // новый телефон — новый резидент (без телефона не добавляем, слишком
-      // легко случайно задвоить кого-то без надёжного ключа для сопоставления)
+      // новый телефон и не нашёлся ни по телефону, ни по username — новый
+      // резидент (совсем без телефона не добавляем, слишком легко случайно
+      // задвоить кого-то без надёжного ключа для сопоставления)
       await env.DB.prepare("INSERT INTO residents (full_name, phone, telegram_username, joined_at, active) VALUES (?, ?, ?, ?, 1)")
         .bind(p.fullName, p.phone, p.telegramUsername, p.joinedAt).run();
       inserted++;
