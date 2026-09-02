@@ -151,16 +151,34 @@ export async function syncResidentsFromSheet(env) {
     if (r.telegram_username) byUsername.set(r.telegram_username.toLowerCase(), r);
   }
 
+  // Один и тот же телефон на разные ФИО в самой таблице (опечатка при вводе) —
+  // такие телефоны для сопоставления не используем вовсе, иначе двух разных
+  // людей будет постоянно "перетягивать" друг на друга при каждом прогоне.
+  const phoneToNames = new Map();
+  for (const p of parsed) {
+    if (!p.phone) continue;
+    if (!phoneToNames.has(p.phone)) phoneToNames.set(p.phone, new Set());
+    phoneToNames.get(p.phone).add(p.fullName);
+  }
+  const ambiguousPhones = new Set(
+    [...phoneToNames.entries()].filter(([, names]) => names.size > 1).map(([phone]) => phone)
+  );
+
   let updated = 0;
   let inserted = 0;
   const updatedNames = [];
   const insertedNames = [];
+  const conflicts = [];
 
   for (const p of parsed) {
+    if (p.phone && ambiguousPhones.has(p.phone)) {
+      conflicts.push(`${p.phone} — ${[...phoneToNames.get(p.phone)].join(" / ")}`);
+    }
+    const usablePhone = p.phone && !ambiguousPhones.has(p.phone) ? p.phone : null;
     // Сначала по телефону, а если не нашли — по username: резидент мог быть
     // заведён раньше без телефона (например, вручную), и теперь в таблице
     // телефон появился — не должны создавать ему дубликат.
-    const match = (p.phone && byPhone.get(p.phone)) || (p.telegramUsername && byUsername.get(p.telegramUsername)) || null;
+    const match = (usablePhone && byPhone.get(usablePhone)) || (p.telegramUsername && byUsername.get(p.telegramUsername)) || null;
     if (match) {
       const sets = [];
       const binds = [];
@@ -168,22 +186,22 @@ export async function syncResidentsFromSheet(env) {
         sets.push("telegram_username = ?");
         binds.push(p.telegramUsername);
       }
-      if (p.phone && !match.phone) {
+      if (usablePhone && !match.phone) {
         sets.push("phone = ?");
-        binds.push(p.phone);
+        binds.push(usablePhone);
       }
       if (sets.length) {
         binds.push(match.id);
         await env.DB.prepare(`UPDATE residents SET ${sets.join(", ")} WHERE id = ?`).bind(...binds).run();
         updated++;
-        updatedNames.push(`${match.full_name} [было: ${JSON.stringify(match.telegram_username)} стало: ${JSON.stringify(p.telegramUsername)}]`);
+        updatedNames.push(match.full_name);
       }
-    } else if (p.phone) {
+    } else if (usablePhone) {
       // новый телефон и не нашёлся ни по телефону, ни по username — новый
       // резидент (совсем без телефона не добавляем, слишком легко случайно
       // задвоить кого-то без надёжного ключа для сопоставления)
       await env.DB.prepare("INSERT INTO residents (full_name, phone, telegram_username, joined_at, active) VALUES (?, ?, ?, ?, 1)")
-        .bind(p.fullName, p.phone, p.telegramUsername, p.joinedAt).run();
+        .bind(p.fullName, usablePhone, p.telegramUsername, p.joinedAt).run();
       inserted++;
       insertedNames.push(p.fullName);
     }
@@ -195,5 +213,10 @@ export async function syncResidentsFromSheet(env) {
     `Обновлён telegram: ${updated}${updated ? " (" + updatedNames.slice(0, 10).join(", ") + (updated > 10 ? "…" : "") + ")" : ""}`,
     `Новых резидентов: ${inserted}${inserted ? " (" + insertedNames.slice(0, 10).join(", ") + (inserted > 10 ? "…" : "") + ")" : ""}`,
   ];
+  if (conflicts.length) {
+    const uniqueConflicts = [...new Set(conflicts)];
+    lines.push("", `⚠️ Один телефон на разных людей в таблице — поправьте вручную (${uniqueConflicts.length}):`);
+    lines.push(...uniqueConflicts.map((c) => "• " + c));
+  }
   return lines.join("\n");
 }
