@@ -9,7 +9,7 @@
 
 import {
   parseEventMessage, insertEvent, updateEvent, getEventById, deleteEvent,
-  listUpcomingEvents, renderEventTemplate,
+  listUpcomingEvents, renderEventTemplate, setEventSignupChatId,
 } from "./events-store.js";
 import {
   SECTIONS, SECTION_ORDER, renderSectionTemplate, parseSectionReply,
@@ -49,10 +49,10 @@ async function findResidentByChatId(db, chatId) {
   return db.prepare("SELECT * FROM residents WHERE chat_id = ?").bind(chatId).first();
 }
 
-async function recordTouch(db, residentId, chatId, kind, note) {
+async function recordTouch(db, residentId, chatId, kind, note, personName) {
   await db
-    .prepare("INSERT INTO touches (resident_id, chat_id, kind, note, ts) VALUES (?, ?, ?, ?, ?)")
-    .bind(residentId ?? null, chatId ?? null, kind, note ?? null, new Date().toISOString())
+    .prepare("INSERT INTO touches (resident_id, chat_id, kind, note, person_name, ts) VALUES (?, ?, ?, ?, ?, ?)")
+    .bind(residentId ?? null, chatId ?? null, kind, note ?? null, personName ?? null, new Date().toISOString())
     .run();
 }
 
@@ -67,13 +67,15 @@ async function backfillUsername(db, resident, from) {
 
 // Вызывается из /api/submit на сайте: заявка на вступление или запись на
 // мероприятие — это тоже касание, и заодно резидент подвязывается по телефону.
-export async function recordFormTouch(env, { phone, telegramHandle, kind, note }) {
+export async function recordFormTouch(env, { phone, telegramHandle, kind, note, name }) {
   if (!env.DB) return; // база ещё не подключена — не должно ломать основную форму
   try {
     const normPhone = normalizePhone(phone);
     let resident = await findResidentByPhone(env.DB, normPhone);
     if (!resident && telegramHandle) resident = await findResidentByUsername(env.DB, telegramHandle);
-    await recordTouch(env.DB, resident ? resident.id : null, null, kind, note);
+    // Имя сохраняем всегда, не только для неопознанных — если резидент напишет
+    // на сайте другое имя, будет видно в «Списке участников» именно оно.
+    await recordTouch(env.DB, resident ? resident.id : null, null, kind, note, name || null);
   } catch (err) {
     console.error("recordFormTouch failed", err);
   }
@@ -213,6 +215,8 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:match") return sendMatchHelp(fakeMsg, env);
   if (data.startsWith("mg:")) return handleMatchGroup(fakeMsg, env, data.slice(3));
   if (data.startsWith("de:")) return handleDeleteFromPicker(fakeMsg, env, data.slice(3));
+  if (data.startsWith("egl:")) return handleEventGroupLinkPicker(fakeMsg, env, data.slice(4));
+  if (data.startsWith("egp:")) return handleEventGroupLinkSet(fakeMsg, env, data.slice(4));
   if (data.startsWith("es:")) return handleEventSignupsDetail(fakeMsg, env, data.slice(3));
   if (data.startsWith("ev:")) return handleEventDetail(fakeMsg, env, data.slice(3));
   if (data.startsWith("eved:")) return handleEventEditPrompt(fakeMsg, env, data.slice(5));
@@ -353,20 +357,16 @@ async function handleListEventsCommand(msg, env) {
 }
 
 // ---- Список записавшихся на мероприятие ------------------------------------
-// Источники касания kind='event_signup': запись через форму на сайте (note —
-// текст названия мероприятия, как ввёл резидент/шёл с сайта) и вступление в
-// Telegram-группу мероприятия, где бот администратор (note — название группы).
-// Сопоставляем с мероприятием по совпадению названия (без учёта регистра,
-// частичное совпадение в любую сторону — название группы не всегда дословно
-// совпадает с названием мероприятия на сайте).
-//
-// ВАЖНО: показывает только тех, кого удалось опознать как резидента (по
-// телефону/username на момент записи). Гостей и ещё-не-резидентов, которые
-// записались, но не опознались — здесь не видно, их имена в системе не
-// сохраняются вовсе. Для точного подсчёта стульев/порций/мест в автобусе,
-// когда среди записавшихся много ещё не резидентов — эту часть надо отдельно
-// дорабатывать (тянуть полный список участников группы мероприятия, не только
-// опознанных резидентов).
+// Два независимых источника, оба реальные люди, не только резиденты:
+//   1) Заявки с сайта — kind='event_signup' в touches, note = название
+//      мероприятия как ввёл человек. Имя — из residents (если опознан) или
+//      person_name (если нет, но записался через форму).
+//   2) Участники Telegram-группы мероприятия — tg_group_members, если админ
+//      один раз указал, какая группа отвечает этому мероприятию (events.signup_chat_id).
+//      Тут все, кто состоит в группе, вне зависимости от того, резидент или нет.
+// Пересечение (человек и заполнил форму, и состоит в группе) не убираем —
+// нет надёжного способа сопоставить гостя между источниками без резидентской
+// привязки, поэтому считаем и показываем раздельно, с пометкой источника.
 async function handleEventSignupsPicker(msg, env) {
   if (!isAdmin(msg.from.username, env)) return;
   if (!env.DB) return;
@@ -381,42 +381,105 @@ async function handleEventSignupsPicker(msg, env) {
   return sendMessage(env, msg.from.id, "Какое мероприятие — список записавшихся?", { inline_keyboard: buttons });
 }
 
+function titleMatches(a, b) {
+  const x = (a || "").trim().toLowerCase();
+  const y = (b || "").trim().toLowerCase();
+  return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
+}
+
 async function handleEventSignupsDetail(msg, env, id) {
   if (!env.DB) return;
   const e = await getEventById(env.DB, id);
   if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
 
-  const { results } = await env.DB.prepare(
-    "SELECT t.note, r.id AS resident_id, r.full_name FROM touches t " +
-    "JOIN residents r ON r.id = t.resident_id " +
+  // Источник 1 — заявки с сайта
+  const { results: touchRows } = await env.DB.prepare(
+    "SELECT t.note, t.person_name, r.full_name AS resident_name FROM touches t " +
+    "LEFT JOIN residents r ON r.id = t.resident_id " +
     "WHERE t.kind = 'event_signup' AND t.note IS NOT NULL"
   ).all();
-
-  const titleNorm = e.title.trim().toLowerCase();
-  const seen = new Set();
-  const names = [];
-  for (const row of results || []) {
-    const noteNorm = (row.note || "").trim().toLowerCase();
-    if (!noteNorm) continue;
-    if (noteNorm === titleNorm || noteNorm.includes(titleNorm) || titleNorm.includes(noteNorm)) {
-      if (!seen.has(row.resident_id)) {
-        seen.add(row.resident_id);
-        names.push(row.full_name);
-      }
-    }
+  const siteSeen = new Set();
+  const siteNames = [];
+  for (const row of touchRows || []) {
+    if (!titleMatches(row.note, e.title)) continue;
+    const displayName = row.resident_name || row.person_name;
+    if (!displayName || siteSeen.has(displayName)) continue;
+    siteSeen.add(displayName);
+    siteNames.push(displayName);
   }
-  names.sort((a, b) => a.localeCompare(b, "ru"));
+  siteNames.sort((a, b) => a.localeCompare(b, "ru"));
 
-  const text = [
-    `<b>${escapeHtml(e.title)}</b>`,
-    formatRuDateTime(e.start),
-    "",
-    `<b>ИТОГО участников (резидентов): ${names.length}</b>`,
-    "",
-    ...(names.length ? names.map((n) => "• " + n) : ["  — пока никто не записался"]),
-  ].join("\n");
+  // Источник 2 — участники привязанной Telegram-группы (если привязана)
+  let groupNames = null;
+  let groupTitle = null;
+  if (e.signupChatId) {
+    const g = await env.DB.prepare("SELECT title FROM tg_groups WHERE chat_id = ?").bind(e.signupChatId).first();
+    groupTitle = g ? g.title : null;
+    const placeholders = ACTIVE_STATUSES.map(() => "?").join(",");
+    const stmt = env.DB.prepare(
+      "SELECT username, first_name, last_name FROM tg_group_members WHERE chat_id = ? AND status IN (" + placeholders + ")"
+    );
+    const { results } = await stmt.bind.apply(stmt, [e.signupChatId].concat(ACTIVE_STATUSES)).all();
+    groupNames = (results || [])
+      .map((m) => [m.first_name, m.last_name].filter(Boolean).join(" ") || (m.username ? "@" + m.username : null))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "ru"));
+  }
 
-  return sendMessage(env, msg.from.id, text, { inline_keyboard: [backButtonRow()] });
+  const lines = [`<b>${escapeHtml(e.title)}</b>`, formatRuDateTime(e.start), ""];
+
+  lines.push(`<b>С сайта: ${siteNames.length}</b>`);
+  lines.push(...(siteNames.length ? siteNames.map((n) => "• " + n) : ["  —"]));
+  lines.push("");
+
+  if (groupNames === null) {
+    lines.push("Группа мероприятия не привязана — список участников группы не учтён.");
+  } else {
+    lines.push(`<b>Группа «${escapeHtml(groupTitle || String(e.signupChatId))}»: ${groupNames.length}</b>`);
+    lines.push(...(groupNames.length ? groupNames.map((n) => "• " + n) : ["  —"]));
+    lines.push("");
+    lines.push("Совпадения между источниками не убраны — если человек и заполнил форму, и вступил в группу, он посчитан дважды.");
+  }
+
+  const keyboard = [];
+  keyboard.push([{ text: groupNames === null ? "🔗 Привязать группу мероприятия" : "🔗 Перепривязать группу", callback_data: `egl:${id}` }]);
+  keyboard.push(backButtonRow());
+
+  return sendMessage(env, msg.from.id, lines.join("\n"), { inline_keyboard: keyboard });
+}
+
+// Кнопка «Привязать группу»: запоминаем, для какого мероприятия выбираем
+// группу (через тот же механизм pending, что и редактирование текста), и
+// показываем список групп бота — тот же, что и в «Сверке участников».
+async function handleEventGroupLinkPicker(msg, env, eventId) {
+  if (!isAdmin(msg.from.username, env)) return;
+  if (!env.DB) return;
+  await ensureGroupTables(env);
+  await setPendingEdit(env.DB, msg.from.id, "eventgroup:" + eventId);
+  const { results } = await env.DB.prepare(
+    "SELECT chat_id, title FROM tg_groups WHERE bot_status IN ('administrator','member','creator') ORDER BY updated_at DESC"
+  ).all();
+  if (!results || !results.length) {
+    return sendMessage(
+      env, msg.from.id,
+      "Бот пока не состоит ни в одной группе. Добавьте его в группу мероприятия администратором и попробуйте снова.",
+      { inline_keyboard: [[{ text: "⬅️ Назад", callback_data: `es:${eventId}` }]] }
+    );
+  }
+  const rows = results.map((g) => [{ text: (g.title || ("Группа " + g.chat_id)).slice(0, 62), callback_data: `egp:${g.chat_id}` }]);
+  rows.push([{ text: "⬅️ Назад", callback_data: `es:${eventId}` }]);
+  return sendMessage(env, msg.from.id, "Какая группа отвечает этому мероприятию?", { inline_keyboard: rows });
+}
+
+async function handleEventGroupLinkSet(msg, env, chatIdRaw) {
+  if (!isAdmin(msg.from.username, env)) return;
+  if (!env.DB) return;
+  const pending = await getPendingEdit(env.DB, msg.from.id);
+  if (!pending || !pending.section.startsWith("eventgroup:")) return;
+  const eventId = pending.section.slice("eventgroup:".length);
+  await clearPendingEdit(env.DB, msg.from.id);
+  await setEventSignupChatId(env.DB, eventId, Number(chatIdRaw));
+  return handleEventSignupsDetail(msg, env, eventId);
 }
 
 async function handleEventDetail(msg, env, id) {

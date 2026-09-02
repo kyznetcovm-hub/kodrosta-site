@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS events (
     full_description  TEXT,               -- JSON-массив абзацев или NULL
     register_url      TEXT,
     created_at        TEXT NOT NULL,
-    created_by        TEXT                -- telegram username, кто опубликовал
+    created_by        TEXT,               -- telegram username, кто опубликовал
+    signup_chat_id    INTEGER             -- привязанная Telegram-группа мероприятия (см. «Список участников»),
+                                           -- NULL, пока админ её не выбрал через бота
 );
 CREATE INDEX IF NOT EXISTS idx_events_start ON events(start);

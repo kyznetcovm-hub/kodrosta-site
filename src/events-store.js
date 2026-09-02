@@ -214,6 +214,10 @@ export async function getEventById(db, id) {
   return row ? rowToEvent(row) : null;
 }
 
+export async function setEventSignupChatId(db, id, chatId) {
+  await db.prepare("UPDATE events SET signup_chat_id = ? WHERE id = ?").bind(chatId, id).run();
+}
+
 export async function deleteEvent(db, id) {
   var res = await db.prepare("DELETE FROM events WHERE id = ?").bind(id).run();
   return res.meta && res.meta.changes > 0;
@@ -269,5 +273,6 @@ function rowToEvent(row) {
     description: row.description,
     fullDescription: row.full_description ? JSON.parse(row.full_description) : undefined,
     registerUrl: row.register_url || undefined,
+    signupChatId: row.signup_chat_id || null,
   };
 }

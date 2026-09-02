@@ -170,6 +170,7 @@ async function handleSubmit(request, env) {
     telegramHandle: telegram,
     kind: type === "apply" ? "apply" : "event_signup",
     note: type === "apply" ? null : String(data.event || "").trim() || null,
+    name,
   });
 
   return json({ ok: true });
