@@ -319,15 +319,19 @@ async def dump_phone_touches(client, dialog):
 
 
 async def dump_dm_touches(client):
-    """Личные диалоги: считаем касанием только ВХОДЯЩЕЕ последнее сообщение —
-    то есть человек написал вам, а не наоборот. Берём только последнее сообщение
-    в каждом диалоге (не всю историю), содержимое переписки никуда не идёт —
-    только сам факт и дата. Сопоставление с базой резидентов — на этапе загрузки;
-    всё, что не совпало с резидентом, отбрасывается и нигде не остаётся."""
+    """Личные диалоги: считаем касанием последнее ВХОДЯЩЕЕ сообщение — то есть
+    человек написал вам, а не наоборот. Если самое последнее сообщение в диалоге —
+    ваше (например, переписка закончилась на вашей реплике, хотя человек ответил
+    парой часов раньше), заглядываем в последние ~20 сообщений и берём оттуда
+    последнее входящее — иначе такой диалог молча терялся бы целиком. Полную
+    историю не читаем (только этот небольшой хвост), содержимое переписки никуда
+    не идёт — только сам факт и дата. Сопоставление с базой резидентов — на этапе
+    загрузки; всё, что не совпало с резидентом, отбрасывается и нигде не остаётся."""
     print("\n─── Личные диалоги (входящие сообщения) ───")
     rows = []
     total = 0
-    skipped_outgoing = 0
+    skipped_no_incoming = 0
+    checked = 0
     async for d in client.iter_dialogs():
         if not d.is_user:
             continue
@@ -336,11 +340,28 @@ async def dump_dm_touches(client):
             continue
         total += 1
         msg = d.message
-        if not msg or msg.out:
-            skipped_outgoing += 1
-            continue  # последнее сообщение написали вы сами — это не касание резидента
+
+        if msg and not msg.out:
+            last_incoming = msg
+        elif msg and msg.out:
+            # последнее сообщение — ваше; ищем последнее входящее в недавнем хвосте
+            checked += 1
+            if checked % 100 == 0:
+                print(f"  …проверено диалогов с исходящим последним сообщением: {checked}")
+            last_incoming = None
+            async for m in client.iter_messages(entity, limit=20):
+                if not m.out:
+                    last_incoming = m
+                    break
+        else:
+            last_incoming = None
+
+        if not last_incoming:
+            skipped_no_incoming += 1
+            continue
+
         username = (entity.username or "").lower()
-        ts = msg.date.astimezone(timezone.utc).isoformat()
+        ts = last_incoming.date.astimezone(timezone.utc).isoformat()
         rows.append((entity.id, username, entity.first_name or "", entity.last_name or "", "dm", None, ts))
 
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -351,7 +372,7 @@ async def dump_dm_touches(client):
         w = csv.writer(f)
         w.writerow(["telegram_user_id", "username", "first_name", "last_name", "kind", "note", "ts"])
         w.writerows(rows)
-    print(f"Личных диалогов: {total}, из них последнее сообщение входящее: {len(rows)}  →  {out_path}")
+    print(f"Личных диалогов: {total}, найдено входящее (сразу или в хвосте): {len(rows)}, без входящих в хвосте: {skipped_no_incoming}  →  {out_path}")
 
 
 async def dump_event_signups(client, dialog):
