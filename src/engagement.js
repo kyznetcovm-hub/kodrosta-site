@@ -151,15 +151,15 @@ function adminMenuKeyboard() {
       [{ text: "03 · Зачем вступать", callback_data: "content:why" }, { text: "04 · Как вступить", callback_data: "content:how" }],
       [{ text: "05 · Вопросы ▸", callback_data: "menu:faq" }],
 
-      [{ text: "🟥 РЕДАКТИРОВАТЬ МЕРОПРИЯТИЯ 🟥", callback_data: "noop" }],
+      [{ text: "🟦 РЕДАКТИРОВАТЬ МЕРОПРИЯТИЯ 🟦", callback_data: "noop" }],
       [{ text: "01 · Список мероприятий", callback_data: "menu:events" }],
       [{ text: "02 · Создать мероприятие", callback_data: "menu:create" }],
       [{ text: "03 · Список участников", callback_data: "menu:signups" }],
 
-      [{ text: "🟩 ВОВЛЕЧЁННОСТЬ 🟩", callback_data: "noop" }],
+      [{ text: "🟦 ВОВЛЕЧЁННОСТЬ 🟦", callback_data: "noop" }],
       [{ text: "📊 Вовлечённость", callback_data: "menu:report" }],
 
-      [{ text: "🟨 СВЕРКА УЧАСТНИКОВ 🟨", callback_data: "noop" }],
+      [{ text: "🟦 СВЕРКА УЧАСТНИКОВ 🟦", callback_data: "noop" }],
       [{ text: "📇 Сверка участников", callback_data: "menu:matchgroups" }],
       [{ text: "🔄 Синхронизировать с таблицей", callback_data: "menu:syncsheet" }],
     ],
