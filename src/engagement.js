@@ -49,10 +49,10 @@ async function findResidentByChatId(db, chatId) {
   return db.prepare("SELECT * FROM residents WHERE chat_id = ?").bind(chatId).first();
 }
 
-async function recordTouch(db, residentId, chatId, kind, note, personName) {
+async function recordTouch(db, residentId, chatId, kind, note, personName, personUsername) {
   await db
-    .prepare("INSERT INTO touches (resident_id, chat_id, kind, note, person_name, ts) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(residentId ?? null, chatId ?? null, kind, note ?? null, personName ?? null, new Date().toISOString())
+    .prepare("INSERT INTO touches (resident_id, chat_id, kind, note, person_name, person_username, ts) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .bind(residentId ?? null, chatId ?? null, kind, note ?? null, personName ?? null, personUsername ?? null, new Date().toISOString())
     .run();
 }
 
@@ -73,9 +73,9 @@ export async function recordFormTouch(env, { phone, telegramHandle, kind, note, 
     const normPhone = normalizePhone(phone);
     let resident = await findResidentByPhone(env.DB, normPhone);
     if (!resident && telegramHandle) resident = await findResidentByUsername(env.DB, telegramHandle);
-    // Имя сохраняем всегда, не только для неопознанных — если резидент напишет
-    // на сайте другое имя, будет видно в «Списке участников» именно оно.
-    await recordTouch(env.DB, resident ? resident.id : null, null, kind, note, name || null);
+    // Имя и telegram сохраняем всегда, не только для неопознанных — если резидент
+    // напишет на сайте другое имя, будет видно в «Списке участников» именно оно.
+    await recordTouch(env.DB, resident ? resident.id : null, null, kind, note, name || null, normalizeUsername(telegramHandle) || null);
   } catch (err) {
     console.error("recordFormTouch failed", err);
   }
@@ -387,6 +387,17 @@ function titleMatches(a, b) {
   return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
 }
 
+// Имя + username одной строкой: "Имя (@ник)", если есть только одно из
+// двух — то, что есть, если нет ни того ни другого — не показываем вовсе.
+function formatPerson(name, username) {
+  const n = (name || "").trim();
+  const u = (username || "").trim();
+  if (n && u) return `${n} (@${u})`;
+  if (n) return n;
+  if (u) return "@" + u;
+  return null;
+}
+
 async function handleEventSignupsDetail(msg, env, id) {
   if (!env.DB) return;
   const e = await getEventById(env.DB, id);
@@ -394,18 +405,18 @@ async function handleEventSignupsDetail(msg, env, id) {
 
   // Источник 1 — заявки с сайта
   const { results: touchRows } = await env.DB.prepare(
-    "SELECT t.note, t.person_name, r.full_name AS resident_name FROM touches t " +
-    "LEFT JOIN residents r ON r.id = t.resident_id " +
+    "SELECT t.note, t.person_name, t.person_username, r.full_name AS resident_name, r.telegram_username AS resident_username " +
+    "FROM touches t LEFT JOIN residents r ON r.id = t.resident_id " +
     "WHERE t.kind = 'event_signup' AND t.note IS NOT NULL"
   ).all();
   const siteSeen = new Set();
   const siteNames = [];
   for (const row of touchRows || []) {
     if (!titleMatches(row.note, e.title)) continue;
-    const displayName = row.resident_name || row.person_name;
-    if (!displayName || siteSeen.has(displayName)) continue;
-    siteSeen.add(displayName);
-    siteNames.push(displayName);
+    const display = formatPerson(row.resident_name || row.person_name, row.resident_username || row.person_username);
+    if (!display || siteSeen.has(display)) continue;
+    siteSeen.add(display);
+    siteNames.push(display);
   }
   siteNames.sort((a, b) => a.localeCompare(b, "ru"));
 
@@ -421,12 +432,19 @@ async function handleEventSignupsDetail(msg, env, id) {
     );
     const { results } = await stmt.bind.apply(stmt, [e.signupChatId].concat(ACTIVE_STATUSES)).all();
     groupNames = (results || [])
-      .map((m) => [m.first_name, m.last_name].filter(Boolean).join(" ") || (m.username ? "@" + m.username : null))
+      .map((m) => formatPerson([m.first_name, m.last_name].filter(Boolean).join(" "), m.username))
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b, "ru"));
   }
 
-  const lines = [`<b>${escapeHtml(e.title)}</b>`, formatRuDateTime(e.start), ""];
+  const total = siteNames.length + (groupNames ? groupNames.length : 0);
+  const lines = [
+    `<b>${escapeHtml(e.title)}</b>`,
+    formatRuDateTime(e.start),
+    "",
+    `<b>ИТОГО участников: ${total}</b>`,
+    "",
+  ];
 
   lines.push(`<b>С сайта: ${siteNames.length}</b>`);
   lines.push(...(siteNames.length ? siteNames.map((n) => "• " + n) : ["  —"]));
@@ -438,7 +456,7 @@ async function handleEventSignupsDetail(msg, env, id) {
     lines.push(`<b>Группа «${escapeHtml(groupTitle || String(e.signupChatId))}»: ${groupNames.length}</b>`);
     lines.push(...(groupNames.length ? groupNames.map((n) => "• " + n) : ["  —"]));
     lines.push("");
-    lines.push("Совпадения между источниками не убраны — если человек и заполнил форму, и вступил в группу, он посчитан дважды.");
+    lines.push("Совпадения между источниками не убраны — если человек и заполнил форму, и вступил в группу, он посчитан дважды в «ИТОГО».");
   }
 
   const keyboard = [];

@@ -20,8 +20,9 @@ CREATE TABLE IF NOT EXISTS touches (
     kind         TEXT NOT NULL,      -- message | reply | question | linked | attended
                                       -- | visit_card | sale_post | online | event_signup | apply | renewal
     note         TEXT,
-    person_name  TEXT,               -- имя с сайта, когда отправитель НЕ опознан как резидент
+    person_name     TEXT,            -- имя с сайта, когда отправитель НЕ опознан как резидент
                                       -- (иначе имя незарегистрированного гостя нигде не сохранится)
+    person_username TEXT,            -- telegram с сайта, та же логика, что и person_name
     ts           TEXT NOT NULL       -- ISO 8601
 );
 CREATE INDEX IF NOT EXISTS idx_touches_resident ON touches(resident_id);
