@@ -176,7 +176,7 @@ export async function syncResidentsFromSheet(env) {
         binds.push(match.id);
         await env.DB.prepare(`UPDATE residents SET ${sets.join(", ")} WHERE id = ?`).bind(...binds).run();
         updated++;
-        updatedNames.push(match.full_name);
+        updatedNames.push(`${match.full_name} [было: ${JSON.stringify(match.telegram_username)} стало: ${JSON.stringify(p.telegramUsername)}]`);
       }
     } else if (p.phone) {
       // новый телефон и не нашёлся ни по телефону, ни по username — новый
