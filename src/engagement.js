@@ -148,10 +148,14 @@ function adminMenuKeyboard() {
       [{ text: "05 · Вопросы ▸", callback_data: "menu:faq" }],
 
       [{ text: "🟥 РЕДАКТИРОВАТЬ МЕРОПРИЯТИЯ 🟥", callback_data: "noop" }],
-      [{ text: "📋 События", callback_data: "menu:events" }, { text: "🗑 Удалить", callback_data: "menu:delete" }],
-      [{ text: "➕ Создать", callback_data: "menu:create" }],
+      [{ text: "01 · Список мероприятий", callback_data: "menu:events" }],
+      [{ text: "02 · Создать мероприятие", callback_data: "menu:create" }],
+      [{ text: "03 · Список участников", callback_data: "menu:signups" }],
 
+      [{ text: "🟩 ВОВЛЕЧЁННОСТЬ 🟩", callback_data: "noop" }],
       [{ text: "📊 Вовлечённость", callback_data: "menu:report" }],
+
+      [{ text: "🟨 СВЕРКА УЧАСТНИКОВ 🟨", callback_data: "noop" }],
       [{ text: "📇 Сверка участников", callback_data: "menu:matchgroups" }],
     ],
   };
@@ -202,13 +206,14 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:events") return handleListEventsCommand(fakeMsg, env);
   if (data === "menu:report") return handleCoolingCommand(fakeMsg, env);
   if (data === "menu:create") return sendMessage(env, from.id, EVENT_TEMPLATE_TEXT, { inline_keyboard: [backButtonRow()] });
-  if (data === "menu:delete") return handleDeletePicker(fakeMsg, env);
+  if (data === "menu:signups") return handleEventSignupsPicker(fakeMsg, env);
   if (data === "menu:faq") return handleFaqPicker(fakeMsg, env);
   if (data === "menu:matchgroups") return handleMatchGroupsPicker(fakeMsg, env);
   if (data.startsWith("cool:")) return handleCoolingDetail(fakeMsg, env, data.slice(5));
   if (data === "menu:match") return sendMatchHelp(fakeMsg, env);
   if (data.startsWith("mg:")) return handleMatchGroup(fakeMsg, env, data.slice(3));
   if (data.startsWith("de:")) return handleDeleteFromPicker(fakeMsg, env, data.slice(3));
+  if (data.startsWith("es:")) return handleEventSignupsDetail(fakeMsg, env, data.slice(3));
   if (data.startsWith("ev:")) return handleEventDetail(fakeMsg, env, data.slice(3));
   if (data.startsWith("eved:")) return handleEventEditPrompt(fakeMsg, env, data.slice(5));
   if (data.startsWith("content:")) return handleContentEditPrompt(fakeMsg, env, data.slice(8));
@@ -270,19 +275,6 @@ async function handleContentEditReply(msg, env, text, section) {
     `✅ Обновлено в разделе «${SECTIONS[section].label}»:\n${changed}\n\nПроверьте на сайте — обновится сразу.`,
     { inline_keyboard: [backButtonRow()] }
   );
-}
-
-async function handleDeletePicker(msg, env) {
-  if (!env.DB) return;
-  const events = await listUpcomingEvents(env.DB);
-  if (!events.length) {
-    return sendMessage(env, msg.from.id, "Ближайших мероприятий нет — удалять нечего.", { inline_keyboard: [backButtonRow()] });
-  }
-  const buttons = events.map((e) => [
-    { text: `${formatRuDateTime(e.start)} — ${e.title}`.slice(0, 60), callback_data: `de:${e.id}` },
-  ]);
-  buttons.push(backButtonRow());
-  return sendMessage(env, msg.from.id, "Какое мероприятие удалить?", { inline_keyboard: buttons });
 }
 
 async function handleDeleteFromPicker(msg, env, id) {
@@ -358,6 +350,73 @@ async function handleListEventsCommand(msg, env) {
   ]);
   buttons.push(backButtonRow());
   return sendMessage(env, msg.from.id, "Мероприятия клуба — нажмите, чтобы посмотреть и изменить:", { inline_keyboard: buttons });
+}
+
+// ---- Список записавшихся на мероприятие ------------------------------------
+// Источники касания kind='event_signup': запись через форму на сайте (note —
+// текст названия мероприятия, как ввёл резидент/шёл с сайта) и вступление в
+// Telegram-группу мероприятия, где бот администратор (note — название группы).
+// Сопоставляем с мероприятием по совпадению названия (без учёта регистра,
+// частичное совпадение в любую сторону — название группы не всегда дословно
+// совпадает с названием мероприятия на сайте).
+//
+// ВАЖНО: показывает только тех, кого удалось опознать как резидента (по
+// телефону/username на момент записи). Гостей и ещё-не-резидентов, которые
+// записались, но не опознались — здесь не видно, их имена в системе не
+// сохраняются вовсе. Для точного подсчёта стульев/порций/мест в автобусе,
+// когда среди записавшихся много ещё не резидентов — эту часть надо отдельно
+// дорабатывать (тянуть полный список участников группы мероприятия, не только
+// опознанных резидентов).
+async function handleEventSignupsPicker(msg, env) {
+  if (!isAdmin(msg.from.username, env)) return;
+  if (!env.DB) return;
+  const events = await listUpcomingEvents(env.DB);
+  if (!events.length) {
+    return sendMessage(env, msg.from.id, "Актуальных мероприятий нет.", { inline_keyboard: [backButtonRow()] });
+  }
+  const buttons = events.map((e) => [
+    { text: `${formatRuDateTime(e.start)} — ${e.title}`.slice(0, 60), callback_data: `es:${e.id}` },
+  ]);
+  buttons.push(backButtonRow());
+  return sendMessage(env, msg.from.id, "Какое мероприятие — список записавшихся?", { inline_keyboard: buttons });
+}
+
+async function handleEventSignupsDetail(msg, env, id) {
+  if (!env.DB) return;
+  const e = await getEventById(env.DB, id);
+  if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
+
+  const { results } = await env.DB.prepare(
+    "SELECT t.note, r.id AS resident_id, r.full_name FROM touches t " +
+    "JOIN residents r ON r.id = t.resident_id " +
+    "WHERE t.kind = 'event_signup' AND t.note IS NOT NULL"
+  ).all();
+
+  const titleNorm = e.title.trim().toLowerCase();
+  const seen = new Set();
+  const names = [];
+  for (const row of results || []) {
+    const noteNorm = (row.note || "").trim().toLowerCase();
+    if (!noteNorm) continue;
+    if (noteNorm === titleNorm || noteNorm.includes(titleNorm) || titleNorm.includes(noteNorm)) {
+      if (!seen.has(row.resident_id)) {
+        seen.add(row.resident_id);
+        names.push(row.full_name);
+      }
+    }
+  }
+  names.sort((a, b) => a.localeCompare(b, "ru"));
+
+  const text = [
+    `<b>${escapeHtml(e.title)}</b>`,
+    formatRuDateTime(e.start),
+    "",
+    `<b>ИТОГО участников (резидентов): ${names.length}</b>`,
+    "",
+    ...(names.length ? names.map((n) => "• " + n) : ["  — пока никто не записался"]),
+  ].join("\n");
+
+  return sendMessage(env, msg.from.id, text, { inline_keyboard: [backButtonRow()] });
 }
 
 async function handleEventDetail(msg, env, id) {
