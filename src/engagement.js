@@ -16,6 +16,7 @@ import {
   getSectionValues, setSectionValues, setPendingEdit, getPendingEdit, clearPendingEdit,
 } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
+import { checkExpiringSubscriptions } from "./subscriptions.js";
 
 export function normalizePhone(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
@@ -125,6 +126,7 @@ export async function handleTelegramUpdate(update, env) {
   if (text.startsWith("/setup")) return handleSetupCommand(msg, env);
   if (text.startsWith("/match")) return handleMatchCommand(msg, env, text);
   if (text.startsWith("/syncsheet")) return handleSyncSheetCommand(msg, env);
+  if (text.startsWith("/subscriptions")) return handleSubscriptionsCommand(msg, env);
   if (text.startsWith("/award")) return handleAwardCommand(msg, env, text);
   if (text.startsWith("/attended")) return handleAttendedCommand(msg, env, text);
   if (text.startsWith("/events")) return handleListEventsCommand(msg, env);
@@ -162,6 +164,9 @@ function adminMenuKeyboard() {
       [{ text: "🟦 СВЕРКА УЧАСТНИКОВ 🟦", callback_data: "noop" }],
       [{ text: "📇 Сверка участников", callback_data: "menu:matchgroups" }],
       [{ text: "🔄 Синхронизировать с таблицей", callback_data: "menu:syncsheet" }],
+
+      [{ text: "🟦 АБОНЕМЕНТЫ 🟦", callback_data: "noop" }],
+      [{ text: "🎫 Абонементы", callback_data: "menu:subscriptions" }],
     ],
   };
 }
@@ -215,6 +220,7 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:faq") return handleFaqPicker(fakeMsg, env);
   if (data === "menu:matchgroups") return handleMatchGroupsPicker(fakeMsg, env);
   if (data === "menu:syncsheet") return handleSyncSheetCommand(fakeMsg, env);
+  if (data === "menu:subscriptions") return handleSubscriptionsCommand(fakeMsg, env);
   if (data.startsWith("cool:")) return handleCoolingDetail(fakeMsg, env, data.slice(5));
   if (data === "menu:match") return sendMatchHelp(fakeMsg, env);
   if (data.startsWith("mg:")) return handleMatchGroup(fakeMsg, env, data.slice(3));
@@ -977,6 +983,15 @@ async function handleSyncSheetCommand(msg, env) {
   } catch (err) {
     report = "Не получилось: " + (err && err.message ? err.message : String(err));
   }
+  return sendMessage(env, msg.from.id, report, { inline_keyboard: [backButtonRow()] });
+}
+
+// Кнопка «Абонементы» -> резиденты, у которых через неделю истекает абонемент
+// (та же функция, что и по расписанию в 8:00 — см. scheduled в src/index.js).
+async function handleSubscriptionsCommand(msg, env) {
+  if (!isAdmin(msg.from.username, env)) return;
+  if (!env.DB) return;
+  const report = await checkExpiringSubscriptions(env);
   return sendMessage(env, msg.from.id, report, { inline_keyboard: [backButtonRow()] });
 }
 

@@ -9,6 +9,7 @@ import { handleTelegramUpdate, recordFormTouch } from "./engagement.js";
 import { listUpcomingEvents } from "./events-store.js";
 import { getAllContent } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
+import { checkExpiringSubscriptions } from "./subscriptions.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -37,12 +38,35 @@ export default {
     return env.ASSETS.fetch(request);
   },
 
-  // Раз в сутки (см. triggers.crons в wrangler.jsonc) — синхронизация вкладки
-  // «Вступившие» гугл-таблицы с базой резидентов, отчёт шлётся админам в личку.
+  // См. triggers.crons в wrangler.jsonc: 03:00 UTC — синхронизация вкладки
+  // «Вступившие» гугл-таблицы с базой резидентов (отчёт — всем админам);
+  // 05:00 UTC — напоминание об абонементах, истекающих через неделю
+  // (отчёт — только SUBSCRIPTION_ALERT_USERNAME, вручную кнопкой в меню
+  // может вызвать любой админ себе, см. src/engagement.js).
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runScheduledSheetSync(env));
+    if (event.cron === "0 5 * * *") {
+      ctx.waitUntil(runScheduledSubscriptionCheck(env));
+    } else {
+      ctx.waitUntil(runScheduledSheetSync(env));
+    }
   }
 };
+
+async function sendToAdminsByUsername(env, usernames, text) {
+  if (!env.DB || !env.BOT_TOKEN || !usernames.length) return;
+  const placeholders = usernames.map(() => "?").join(",");
+  const stmt = env.DB.prepare(
+    "SELECT chat_id FROM residents WHERE telegram_username IN (" + placeholders + ") AND chat_id IS NOT NULL"
+  );
+  const { results } = await stmt.bind.apply(stmt, usernames).all();
+  for (const r of results || []) {
+    await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/sendMessage", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chat_id: r.chat_id, text: text, parse_mode: "HTML" })
+    });
+  }
+}
 
 async function runScheduledSheetSync(env) {
   let report;
@@ -51,21 +75,20 @@ async function runScheduledSheetSync(env) {
   } catch (err) {
     report = "Синхронизация с таблицей упала с ошибкой: " + (err && err.message ? err.message : String(err));
   }
-  if (!env.DB || !env.BOT_TOKEN) return;
   const admins = String(env.ADMIN_USERNAMES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  if (!admins.length) return;
-  const placeholders = admins.map(() => "?").join(",");
-  const stmt = env.DB.prepare(
-    "SELECT chat_id FROM residents WHERE telegram_username IN (" + placeholders + ") AND chat_id IS NOT NULL"
-  );
-  const { results } = await stmt.bind.apply(stmt, admins).all();
-  for (const r of results || []) {
-    await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/sendMessage", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ chat_id: r.chat_id, text: report, parse_mode: "HTML" })
-    });
+  await sendToAdminsByUsername(env, admins, report);
+}
+
+async function runScheduledSubscriptionCheck(env) {
+  if (!env.DB) return;
+  let report;
+  try {
+    report = await checkExpiringSubscriptions(env);
+  } catch (err) {
+    report = "Проверка абонементов упала с ошибкой: " + (err && err.message ? err.message : String(err));
   }
+  const username = String(env.SUBSCRIPTION_ALERT_USERNAME || "").trim().toLowerCase();
+  await sendToAdminsByUsername(env, username ? [username] : [], report);
 }
 
 async function handleContentApi(env) {

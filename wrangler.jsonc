@@ -18,10 +18,12 @@
     "COOLING_WARN_DAYS": "45",
     "COOLING_CRITICAL_DAYS": "90",
     "RESIDENTS_CHAT_ID": "-1002274713400",
-    "GOOGLE_SHEET_ID": "1vfDKwTRVH3FIcaNZIK_JeBX5CRJH9iDsI7iyN1nqnZE"
+    "GOOGLE_SHEET_ID": "1vfDKwTRVH3FIcaNZIK_JeBX5CRJH9iDsI7iyN1nqnZE",
+    "SUBSCRIPTION_ALERT_USERNAME": "Kodrosta"
   },
   "triggers": {
-    // 03:00 UTC = 06:00 по Казани — раз в сутки синхронизация с гугл-таблицей
-    "crons": ["0 3 * * *"]
+    // 03:00 UTC = 06:00 по Москве/Казани — раз в сутки синхронизация с гугл-таблицей
+    // 05:00 UTC = 08:00 по Москве/Казани — напоминание об истекающих абонементах
+    "crons": ["0 3 * * *", "0 5 * * *"]
   }
 }

@@ -104,7 +104,28 @@ function findColumn(header, mustHave) {
   return -1;
 }
 
-// Разбирает всю вкладку «Вступившие» в список { fullName, phone, telegramUsername, joinedAt }.
+function findColumns(header, mustHave) {
+  const out = [];
+  for (let i = 0; i < header.length; i++) {
+    const cell = String(header[i] || "").toLowerCase();
+    if (mustHave.every((kw) => cell.includes(kw))) out.push(i);
+  }
+  return out;
+}
+
+// На вкладке «Вступившие» два столбца «Дата окончания» — до и после продления
+// (столбец «Дата продления» между ними). Берём максимум из обоих: для тех, кто
+// ещё не продлевал, это первая дата, для продливших — более поздняя вторая.
+function latestEndDate(row, colsEnd) {
+  let latest = null;
+  for (const col of colsEnd) {
+    const iso = parseDateCell(row[col]);
+    if (iso && (!latest || iso > latest)) latest = iso;
+  }
+  return latest;
+}
+
+// Разбирает всю вкладку «Вступившие» в список { fullName, phone, telegramUsername, joinedAt, subscriptionEnd }.
 // Останавливается на строке «ПОТЕНЦИАЛЬНЫЕ»/«ДОЛГИ» — это не резиденты.
 function parseResidentsSheet(rows) {
   if (!rows.length) return [];
@@ -113,6 +134,7 @@ function parseResidentsSheet(rows) {
   const colPhone = findColumn(header, ["телефон"]);
   const colTg = findColumn(header, ["телеграм"]);
   const colStart = findColumn(header, ["дата", "начала"]);
+  const colsEnd = findColumns(header, ["дата", "окончания"]);
   if (colName === -1) return []; // не похоже на ожидаемый формат — не рискуем
 
   const out = [];
@@ -126,9 +148,10 @@ function parseResidentsSheet(rows) {
     const phone = colPhone >= 0 ? normalizePhone(row[colPhone]) : null;
     const telegramUsername = colTg >= 0 ? normalizeUsername(row[colTg]) : null;
     const joinedAt = colStart >= 0 ? parseDateCell(row[colStart]) : null;
+    const subscriptionEnd = colsEnd.length ? latestEndDate(row, colsEnd) : null;
     if (!phone && !telegramUsername) continue; // нечем зацепиться — пропускаем
 
-    out.push({ fullName, phone, telegramUsername, joinedAt });
+    out.push({ fullName, phone, telegramUsername, joinedAt, subscriptionEnd });
   }
   return out;
 }
@@ -143,7 +166,7 @@ export async function syncResidentsFromSheet(env) {
   const rows = await fetchSheetRows(accessToken, env.GOOGLE_SHEET_ID, SHEET_TAB_NAME);
   const parsed = parseResidentsSheet(rows);
 
-  const { results: existing } = await env.DB.prepare("SELECT id, full_name, phone, telegram_username FROM residents").all();
+  const { results: existing } = await env.DB.prepare("SELECT id, full_name, phone, telegram_username, subscription_end FROM residents").all();
   const byPhone = new Map();
   const byUsername = new Map();
   for (const r of existing) {
@@ -166,6 +189,7 @@ export async function syncResidentsFromSheet(env) {
 
   let updated = 0;
   let inserted = 0;
+  let endDateUpdated = 0;
   const updatedNames = [];
   const insertedNames = [];
   const conflicts = [];
@@ -190,6 +214,13 @@ export async function syncResidentsFromSheet(env) {
         sets.push("phone = ?");
         binds.push(usablePhone);
       }
+      // В отличие от телефона/telegram, дату окончания перезаписываем всегда —
+      // при продлении в таблице она сдвигается вперёд, это не разовое заполнение.
+      if (p.subscriptionEnd && p.subscriptionEnd !== match.subscription_end) {
+        sets.push("subscription_end = ?");
+        binds.push(p.subscriptionEnd);
+        endDateUpdated++;
+      }
       if (sets.length) {
         binds.push(match.id);
         await env.DB.prepare(`UPDATE residents SET ${sets.join(", ")} WHERE id = ?`).bind(...binds).run();
@@ -200,8 +231,8 @@ export async function syncResidentsFromSheet(env) {
       // новый телефон и не нашёлся ни по телефону, ни по username — новый
       // резидент (совсем без телефона не добавляем, слишком легко случайно
       // задвоить кого-то без надёжного ключа для сопоставления)
-      await env.DB.prepare("INSERT INTO residents (full_name, phone, telegram_username, joined_at, active) VALUES (?, ?, ?, ?, 1)")
-        .bind(p.fullName, usablePhone, p.telegramUsername, p.joinedAt).run();
+      await env.DB.prepare("INSERT INTO residents (full_name, phone, telegram_username, joined_at, subscription_end, active) VALUES (?, ?, ?, ?, ?, 1)")
+        .bind(p.fullName, usablePhone, p.telegramUsername, p.joinedAt, p.subscriptionEnd).run();
       inserted++;
       insertedNames.push(p.fullName);
     }
@@ -212,6 +243,7 @@ export async function syncResidentsFromSheet(env) {
     `Строк разобрано: ${parsed.length}`,
     `Обновлён telegram: ${updated}${updated ? " (" + updatedNames.slice(0, 10).join(", ") + (updated > 10 ? "…" : "") + ")" : ""}`,
     `Новых резидентов: ${inserted}${inserted ? " (" + insertedNames.slice(0, 10).join(", ") + (inserted > 10 ? "…" : "") + ")" : ""}`,
+    `Обновлена дата окончания абонемента: ${endDateUpdated}`,
   ];
   if (conflicts.length) {
     const uniqueConflicts = [...new Set(conflicts)];
