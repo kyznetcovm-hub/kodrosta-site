@@ -16,7 +16,7 @@ import {
   getSectionValues, setSectionValues, setPendingEdit, getPendingEdit, clearPendingEdit,
 } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
-import { checkExpiringSubscriptions } from "./subscriptions.js";
+import { listSubscriptionsDueThisMonth } from "./subscriptions.js";
 
 export function normalizePhone(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
@@ -991,8 +991,10 @@ async function handleSyncSheetCommand(msg, env) {
   return sendMessage(env, msg.from.id, report, { inline_keyboard: [backButtonRow()] });
 }
 
-// Кнопка «Абонементы» -> резиденты, у которых через неделю истекает абонемент
-// (та же функция, что и по расписанию в 8:00 — см. scheduled в src/index.js).
+// Кнопка «Абонементы» -> резиденты, у которых абонемент заканчивается от
+// сегодня и в течение месяца вперёд (не то же самое, что рассылка по
+// расписанию в 8:00 — та строго за неделю, см. scheduled в src/index.js;
+// кнопка — шире, чтобы видеть потенциал продлений на месяц).
 // callbackQueryId задан только при вызове кнопкой (не из текстовой команды
 // /subscriptions) — тогда пустой результат показываем всплывающим окном,
 // а не отдельным сообщением в чат.
@@ -1005,9 +1007,9 @@ async function handleSubscriptionsCommand(msg, env, callbackQueryId) {
     if (callbackQueryId) await answerCallback(env, callbackQueryId);
     return;
   }
-  const report = await checkExpiringSubscriptions(env);
+  const report = await listSubscriptionsDueThisMonth(env);
   if (!report) {
-    const text = "Нет абонементов, которые заканчиваются через неделю.";
+    const text = "Нет абонементов, которые заканчиваются в течение месяца.";
     if (callbackQueryId) return answerCallback(env, callbackQueryId, text);
     return sendMessage(env, msg.from.id, text, { inline_keyboard: [backButtonRow()] });
   }

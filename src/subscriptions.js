@@ -1,8 +1,14 @@
-// Напоминание об окончании абонемента резидента — за неделю до даты из
-// столбца «Дата окончания» гугл-таблицы «Вступившие» (см. src/sheets-sync.js,
-// который эту дату кладёт в residents.subscription_end при синхронизации).
-// Вызывается и по расписанию (раз в сутки, src/index.js), и вручную —
-// кнопкой «Абонементы» в админ-меню (src/engagement.js).
+// Всё, что связано с датой окончания абонемента резидента (столбец «Дата
+// окончания» гугл-таблицы «Вступившие» — см. src/sheets-sync.js, который
+// эту дату кладёт в residents.subscription_end при синхронизации).
+//
+// Два независимых сценария:
+// - по расписанию раз в сутки (src/index.js) — ровно за неделю до даты
+//   окончания, только @Kodrosta;
+// - кнопка «Абонементы» в админ-меню (src/engagement.js) — список всех,
+//   у кого абонемент заканчивается от сегодня и в течение месяца вперёд,
+//   чтобы видеть потенциал продлений на месяц; вызвать может любой админ,
+//   отвечает тому, кто нажал.
 
 function isoDatePlusDays(days) {
   const d = new Date();
@@ -15,8 +21,18 @@ function formatRuDate(iso) {
   return `${day}.${month}.${year}`;
 }
 
-// Возвращает null, если ни у кого через неделю абонемент не заканчивается —
-// вызывающий код (и по расписанию, и по кнопке) в этом случае ничего не шлёт.
+function formatSubscriptionList(title, results) {
+  const lines = [`<b>${title}</b>`, ""];
+  results.forEach((r, i) => {
+    const username = r.telegram_username ? "@" + r.telegram_username : "—";
+    lines.push(`${i + 1}. ${r.full_name} / ${username} / ${formatRuDate(r.subscription_end)}`);
+  });
+  return lines.join("\n");
+}
+
+// Для рассылки по расписанию — ровно за неделю. Возвращает null, если ни у
+// кого абонемент не заканчивается ровно через неделю: вызывающий код в этом
+// случае ничего не шлёт (см. runScheduledSubscriptionCheck в src/index.js).
 export async function checkExpiringSubscriptions(env) {
   const targetDate = isoDatePlusDays(7);
   const { results } = await env.DB
@@ -25,11 +41,23 @@ export async function checkExpiringSubscriptions(env) {
     .all();
 
   if (!results.length) return null;
+  return formatSubscriptionList("Абонементы — истекают через неделю", results);
+}
 
-  const lines = [`<b>Абонементы — истекают через неделю</b>`, ""];
-  results.forEach((r, i) => {
-    const username = r.telegram_username ? "@" + r.telegram_username : "—";
-    lines.push(`${i + 1}. ${r.full_name} / ${username} / ${formatRuDate(r.subscription_end)}`);
-  });
-  return lines.join("\n");
+// Для кнопки «Абонементы» — от сегодня и на месяц вперёд, отсортировано по
+// дате окончания (ближайшие продления — первые). Возвращает null, если за
+// этот месяц ни у кого абонемент не заканчивается.
+export async function listSubscriptionsDueThisMonth(env) {
+  const today = isoDatePlusDays(0);
+  const monthAhead = isoDatePlusDays(30);
+  const { results } = await env.DB
+    .prepare(
+      "SELECT full_name, telegram_username, subscription_end FROM residents " +
+      "WHERE active = 1 AND subscription_end BETWEEN ? AND ? ORDER BY subscription_end"
+    )
+    .bind(today, monthAhead)
+    .all();
+
+  if (!results.length) return null;
+  return formatSubscriptionList("Абонементы — заканчиваются в течение месяца", results);
 }
