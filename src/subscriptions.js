@@ -15,6 +15,8 @@ function formatRuDate(iso) {
   return `${day}.${month}.${year}`;
 }
 
+// Возвращает null, если ни у кого через неделю абонемент не заканчивается —
+// вызывающий код (и по расписанию, и по кнопке) в этом случае ничего не шлёт.
 export async function checkExpiringSubscriptions(env) {
   const targetDate = isoDatePlusDays(7);
   const { results } = await env.DB
@@ -22,16 +24,12 @@ export async function checkExpiringSubscriptions(env) {
     .bind(targetDate)
     .all();
 
-  const lines = [
-    `<b>Абонементы — истекают через неделю</b> · ${new Date().toLocaleDateString("ru-RU")}`,
-    `Найдено: ${results.length}`,
-  ];
-  if (results.length) {
-    lines.push("");
-    for (const r of results) {
-      const username = r.telegram_username ? "@" + r.telegram_username : "—";
-      lines.push(`• ${r.full_name} / ${username} / ${formatRuDate(r.subscription_end)}`);
-    }
-  }
+  if (!results.length) return null;
+
+  const lines = [`<b>Абонементы — истекают через неделю</b>`, ""];
+  results.forEach((r, i) => {
+    const username = r.telegram_username ? "@" + r.telegram_username : "—";
+    lines.push(`${i + 1}. ${r.full_name} / ${username} / ${formatRuDate(r.subscription_end)}`);
+  });
   return lines.join("\n");
 }

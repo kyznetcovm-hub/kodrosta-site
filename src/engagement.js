@@ -209,6 +209,12 @@ async function handleCallbackQuery(cq, env) {
     return answerCallback(env, cq.id, "Доступно только менеджеру клуба");
   }
 
+  // «Абонементы» отвечается отдельно — либо всплывающим уведомлением, если
+  // никто не заканчивается через неделю, либо обычным подтверждением и
+  // сообщением; общий answerCallback ниже тут не подходит, потому что
+  // callback_query можно ответить только один раз.
+  if (data === "menu:subscriptions") return handleSubscriptionsCommand(fakeMsg, env, cq.id);
+
   await answerCallback(env, cq.id);
 
   if (data === "noop") return; // нажали на заголовок-разделитель — ничего не делаем
@@ -220,7 +226,6 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:faq") return handleFaqPicker(fakeMsg, env);
   if (data === "menu:matchgroups") return handleMatchGroupsPicker(fakeMsg, env);
   if (data === "menu:syncsheet") return handleSyncSheetCommand(fakeMsg, env);
-  if (data === "menu:subscriptions") return handleSubscriptionsCommand(fakeMsg, env);
   if (data.startsWith("cool:")) return handleCoolingDetail(fakeMsg, env, data.slice(5));
   if (data === "menu:match") return sendMatchHelp(fakeMsg, env);
   if (data.startsWith("mg:")) return handleMatchGroup(fakeMsg, env, data.slice(3));
@@ -988,10 +993,25 @@ async function handleSyncSheetCommand(msg, env) {
 
 // Кнопка «Абонементы» -> резиденты, у которых через неделю истекает абонемент
 // (та же функция, что и по расписанию в 8:00 — см. scheduled в src/index.js).
-async function handleSubscriptionsCommand(msg, env) {
-  if (!isAdmin(msg.from.username, env)) return;
-  if (!env.DB) return;
+// callbackQueryId задан только при вызове кнопкой (не из текстовой команды
+// /subscriptions) — тогда пустой результат показываем всплывающим окном,
+// а не отдельным сообщением в чат.
+async function handleSubscriptionsCommand(msg, env, callbackQueryId) {
+  if (!isAdmin(msg.from.username, env)) {
+    if (callbackQueryId) await answerCallback(env, callbackQueryId, "Доступно только менеджеру клуба");
+    return;
+  }
+  if (!env.DB) {
+    if (callbackQueryId) await answerCallback(env, callbackQueryId);
+    return;
+  }
   const report = await checkExpiringSubscriptions(env);
+  if (!report) {
+    const text = "Нет абонементов, которые заканчиваются через неделю.";
+    if (callbackQueryId) return answerCallback(env, callbackQueryId, text);
+    return sendMessage(env, msg.from.id, text, { inline_keyboard: [backButtonRow()] });
+  }
+  if (callbackQueryId) await answerCallback(env, callbackQueryId);
   return sendMessage(env, msg.from.id, report, { inline_keyboard: [backButtonRow()] });
 }
 

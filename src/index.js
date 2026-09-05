@@ -87,6 +87,7 @@ async function runScheduledSubscriptionCheck(env) {
   } catch (err) {
     report = "Проверка абонементов упала с ошибкой: " + (err && err.message ? err.message : String(err));
   }
+  if (!report) return; // ни у кого через неделю абонемент не заканчивается — молчим, не спамим
   const username = String(env.SUBSCRIPTION_ALERT_USERNAME || "").trim().toLowerCase();
   await sendToAdminsByUsername(env, username ? [username] : [], report);
 }
