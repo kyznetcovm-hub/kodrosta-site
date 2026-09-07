@@ -672,16 +672,17 @@ async function computeCoolingLists(env) {
   const lists = { crit: [], warn: [], ok: [], nodata: [] };
 
   for (const r of residents) {
+    const name = formatPerson(r.full_name, r.telegram_username) || r.full_name;
     const last = await db
       .prepare("SELECT ts, kind FROM touches WHERE resident_id = ? ORDER BY ts DESC LIMIT 1")
       .bind(r.id)
       .first();
     if (!last) {
-      lists.nodata.push(`• ${r.full_name} — нет касаний`);
+      lists.nodata.push(`• ${name} — нет касаний`);
       continue;
     }
     const days = Math.floor((now - new Date(last.ts).getTime()) / 86400000);
-    const line = `• ${r.full_name} — ${days} дн. назад (${last.kind})`;
+    const line = `• ${name} — ${days} дн. назад (${last.kind})`;
     if (days >= critDays) lists.crit.push(line);
     else if (days >= warnDays) lists.warn.push(line);
     else lists.ok.push(line);
