@@ -607,16 +607,20 @@ async function handleEventRegLink(msg, env, id) {
   if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
   const botLink = `https://t.me/${BOT_USERNAME}?start=e_${id}`;
   const siteLink = `${SITE_URL}/?e=${id}`;
+  const invite = [
+    `Приглашаем вас на «${escapeHtml(e.title)}»`,
+    `${escapeHtml(formatRuDateTime(e.start))}${e.place ? " · " + escapeHtml(e.place) : ""}`,
+    "",
+    "Записаться (выберите удобное):",
+    `• через бота, быстро: ${botLink}`,
+    `• через сайт, форма: ${siteLink}`,
+  ].join("\n");
   const text = [
     `<b>Приглашение на «${escapeHtml(e.title)}»</b>`,
-    `${escapeHtml(formatRuDateTime(e.start))}`,
     "",
-    "Готовое сообщение — нажмите, чтобы скопировать, и перешлите тому, кто просил записать:",
+    "Нажмите на текст ниже — он скопируется целиком. Вставьте его в ответ тому, кто просит записать. В нём обе ссылки, человек сам выберет.",
     "",
-    `<code>Записал вас на «${escapeHtml(e.title)}» — ${escapeHtml(formatRuDateTime(e.start))}. Подтвердите: откройте ссылку и нажмите «Записаться». ${botLink}</code>`,
-    "",
-    "Если человек не в Telegram или хочет форму — эта ссылка на сайт:",
-    siteLink,
+    `<code>${invite}</code>`,
   ].join("\n");
   return sendMessage(env, msg.from.id, text, { inline_keyboard: [[{ text: "⬅️ Назад", callback_data: `es:${id}` }]] });
 }
