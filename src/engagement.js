@@ -529,6 +529,7 @@ async function handleEventSignupsDetail(msg, env, id) {
   }
 
   const keyboard = [];
+  keyboard.push([{ text: "📨 Пригласить на мероприятие", callback_data: `srl:${id}` }]);
   keyboard.push([{ text: "➕ Добавить участников", callback_data: `sadd:${id}` }]);
   keyboard.push([{ text: groupNames === null ? "🔗 Привязать группу мероприятия" : "🔗 Перепривязать группу", callback_data: `egl:${id}` }]);
   keyboard.push(backButtonRow());
@@ -588,7 +589,7 @@ async function handleEventDetail(msg, env, id) {
   ].join("\n");
   const keyboard = {
     inline_keyboard: [
-      [{ text: "🔗 Ссылка для записи", callback_data: `srl:${id}` }],
+      [{ text: "📨 Пригласить на мероприятие", callback_data: `srl:${id}` }],
       [{ text: "➕ Добавить участников", callback_data: `sadd:${id}` }, { text: "👥 Список записавшихся", callback_data: `es:${id}` }],
       [{ text: "✏️ Изменить", callback_data: `eved:${id}` }, { text: "🗑 Удалить", callback_data: `de:${id}` }],
       backButtonRow(),
@@ -597,7 +598,8 @@ async function handleEventDetail(msg, env, id) {
   return sendMessage(env, msg.from.id, text, keyboard);
 }
 
-// «🔗 Ссылка для записи» — обе ссылки (бот + сайт) и готовый текст для участника.
+// «📨 Пригласить на мероприятие» — обе ссылки (бот + сайт) и готовый текст,
+// который менеджер пересылает в ответ на просьбу записать.
 async function handleEventRegLink(msg, env, id) {
   if (!isAdmin(msg.from.username, env)) return;
   if (!env.DB) return;
@@ -606,18 +608,17 @@ async function handleEventRegLink(msg, env, id) {
   const botLink = `https://t.me/${BOT_USERNAME}?start=e_${id}`;
   const siteLink = `${SITE_URL}/?e=${id}`;
   const text = [
-    `<b>Ссылки для записи на «${escapeHtml(e.title)}»</b>`,
+    `<b>Приглашение на «${escapeHtml(e.title)}»</b>`,
+    `${escapeHtml(formatRuDateTime(e.start))}`,
     "",
-    "Через бота — проще для участника (ничего не заполнять):",
-    botLink,
+    "Готовое сообщение — нажмите, чтобы скопировать, и перешлите тому, кто просил записать:",
     "",
-    "Через сайт — если человек предпочитает форму:",
+    `<code>Записал вас на «${escapeHtml(e.title)}» — ${escapeHtml(formatRuDateTime(e.start))}. Подтвердите: откройте ссылку и нажмите «Записаться». ${botLink}</code>`,
+    "",
+    "Если человек не в Telegram или хочет форму — эта ссылка на сайт:",
     siteLink,
-    "",
-    "Текст участнику можно такой:",
-    `<code>Запишу вас на «${escapeHtml(e.title)}» ${escapeHtml(formatRuDateTime(e.start))}. Нажмите ссылку и кнопку «Записаться»: ${botLink}</code>`,
   ].join("\n");
-  return sendMessage(env, msg.from.id, text, { inline_keyboard: [[{ text: "⬅️ Назад", callback_data: `ev:${id}` }]] });
+  return sendMessage(env, msg.from.id, text, { inline_keyboard: [[{ text: "⬅️ Назад", callback_data: `es:${id}` }]] });
 }
 
 async function handleManualSignupPrompt(msg, env, id) {
