@@ -182,7 +182,8 @@ export async function buildMetrikaDigest(env) {
     }
   }
 
-  const engLine = engines.filter((e) => e.value).map((e) => `${esc(e.name)} — ${e.value}`).join(", ");
+  const engName = (n) => esc(String(n).replace(/,\s*search results$/i, "").replace(/,\s*картинки$/i, " (картинки)"));
+  const engLine = engines.filter((e) => e.value).map((e) => `${engName(e.name)} — ${e.value}`).join(", ");
   if (engLine) {
     L.push("");
     L.push("<b>Поиск (30 дней)</b>");
