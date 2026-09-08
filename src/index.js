@@ -10,6 +10,7 @@ import { listUpcomingEvents } from "./events-store.js";
 import { getAllContent } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
 import { checkExpiringSubscriptions } from "./subscriptions.js";
+import { buildMetrikaDigest } from "./metrika.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -31,6 +32,10 @@ export default {
       return handleContentApi(env);
     }
 
+    if (url.pathname === "/api/metrika" && request.method === "GET") {
+      return handleMetrikaReport(url, env);
+    }
+
     if (url.pathname === "/calendar.ics" && (request.method === "GET" || request.method === "HEAD")) {
       return handleCalendarFeed(env);
     }
@@ -46,11 +51,47 @@ export default {
   async scheduled(event, env, ctx) {
     if (event.cron === "0 5 * * *") {
       ctx.waitUntil(runScheduledSubscriptionCheck(env));
+    } else if (event.cron === "0 6 * * 1") {
+      ctx.waitUntil(runScheduledMetrikaDigest(env));
     } else {
       ctx.waitUntil(runScheduledSheetSync(env));
     }
   }
 };
+
+// Понедельник 06:00 UTC = 09:00 по Казани — сводка по Метрике за прошедшую
+// неделю в личку всем админам (как отчёт синхронизации таблицы).
+async function runScheduledMetrikaDigest(env) {
+  if (!env.METRIKA_TOKEN) return;
+  let report;
+  try {
+    const digest = await buildMetrikaDigest(env);
+    report = digest.text;
+  } catch (err) {
+    report = "Еженедельный отчёт по Метрике упал с ошибкой: " + (err && err.message ? err.message : String(err));
+  }
+  const admins = String(env.ADMIN_USERNAMES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  await sendToAdminsByUsername(env, admins, report);
+}
+
+// Закрытый эндпоинт: GET /api/metrika?key=METRIKA_REPORT_KEY — те же данные
+// в JSON, чтобы смотреть цифры вручную/из другого инструмента. Без ключа или
+// с неверным ключом — 403, наружу ничего не отдаём.
+async function handleMetrikaReport(url, env) {
+  const key = url.searchParams.get("key") || "";
+  if (!env.METRIKA_REPORT_KEY || key.length !== env.METRIKA_REPORT_KEY.length || key !== env.METRIKA_REPORT_KEY) {
+    return json({ ok: false, error: "forbidden" }, 403);
+  }
+  if (!env.METRIKA_TOKEN) {
+    return json({ ok: false, error: "not_configured" }, 500);
+  }
+  try {
+    const digest = await buildMetrikaDigest(env);
+    return json({ ok: true, ...digest });
+  } catch (err) {
+    return json({ ok: false, error: String(err && err.message ? err.message : err) }, 502);
+  }
+}
 
 async function sendToAdminsByUsername(env, usernames, text) {
   if (!env.DB || !env.BOT_TOKEN || !usernames.length) return;
