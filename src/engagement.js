@@ -607,22 +607,25 @@ async function handleEventRegLink(msg, env, id) {
   if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
   const botLink = `https://t.me/${BOT_USERNAME}?start=e_${id}`;
   const siteLink = `${SITE_URL}/?e=${id}`;
-  const invite = [
-    `Приглашаем вас на «${escapeHtml(e.title)}»`,
+  const text = [
+    `Приглашаем вас на «<b>${escapeHtml(e.title)}</b>»`,
     `${escapeHtml(formatRuDateTime(e.start))}${e.place ? " · " + escapeHtml(e.place) : ""}`,
     "",
-    "Записаться (выберите удобное):",
-    `• через бота, быстро: ${botLink}`,
-    `• через сайт, форма: ${siteLink}`,
-  ].join("\n");
-  const text = [
-    `<b>Приглашение на «${escapeHtml(e.title)}»</b>`,
+    "Записаться — выберите удобный способ:",
     "",
-    "Нажмите на текст ниже — он скопируется целиком. Вставьте его в ответ тому, кто просит записать. В нём обе ссылки, человек сам выберет.",
+    "<b>Через бота</b> — быстро, ничего заполнять не нужно:",
+    botLink,
     "",
-    `<code>${invite}</code>`,
+    "<b>Через сайт</b> — обычная форма:",
+    siteLink,
   ].join("\n");
-  return sendMessage(env, msg.from.id, text, { inline_keyboard: [[{ text: "⬅️ Назад", callback_data: `es:${id}` }]] });
+  // Одно сообщение — его менеджер и пересылает участнику (удержать → Переслать).
+  // Кнопка «Назад» при пересылке отваливается сама, участник её не увидит.
+  return sendMessage(
+    env, msg.from.id, text,
+    { inline_keyboard: [[{ text: "⬅️ Назад", callback_data: `es:${id}` }]] },
+    { noPreview: true }
+  );
 }
 
 async function handleManualSignupPrompt(msg, env, id) {
@@ -1353,9 +1356,10 @@ async function handleAttendedCommand(msg, env, text) {
   return sendMessage(env, msg.from.id, `Отмечено пришедших: ${ok} из ${unames.length}`);
 }
 
-async function sendMessage(env, chatId, text, replyMarkup) {
+async function sendMessage(env, chatId, text, replyMarkup, opts) {
   const body = { chat_id: chatId, text, parse_mode: "HTML" };
   if (replyMarkup) body.reply_markup = replyMarkup;
+  if (opts && opts.noPreview) body.disable_web_page_preview = true;
   await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "content-type": "application/json" },
