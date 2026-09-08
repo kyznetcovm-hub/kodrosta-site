@@ -23,7 +23,7 @@
 <!-- /Yandex.Metrika counter -->
 
 <title>Блог — Код Роста</title>
-<meta name="description" content="Отчёты о мероприятиях клуба «Код Роста»: бизнес-бани, конференции, встречи с властью — как прошло и что обсудили.">
+<meta name="description" content="Как живёт клуб «Код Роста»: статьи, экспертные мнения резидентов, аналитика, обзоры и отчёты с мероприятий.">
 <link rel="canonical" href="https://codrosta.club/blog">
 
 <meta property="og:type" content="website">
@@ -31,7 +31,7 @@
 <meta property="og:locale" content="ru_RU">
 <meta property="og:url" content="https://codrosta.club/blog">
 <meta property="og:title" content="Блог — Код Роста">
-<meta property="og:description" content="Отчёты о мероприятиях клуба «Код Роста»: бизнес-бани, конференции, встречи с властью — как прошло и что обсудили.">
+<meta property="og:description" content="Как живёт клуб «Код Роста»: статьи, экспертные мнения резидентов, аналитика, обзоры и отчёты с мероприятий.">
 <meta property="og:image" content="https://codrosta.club/assets/og-image.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -79,8 +79,8 @@
     <div class="container">
       <span class="eyebrow">Блог</span>
       <div class="section-head">
-        <h2>Как прошли мероприятия клуба</h2>
-        <p>Короткие отчёты после встреч, бань и конференций — что обсудили резиденты и что из этого вышло.</p>
+        <h2>Как живёт «Код Роста»</h2>
+        <p>Статьи, экспертные мнения, аналитика, обзоры и отчёты с мероприятий клуба.</p>
       </div>
       <div class="post-grid js-post-grid"></div>
     </div>
@@ -109,7 +109,7 @@
 
   var grid = document.querySelector(".js-post-grid");
   if (POSTS.length === 0) {
-    grid.outerHTML = '<p class="blog-empty">Первый отчёт скоро появится — следите за <a href="https://t.me/codrosta" target="_blank" rel="noopener" style="color:var(--blue)">Telegram-каналом</a>.</p>';
+    grid.outerHTML = '<p class="blog-empty">Первый материал скоро появится — следите за <a href="https://t.me/codrosta" target="_blank" rel="noopener" style="color:var(--blue)">Telegram-каналом</a>.</p>';
   } else {
     grid.innerHTML = POSTS.map(function (p) {
       return (
