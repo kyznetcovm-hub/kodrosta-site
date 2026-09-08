@@ -17,6 +17,12 @@ import {
 } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
 import { listSubscriptionsDueThisMonth } from "./subscriptions.js";
+import {
+  recordBotSignup, recordManualSignups, attachSignupPhone, listEventSignups,
+} from "./event-signups.js";
+
+const BOT_USERNAME = "KodrostaAssistant_bot";
+const SITE_URL = "https://codrosta.club";
 
 export function normalizePhone(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
@@ -119,6 +125,9 @@ export async function handleTelegramUpdate(update, env) {
     if (pending && pending.section.startsWith("event:")) {
       return handleEventEditReply(msg, env, text, pending.section.slice(6));
     }
+    if (pending && pending.section.startsWith("signupadd:")) {
+      return handleManualSignupReply(msg, env, text, pending.section.slice("signupadd:".length));
+    }
     if (pending) return handleContentEditReply(msg, env, text, pending.section);
   }
 
@@ -205,6 +214,12 @@ async function handleCallbackQuery(cq, env) {
   const data = cq.data || "";
   const fakeMsg = { from };
 
+  // Запись на мероприятие по ссылке — доступна всем, не только менеджеру.
+  if (data.startsWith("sreg:")) {
+    await answerCallback(env, cq.id);
+    return handleEventRegConfirm(fakeMsg, env, data.slice(5));
+  }
+
   if (!isAdmin(from.username, env)) {
     return answerCallback(env, cq.id, "Доступно только менеджеру клуба");
   }
@@ -233,6 +248,8 @@ async function handleCallbackQuery(cq, env) {
   if (data.startsWith("egl:")) return handleEventGroupLinkPicker(fakeMsg, env, data.slice(4));
   if (data.startsWith("egp:")) return handleEventGroupLinkSet(fakeMsg, env, data.slice(4));
   if (data.startsWith("es:")) return handleEventSignupsDetail(fakeMsg, env, data.slice(3));
+  if (data.startsWith("srl:")) return handleEventRegLink(fakeMsg, env, data.slice(4));
+  if (data.startsWith("sadd:")) return handleManualSignupPrompt(fakeMsg, env, data.slice(5));
   if (data.startsWith("ev:")) return handleEventDetail(fakeMsg, env, data.slice(3));
   if (data.startsWith("eved:")) return handleEventEditPrompt(fakeMsg, env, data.slice(5));
   if (data.startsWith("content:")) return handleContentEditPrompt(fakeMsg, env, data.slice(8));
@@ -418,7 +435,34 @@ async function handleEventSignupsDetail(msg, env, id) {
   const e = await getEventById(env.DB, id);
   if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
 
-  // Источник 1 — заявки с сайта
+  // username-и, уже учтённые более надёжными источниками (бот, ручной ввод) —
+  // чтобы не считать одного человека дважды.
+  const takenUsernames = new Set();
+
+  // Источник 1 — записи через бота (ссылка-диплинк) и добавленные вручную.
+  const signupRows = await listEventSignups(env, id);
+  const botNames = [];
+  const manualRows = [];
+  for (const s of signupRows) {
+    if (s.source === "bot") {
+      if (s.username) takenUsernames.add(s.username.toLowerCase());
+      const disp = formatPerson(s.person_name, s.username);
+      botNames.push((disp || `id${s.tg_user_id}`) + (s.phone ? " 📞" : ""));
+    } else {
+      manualRows.push(s);
+    }
+  }
+  const manualNames = [];
+  for (const s of manualRows) {
+    if (s.username && takenUsernames.has(s.username.toLowerCase())) continue; // уже записан через бота
+    if (s.username) takenUsernames.add(s.username.toLowerCase());
+    const disp = formatPerson(s.person_name, s.username);
+    if (disp) manualNames.push(disp);
+  }
+  botNames.sort((a, b) => a.localeCompare(b, "ru"));
+  manualNames.sort((a, b) => a.localeCompare(b, "ru"));
+
+  // Источник 2 — заявки с сайта
   const { results: touchRows } = await env.DB.prepare(
     "SELECT t.note, t.person_name, t.person_username, r.full_name AS resident_name, r.telegram_username AS resident_username " +
     "FROM touches t LEFT JOIN residents r ON r.id = t.resident_id " +
@@ -428,6 +472,8 @@ async function handleEventSignupsDetail(msg, env, id) {
   const siteNames = [];
   for (const row of touchRows || []) {
     if (!titleMatches(row.note, e.title)) continue;
+    const uname = normalizeUsername(row.resident_username || row.person_username);
+    if (uname && takenUsernames.has(uname)) continue; // уже учтён ботом/вручную
     const display = formatPerson(row.resident_name || row.person_name, row.resident_username || row.person_username);
     if (!display || siteSeen.has(display)) continue;
     siteSeen.add(display);
@@ -435,7 +481,7 @@ async function handleEventSignupsDetail(msg, env, id) {
   }
   siteNames.sort((a, b) => a.localeCompare(b, "ru"));
 
-  // Источник 2 — участники привязанной Telegram-группы (если привязана)
+  // Источник 3 — участники привязанной Telegram-группы (если привязана)
   let groupNames = null;
   let groupTitle = null;
   if (e.signupChatId) {
@@ -452,7 +498,7 @@ async function handleEventSignupsDetail(msg, env, id) {
       .sort((a, b) => a.localeCompare(b, "ru"));
   }
 
-  const total = siteNames.length + (groupNames ? groupNames.length : 0);
+  const total = botNames.length + manualNames.length + siteNames.length + (groupNames ? groupNames.length : 0);
   const lines = [
     `<b>${escapeHtml(e.title)}</b>`,
     formatRuDateTime(e.start),
@@ -460,6 +506,14 @@ async function handleEventSignupsDetail(msg, env, id) {
     `<b>ИТОГО участников: ${total}</b>`,
     "",
   ];
+
+  lines.push(`<b>Через бота (ссылка): ${botNames.length}</b>`);
+  lines.push(...(botNames.length ? botNames.map((n) => "• " + n) : ["  —"]));
+  lines.push("");
+
+  lines.push(`<b>Добавлены вручную: ${manualNames.length}</b>`);
+  lines.push(...(manualNames.length ? manualNames.map((n) => "• " + n) : ["  —"]));
+  lines.push("");
 
   lines.push(`<b>С сайта: ${siteNames.length}</b>`);
   lines.push(...(siteNames.length ? siteNames.map((n) => "• " + n) : ["  —"]));
@@ -471,14 +525,19 @@ async function handleEventSignupsDetail(msg, env, id) {
     lines.push(`<b>Группа «${escapeHtml(groupTitle || String(e.signupChatId))}»: ${groupNames.length}</b>`);
     lines.push(...(groupNames.length ? groupNames.map((n) => "• " + n) : ["  —"]));
     lines.push("");
-    lines.push("Совпадения между источниками не убраны — если человек и заполнил форму, и вступил в группу, он посчитан дважды в «ИТОГО».");
+    lines.push("Участники группы дублей с записями по @нику не дают; те, у кого ника нет, могут пересекаться с другими списками.");
   }
 
   const keyboard = [];
+  keyboard.push([{ text: "➕ Добавить участников", callback_data: `sadd:${id}` }]);
   keyboard.push([{ text: groupNames === null ? "🔗 Привязать группу мероприятия" : "🔗 Перепривязать группу", callback_data: `egl:${id}` }]);
   keyboard.push(backButtonRow());
 
-  return sendMessage(env, msg.from.id, lines.join("\n"), { inline_keyboard: keyboard });
+  const report = lines.join("\n");
+  for (let i = 0; i < report.length; i += 3500) {
+    const isLast = i + 3500 >= report.length;
+    await sendMessage(env, msg.from.id, report.slice(i, i + 3500), isLast ? { inline_keyboard: keyboard } : undefined);
+  }
 }
 
 // Кнопка «Привязать группу»: запоминаем, для какого мероприятия выбираем
@@ -529,11 +588,80 @@ async function handleEventDetail(msg, env, id) {
   ].join("\n");
   const keyboard = {
     inline_keyboard: [
+      [{ text: "🔗 Ссылка для записи", callback_data: `srl:${id}` }],
+      [{ text: "➕ Добавить участников", callback_data: `sadd:${id}` }, { text: "👥 Список записавшихся", callback_data: `es:${id}` }],
       [{ text: "✏️ Изменить", callback_data: `eved:${id}` }, { text: "🗑 Удалить", callback_data: `de:${id}` }],
       backButtonRow(),
     ],
   };
   return sendMessage(env, msg.from.id, text, keyboard);
+}
+
+// «🔗 Ссылка для записи» — обе ссылки (бот + сайт) и готовый текст для участника.
+async function handleEventRegLink(msg, env, id) {
+  if (!isAdmin(msg.from.username, env)) return;
+  if (!env.DB) return;
+  const e = await getEventById(env.DB, id);
+  if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
+  const botLink = `https://t.me/${BOT_USERNAME}?start=e_${id}`;
+  const siteLink = `${SITE_URL}/?e=${id}`;
+  const text = [
+    `<b>Ссылки для записи на «${escapeHtml(e.title)}»</b>`,
+    "",
+    "Через бота — проще для участника (ничего не заполнять):",
+    botLink,
+    "",
+    "Через сайт — если человек предпочитает форму:",
+    siteLink,
+    "",
+    "Текст участнику можно такой:",
+    `<code>Запишу вас на «${escapeHtml(e.title)}» ${escapeHtml(formatRuDateTime(e.start))}. Нажмите ссылку и кнопку «Записаться»: ${botLink}</code>`,
+  ].join("\n");
+  return sendMessage(env, msg.from.id, text, { inline_keyboard: [[{ text: "⬅️ Назад", callback_data: `ev:${id}` }]] });
+}
+
+async function handleManualSignupPrompt(msg, env, id) {
+  if (!isAdmin(msg.from.username, env)) return;
+  if (!env.DB) return;
+  const e = await getEventById(env.DB, id);
+  if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
+  await setPendingEdit(env.DB, msg.from.id, "signupadd:" + id);
+  const text = [
+    `Кого добавить в список на «${escapeHtml(e.title)}»?`,
+    "",
+    "Пришлите одним сообщением: имена и/или @ники — по одному в строке или через запятую.",
+    "Например:",
+    "<code>Алсу Хайбриева</code>",
+    "<code>@vikivri</code>",
+    "<code>Регина Хусаинова @regikhu</code>",
+  ].join("\n");
+  return sendMessage(env, msg.from.id, text, { inline_keyboard: [[{ text: "⬅️ Назад", callback_data: `ev:${id}` }]] });
+}
+
+async function handleManualSignupReply(msg, env, text, id) {
+  if (!env.DB) return;
+  await clearPendingEdit(env.DB, msg.from.id);
+  const e = await getEventById(env.DB, id);
+  if (!e) return sendMessage(env, msg.from.id, "Мероприятие не найдено — возможно, удалено.", { inline_keyboard: [backButtonRow()] });
+
+  const items = [];
+  for (let line of text.split(/[\n,;]+/)) {
+    line = line.trim();
+    if (!line) continue;
+    const um = line.match(/@([A-Za-z0-9_]{4,32})/);
+    const username = um ? um[1] : null;
+    const name = line.replace(/@[A-Za-z0-9_]{4,32}/g, "").replace(/\s+/g, " ").trim() || null;
+    if (username || name) items.push({ username, name });
+  }
+  if (!items.length) {
+    return sendMessage(env, msg.from.id, "Не разобрал ни одного имени. Пришлите ещё раз.", { inline_keyboard: [[{ text: "⬅️ Назад", callback_data: `ev:${id}` }]] });
+  }
+  const added = await recordManualSignups(env, id, items);
+  return sendMessage(
+    env, msg.from.id,
+    `Добавлено: ${added} из ${items.length} (остальные уже были в списке).`,
+    { inline_keyboard: [[{ text: "👥 Открыть список", callback_data: `es:${id}` }], [{ text: "⬅️ Назад", callback_data: `ev:${id}` }]] }
+  );
 }
 
 async function handleEventEditPrompt(msg, env, id) {
@@ -631,6 +759,23 @@ async function handleContact(msg, env) {
   }
   const phone = normalizePhone(contact.phone_number);
   const resident = await findResidentByPhone(env.DB, phone);
+
+  // Контакт после записи на мероприятие по ссылке — привязываем телефон к записи.
+  const pending = await getPendingEdit(env.DB, from.id);
+  if (pending && pending.section.startsWith("signup:")) {
+    const eventId = pending.section.slice("signup:".length);
+    await clearPendingEdit(env.DB, from.id);
+    await attachSignupPhone(env, eventId, from.id, phone, resident ? resident.id : null);
+    if (resident) {
+      if (!resident.chat_id) {
+        await env.DB.prepare("UPDATE residents SET chat_id = ? WHERE id = ?").bind(from.id, resident.id).run();
+      }
+      await backfillUsername(env.DB, resident, from);
+      await recordTouch(env.DB, resident.id, from.id, "linked");
+    }
+    return sendMessage(env, from.id, "Спасибо, записал. До встречи на мероприятии 👌", { remove_keyboard: true });
+  }
+
   if (!resident) {
     return sendMessage(
       env,
@@ -645,6 +790,12 @@ async function handleContact(msg, env) {
 }
 
 async function handleStart(msg, env) {
+  // Диплинк вида t.me/<бот>?start=e_<eventId> — запись на мероприятие.
+  const param = (msg.text || "").split(/\s+/)[1] || "";
+  if (param.startsWith("e_")) {
+    return handleEventRegPrompt(msg, env, param.slice(2));
+  }
+
   if (isAdmin(msg.from.username, env)) return handleMenu(msg, env);
 
   const keyboard = {
@@ -657,6 +808,67 @@ async function handleStart(msg, env) {
     msg.from.id,
     "Привет! Чтобы клуб мог учитывать вашу активность и не терять тех, кто давно не появлялся — поделитесь, пожалуйста, контактом.",
     keyboard
+  );
+}
+
+// ---- Запись на мероприятие через ссылку-диплинк на бота ------------------
+// Менеджер отправляет участнику t.me/<бот>?start=e_<eventId>. Тот жмёт,
+// подтверждает — бот берёт @username и имя из профиля, телефон по желанию.
+
+async function handleEventRegPrompt(msg, env, eventId) {
+  if (!env.DB) return;
+  const e = await getEventById(env.DB, eventId);
+  if (!e) {
+    return sendMessage(env, msg.from.id, "Не нашёл это мероприятие — возможно, ссылка устарела. Напишите менеджеру клуба.");
+  }
+  const text = [
+    "Запись на мероприятие:",
+    "",
+    `<b>${escapeHtml(e.title)}</b>`,
+    `${formatRuDateTime(e.start)}`,
+    escapeHtml(e.place || ""),
+    "",
+    "Нажмите кнопку, чтобы записаться.",
+  ].join("\n");
+  return sendMessage(env, msg.from.id, text, {
+    inline_keyboard: [[{ text: "✅ Записаться", callback_data: `sreg:${eventId}` }]],
+  });
+}
+
+async function handleEventRegConfirm(msg, env, eventId) {
+  const from = msg.from || {};
+  const e = await getEventById(env.DB, eventId);
+  if (!e) return sendMessage(env, from.id, "Мероприятие не найдено.");
+
+  let residentId = null;
+  if (from.username) {
+    const resident = await findResidentByUsername(env.DB, from.username);
+    if (resident) {
+      residentId = resident.id;
+      if (!resident.chat_id) {
+        // chat_id UNIQUE — если этот telegram id уже привязан к другому резиденту
+        // (сменил username), молча пропускаем, запись на мероприятие важнее.
+        try {
+          await env.DB.prepare("UPDATE residents SET chat_id = ? WHERE id = ?").bind(from.id, resident.id).run();
+        } catch (err) { /* пропускаем конфликт chat_id */ }
+      }
+    }
+  }
+
+  const { created } = await recordBotSignup(env, eventId, from, residentId);
+  await setPendingEdit(env.DB, from.id, "signup:" + eventId);
+
+  const head = created
+    ? `✅ Готово, вы записаны на «${escapeHtml(e.title)}».`
+    : `Вы уже в списке на «${escapeHtml(e.title)}».`;
+  await sendMessage(
+    env, from.id,
+    head + "\n\nЕсли вы резидент клуба — по желанию поделитесь контактом, чтобы клуб учёл участие. Не обязательно.",
+    {
+      keyboard: [[{ text: "📞 Поделиться контактом", request_contact: true }]],
+      resize_keyboard: true,
+      one_time_keyboard: true,
+    }
   );
 }
 

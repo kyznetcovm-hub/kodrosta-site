@@ -45,10 +45,21 @@
       .then(function (data) {
         EVENTS = Array.isArray(data) ? data : [];
         renderEventsList(list, EVENTS);
+        maybeOpenEventFromUrl();
       })
       .catch(function () {
         renderEventsList(list, []);
       });
+  }
+
+  // Ссылка вида codrosta.club/?e=<id> — сразу открываем запись на это мероприятие
+  // (менеджер шлёт такую ссылку тем, кто просит записать их на мероприятие).
+  function maybeOpenEventFromUrl() {
+    var id;
+    try { id = new URLSearchParams(location.search).get("e"); } catch (err) { return; }
+    if (!id) return;
+    var ev = EVENTS.find(function (e) { return e.id === id; });
+    if (ev) openEventModal(ev);
   }
 
   function renderEventsList(list, upcoming) {
