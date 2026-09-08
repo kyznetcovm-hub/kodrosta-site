@@ -140,14 +140,15 @@ export async function buildMetrikaDigest(env) {
   const pEnd = isoDaysAgo(8);
   const mStart = isoDaysAgo(30);
 
-  const [cur, prev, sources, engines, phrases, goals] = await Promise.all([
-    summary(env, wStart, wEnd),
-    summary(env, pStart, pEnd),
-    breakdown(env, "ym:s:lastsignTrafficSource", "ym:s:visits", wStart, wEnd, 15),
-    breakdown(env, "ym:s:searchEngineName", "ym:s:visits", mStart, wEnd, 10),
-    breakdown(env, "ym:s:searchPhrase", "ym:s:visits", mStart, wEnd, 30),
-    goalReaches(env, wStart, wEnd),
-  ]);
+  // Строго последовательно: у API Метрики жёсткий лимит на количество
+  // одновременных запросов от одного пользователя (Promise.all ловит 429
+  // quota_parallel_requests_by_uid). Запросов немного, скорость не важна.
+  const cur = await summary(env, wStart, wEnd);
+  const prev = await summary(env, pStart, pEnd);
+  const sources = await breakdown(env, "ym:s:lastsignTrafficSource", "ym:s:visits", wStart, wEnd, 15);
+  const engines = await breakdown(env, "ym:s:searchEngineName", "ym:s:visits", mStart, wEnd, 10);
+  const phrases = await breakdown(env, "ym:s:searchPhrase", "ym:s:visits", mStart, wEnd, 30);
+  const goals = await goalReaches(env, wStart, wEnd);
 
   const nonBrandPhrases = phrases.filter((p) => p.name && p.name !== "—" && !isBrand(p.name));
 
