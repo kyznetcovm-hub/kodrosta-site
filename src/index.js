@@ -10,7 +10,7 @@ import { listUpcomingEvents } from "./events-store.js";
 import { getAllContent } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
 import { checkExpiringSubscriptions } from "./subscriptions.js";
-import { buildMetrikaDigest } from "./metrika.js";
+import { buildMetrikaDigest, fetchBlogViews } from "./metrika.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -34,6 +34,10 @@ export default {
 
     if (url.pathname === "/api/metrika" && request.method === "GET") {
       return handleMetrikaReport(url, env);
+    }
+
+    if (url.pathname === "/api/views" && request.method === "GET") {
+      return handleBlogViews(url, env, ctx);
     }
 
     if (url.pathname === "/calendar.ics" && (request.method === "GET" || request.method === "HEAD")) {
@@ -91,6 +95,46 @@ async function handleMetrikaReport(url, env) {
   } catch (err) {
     return json({ ok: false, error: String(err && err.message ? err.message : err) }, 502);
   }
+}
+
+// Публичный счётчик просмотров статей блога. Числа берём из Яндекс.Метрики
+// (метрика ym:pv:pageviews по URL страницы), кешируем на 1 час через Cache API,
+// чтобы не дёргать API Метрики на каждый заход и не упираться в её лимиты.
+// GET /api/views            -> { ok, views: { "<slug>": N, ... } }
+// GET /api/views?slug=<...>  -> { ok, slug, views: N }
+async function handleBlogViews(url, env, ctx) {
+  const slug = (url.searchParams.get("slug") || "").trim();
+
+  if (!env.METRIKA_TOKEN) {
+    return json({ ok: false, error: "not_configured", views: slug ? 0 : {} });
+  }
+
+  const cache = caches.default;
+  const cacheKey = new Request("https://cache.codrosta.club/__blog_views_v1");
+  let map = null;
+
+  const hit = await cache.match(cacheKey);
+  if (hit) {
+    try { map = await hit.json(); } catch (e) { map = null; }
+  }
+
+  if (!map) {
+    try {
+      map = await fetchBlogViews(env);
+    } catch (err) {
+      // Метрика недоступна/лимит — тихо отдаём пусто, счётчик на странице просто не покажется
+      return json({ ok: false, error: String(err && err.message ? err.message : err), views: slug ? 0 : {} });
+    }
+    const toCache = new Response(JSON.stringify(map), {
+      headers: { "content-type": "application/json", "cache-control": "max-age=3600" },
+    });
+    ctx.waitUntil(cache.put(cacheKey, toCache));
+  }
+
+  if (slug) {
+    return json({ ok: true, slug, views: Number(map[slug] || 0) });
+  }
+  return json({ ok: true, views: map });
 }
 
 async function sendToAdminsByUsername(env, usernames, text) {

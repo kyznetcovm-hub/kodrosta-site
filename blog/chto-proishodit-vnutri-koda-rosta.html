@@ -89,6 +89,7 @@
   .article-sign { margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--gray-100); }
   .article-sign p { margin: 0; font-size: 16px; color: var(--gray-700); }
   .article-sign strong { display: block; color: var(--black); font-weight: 600; margin-bottom: 2px; }
+  .article-views { margin: 22px 0 0; font-size: 13.5px; color: var(--gray-500); }
   .article-cta {
     margin-top: 40px;
     padding: 28px;
@@ -188,6 +189,8 @@
           <p><strong>Михаил Кузнецов</strong>Основатель GR-сообщества предпринимателей Татарстана «Код Роста»</p>
         </div>
 
+        <p class="article-views" hidden><span class="js-view-count"></span></p>
+
         <div class="article-cta">
           <h3>Хотите в сообщество?</h3>
           <p>Расскажите про свой бизнес — менеджер объяснит, как устроен клуб изнутри, и поможет с заявкой.</p>
@@ -211,6 +214,31 @@
 
 <script>
   document.getElementById("js-year").textContent = new Date().getFullYear();
+
+  // Счётчик просмотров: число берём из Яндекс.Метрики через /api/views
+  // (Worker кеширует ответ на час). Пока Метрика не насчитала ни одного
+  // просмотра — строку не показываем.
+  (function () {
+    var slug = location.pathname.replace(/^\/blog\//, "").replace(/\.html$/, "").replace(/\/$/, "");
+    var box = document.querySelector(".article-views");
+    var out = document.querySelector(".js-view-count");
+    if (!slug || !box || !out) return;
+    function plural(n) {
+      var a = n % 10, b = n % 100;
+      if (a === 1 && b !== 11) return "просмотр";
+      if (a >= 2 && a <= 4 && (b < 10 || b >= 20)) return "просмотра";
+      return "просмотров";
+    }
+    fetch("/api/views?slug=" + encodeURIComponent(slug))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var n = d && d.ok ? Number(d.views) || 0 : 0;
+        if (n < 1) return;
+        out.textContent = n.toLocaleString("ru-RU") + " " + plural(n);
+        box.hidden = false;
+      })
+      .catch(function () {});
+  })();
 </script>
 
 </body>

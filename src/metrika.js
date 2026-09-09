@@ -132,6 +132,33 @@ function isBrand(phrase) {
   return BRAND_WORDS.some((w) => p.includes(w));
 }
 
+// Просмотры страниц блога по Яндекс.Метрике: { "<slug>": <число просмотров> }.
+// Один запрос к API (не веер) — у Метрики жёсткий лимит на параллельные
+// запросы от одного uid, поэтому здесь строго одно обращение.
+// Считаем страницы вида /blog/<slug> (с .html и без, со слешом на конце и без —
+// всё сводим к одному slug). Период — с 2026-08-01 по сегодня.
+export async function fetchBlogViews(env) {
+  const d = await mFetch(env, "/stat/v1/data", {
+    metrics: "ym:pv:pageviews",
+    dimensions: "ym:pv:URLPath",
+    filters: "ym:pv:URLPath=@'/blog/'",
+    date1: "2026-08-01",
+    date2: "today",
+    limit: "1000",
+    accuracy: "full",
+  });
+  const out = {};
+  for (const row of d.data || []) {
+    const path = (row.dimensions && row.dimensions[0] && row.dimensions[0].name) || "";
+    const m = path.match(/^\/blog\/([^/?#]+?)(?:\.html)?\/?$/);
+    if (!m) continue;
+    const slug = m[1];
+    if (!slug || slug === "index") continue;
+    out[slug] = (out[slug] || 0) + round(row.metrics[0]);
+  }
+  return out;
+}
+
 // Собирает и данные, и готовый текст. text — для Telegram (parse_mode HTML).
 export async function buildMetrikaDigest(env) {
   const wStart = isoDaysAgo(7);
