@@ -216,19 +216,22 @@ async function handleTelegramWebhook(request, env) {
 // строгие парсеры, в т.ч. Google Календарь, разбирают непредсказуемо).
 const MSK_OFFSET_MS = 3 * 60 * 60 * 1000;
 
-function toICSDateUTC(iso, assumeMsk) {
-  let d;
-  if (assumeMsk) {
-    // "2026-09-15T16:00:00" — местное MSK-время без зоны; вычитаем +03:00.
-    const m = String(iso).match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
-    d = m
-      ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) - MSK_OFFSET_MS)
-      : new Date(iso);
-  } else {
-    d = iso ? new Date(iso) : new Date();
-  }
-  if (isNaN(d.getTime())) d = new Date();
-  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+function fmtICSUTC(d) {
+  const ok = isNaN(d.getTime()) ? new Date() : d;
+  return ok.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+}
+
+// Момент из произвольного ISO (например created_at с "Z") -> "...Z".
+function toICSDateUTC(iso) {
+  return fmtICSUTC(iso ? new Date(iso) : new Date());
+}
+
+// Местное MSK-время события ("2026-09-15T16:00:00" без зоны) как настоящий
+// момент в UTC. Возвращает Date; NaN — если строку не разобрать.
+function mskLocalToDate(iso) {
+  const m = String(iso).match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return new Date(NaN);
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) - MSK_OFFSET_MS);
 }
 
 // Экранирование значения TEXT-поля iCalendar (RFC 5545 §3.3.11):
@@ -287,6 +290,15 @@ async function handleCalendarFeed(env) {
 
   for (const e of events) {
     const regLink = eventRegisterLink(e);
+    const startDate = mskLocalToDate(e.start);
+    let endDate = mskLocalToDate(e.end);
+    // Часть событий в базе сохранена с одинаковым началом и концом (в тексте
+    // было одно время, не диапазон) — событие нулевой длительности некоторые
+    // клиенты не показывают. Даём таким два часа по умолчанию.
+    if (isNaN(endDate.getTime()) || endDate.getTime() <= startDate.getTime()) {
+      endDate = new Date(startDate.getTime() + 2 * 3600000);
+    }
+
     const body = (e.fullDescription && e.fullDescription.length
       ? e.fullDescription.join("\n\n")
       : e.description) || "";
@@ -300,8 +312,8 @@ async function handleCalendarFeed(env) {
       "BEGIN:VEVENT",
       "UID:" + e.id + "@codrosta.club",
       "DTSTAMP:" + toICSDateUTC(e.createdAt),
-      "DTSTART:" + toICSDateUTC(e.start, true),
-      "DTEND:" + toICSDateUTC(e.end, true),
+      "DTSTART:" + fmtICSUTC(startDate),
+      "DTEND:" + fmtICSUTC(endDate),
       "SUMMARY:" + icsEscapeText(e.title),
       "LOCATION:" + icsEscapeText(e.place),
       "DESCRIPTION:" + icsEscapeText(description),
