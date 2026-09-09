@@ -12,6 +12,8 @@ import { syncResidentsFromSheet } from "./sheets-sync.js";
 import { checkExpiringSubscriptions } from "./subscriptions.js";
 import { buildMetrikaDigest, fetchBlogViews } from "./metrika.js";
 
+const SITE_URL = "https://codrosta.club";
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -208,36 +210,112 @@ async function handleTelegramWebhook(request, env) {
   return json({ ok: true });
 }
 
-function toICSDate(iso) {
-  return iso.replace(/[-:]/g, "").split(".")[0];
+// Время события хранится как локальное для Казани/Москвы (MSK, UTC+3, без
+// перехода на летнее время). Отдаём в календарь в UTC с суффиксом "Z" —
+// это понимает любой клиент без VTIMEZONE-блока (плавающее время без зоны
+// строгие парсеры, в т.ч. Google Календарь, разбирают непредсказуемо).
+const MSK_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+function toICSDateUTC(iso, assumeMsk) {
+  let d;
+  if (assumeMsk) {
+    // "2026-09-15T16:00:00" — местное MSK-время без зоны; вычитаем +03:00.
+    const m = String(iso).match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+    d = m
+      ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) - MSK_OFFSET_MS)
+      : new Date(iso);
+  } else {
+    d = iso ? new Date(iso) : new Date();
+  }
+  if (isNaN(d.getTime())) d = new Date();
+  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+}
+
+// Экранирование значения TEXT-поля iCalendar (RFC 5545 §3.3.11):
+// обратный слэш, точка с запятой, запятая и перевод строки.
+function icsEscapeText(value) {
+  return String(value == null ? "" : value)
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r\n|\r|\n/g, "\\n");
+}
+
+function utf8Len(ch) {
+  const c = ch.codePointAt(0);
+  return c <= 0x7f ? 1 : c <= 0x7ff ? 2 : c <= 0xffff ? 3 : 4;
+}
+
+// Складывание длинных строк (RFC 5545 §3.1): физическая строка — не длиннее
+// 75 октетов, продолжение начинается с пробела. Считаем именно байты UTF-8
+// и не разрываем многобайтовый символ (важно для кириллицы — строгие
+// парсеры, в т.ч. Google Календарь, иначе молча отбрасывают событие).
+function icsFoldLine(line) {
+  const chars = Array.from(line);
+  let segs = [], cur = "", curBytes = 0;
+  for (const ch of chars) {
+    const b = utf8Len(ch);
+    if (curBytes + b > 73) { segs.push(cur); cur = ""; curBytes = 0; }
+    cur += ch;
+    curBytes += b;
+  }
+  segs.push(cur);
+  return segs.join("\r\n ");
+}
+
+// Ссылка «записаться» для конкретного мероприятия: внешняя форма, если она
+// указана при публикации, иначе — страница сайта с открытой формой записи.
+function eventRegisterLink(e) {
+  if (e.registerUrl && /^https?:\/\//.test(e.registerUrl)) return e.registerUrl;
+  return SITE_URL + "/?e=" + e.id;
 }
 
 async function handleCalendarFeed(env) {
-  const lines = [
+  const events = env.DB ? await listUpcomingEvents(env.DB) : [];
+
+  const props = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//Код Роста//Calendar//RU",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "X-WR-CALNAME:Код Роста — мероприятия",
-    "REFRESH-INTERVAL;VALUE=DURATION:PT12H"
+    "X-WR-TIMEZONE:Europe/Moscow",
+    "REFRESH-INTERVAL;VALUE=DURATION:PT12H",
+    "X-PUBLISHED-TTL:PT12H"
   ];
-  const events = env.DB ? await listUpcomingEvents(env.DB) : [];
+
   for (const e of events) {
-    lines.push(
+    const regLink = eventRegisterLink(e);
+    const body = (e.fullDescription && e.fullDescription.length
+      ? e.fullDescription.join("\n\n")
+      : e.description) || "";
+    // Ссылка на запись — прямо в описании: попав в календарь человека,
+    // событие само ведёт на регистрацию, не нужно вспоминать и искать сайт.
+    const description = body
+      + "\n\nЗаписаться на мероприятие: " + regLink
+      + "\nО клубе: " + SITE_URL;
+
+    props.push(
       "BEGIN:VEVENT",
       "UID:" + e.id + "@codrosta.club",
-      "DTSTART:" + toICSDate(e.start),
-      "DTEND:" + toICSDate(e.end),
-      "SUMMARY:" + e.title,
-      "LOCATION:" + e.place,
-      "DESCRIPTION:" + e.description.replace(/,/g, "\\,"),
+      "DTSTAMP:" + toICSDateUTC(e.createdAt),
+      "DTSTART:" + toICSDateUTC(e.start, true),
+      "DTEND:" + toICSDateUTC(e.end, true),
+      "SUMMARY:" + icsEscapeText(e.title),
+      "LOCATION:" + icsEscapeText(e.place),
+      "DESCRIPTION:" + icsEscapeText(description),
+      "URL:" + regLink,
+      "STATUS:CONFIRMED",
+      "SEQUENCE:0",
       "END:VEVENT"
     );
   }
-  lines.push("END:VCALENDAR");
+  props.push("END:VCALENDAR");
 
-  return new Response(lines.join("\r\n"), {
+  const ics = props.map(icsFoldLine).join("\r\n") + "\r\n";
+
+  return new Response(ics, {
     headers: {
       "content-type": "text/calendar; charset=utf-8",
       "content-disposition": 'inline; filename="kodrosta-events.ics"',

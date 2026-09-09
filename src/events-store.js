@@ -274,5 +274,6 @@ function rowToEvent(row) {
     fullDescription: row.full_description ? JSON.parse(row.full_description) : undefined,
     registerUrl: row.register_url || undefined,
     signupChatId: row.signup_chat_id || null,
+    createdAt: row.created_at || null,
   };
 }
