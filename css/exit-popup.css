@@ -1,0 +1,115 @@
+/* ==========================================================================
+   Exit-intent pop-up (оффер −3000 ₽) — отдельный компонент.
+   Использует переменные и .form-field/.form-consent/.form-status/.btn из
+   styles.css, но не переопределяет и не зависит от .modal — можно удалить
+   этот файл целиком без побочных эффектов для остального сайта.
+   ========================================================================== */
+
+.exit-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 11, 12, .6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1200; /* выше .modal-overlay (1000) на случай гонки — по логике они не показываются одновременно */
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+.exit-popup-overlay.is-open { display: flex; opacity: 1; }
+
+.exit-popup {
+  background: var(--white);
+  border-radius: 24px;
+  width: 100%;
+  max-width: 680px;
+  max-height: 92vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 24px 64px -24px rgba(11, 11, 12, .35);
+  transform: translateY(12px) scale(.98);
+  transition: transform .25s ease;
+}
+.exit-popup-overlay.is-open .exit-popup { transform: translateY(0) scale(1); }
+
+.exit-popup-close {
+  position: absolute;
+  top: 18px; right: 18px;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--gray-100);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--gray-700);
+  z-index: 2;
+}
+
+.exit-popup-grid {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+}
+
+.exit-popup-main { padding: 40px 40px 32px; }
+
+.exit-popup-main h3 {
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1.15;
+  margin-bottom: 10px;
+  padding-right: 20px;
+}
+.exit-popup-sub {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--black);
+  margin-bottom: 10px;
+}
+.exit-popup-text {
+  font-size: 14px;
+  color: var(--gray-700);
+  line-height: 1.55;
+  margin-bottom: 22px;
+}
+.exit-popup-hint {
+  font-size: 12.5px;
+  color: var(--gray-500);
+  margin: -6px 0 14px;
+}
+.exit-popup-cta { margin-bottom: 12px; }
+
+.exit-popup-side {
+  background: var(--black);
+  color: var(--white);
+  border-radius: 0 24px 24px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px;
+}
+.exit-popup-badge {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 24px;
+  color: var(--white);
+  background: var(--crimson);
+  border-radius: 999px;
+  padding: 10px 16px;
+  white-space: nowrap;
+}
+.exit-popup-vector { width: 110px; height: auto; color: var(--blue); }
+
+@media (max-width: 720px) {
+  .exit-popup-grid { grid-template-columns: 1fr; }
+  .exit-popup-side { display: none; }
+  .exit-popup-main { padding: 32px 24px 26px; }
+}
+
+@media (max-width: 480px) {
+  .exit-popup { border-radius: 18px; }
+  .exit-popup-main h3 { font-size: 22px; }
+}

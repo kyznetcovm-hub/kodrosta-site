@@ -352,13 +352,20 @@ async function handleSubmit(request, env) {
   const name = String(data.name || "").trim();
   const phone = String(data.phone || "").trim();
   const telegram = String(data.telegram || "").trim();
-  const type = data.type === "event" ? "event" : "apply";
+  const type = data.type === "event" ? "event" : data.type === "exit_popup" ? "exit_popup" : "apply";
 
   if (!name || !phone || !telegram) {
     return json({ ok: false, error: "validation" }, 400);
   }
 
+  // Промокод из exit-popup "долетает" сюда с СЛЕДУЮЩЕЙ заявкой (apply/event), если
+  // пользователь сначала получил скидку в pop-up, а потом отправил основную форму —
+  // см. STORAGE_PROMO_PENDING в js/exit-popup.js и main.js.
+  const promo = String(data.promo || "").trim();
+  const promoLine = promo ? "\nПромокод: " + promo : "";
+
   let text;
+  let touchNote;
   if (type === "apply") {
     const company = String(data.company || "").trim();
     const comment = String(data.comment || "").trim();
@@ -368,8 +375,9 @@ async function handleSubmit(request, env) {
       "Телефон: " + phone + "\n" +
       "Telegram: " + telegram + "\n" +
       "Компания/сфера: " + (company || "—") + "\n" +
-      "Комментарий: " + (comment || "—");
-  } else {
+      "Комментарий: " + (comment || "—") + promoLine;
+    touchNote = promo || null;
+  } else if (type === "event") {
     const event = String(data.event || "").trim();
     const comment = String(data.comment || "").trim();
     text =
@@ -378,7 +386,32 @@ async function handleSubmit(request, env) {
       "Имя: " + name + "\n" +
       "Telegram: " + telegram + "\n" +
       "Телефон: " + phone + "\n" +
-      "Комментарий: " + (comment || "—");
+      "Комментарий: " + (comment || "—") + promoLine;
+    touchNote = event || promo || null;
+  } else {
+    // exit_popup — заявка со скидкой из exit-intent pop-up (см. js/exit-popup.js).
+    // Источник перехода важен: пользователь приходит по QR с рекламного баннера.
+    const source = String(data.source || "").trim();
+    const utmSource = String(data.utm_source || "").trim();
+    const utmMedium = String(data.utm_medium || "").trim();
+    const utmCampaign = String(data.utm_campaign || "").trim();
+    const utmContent = String(data.utm_content || "").trim();
+    const utmTerm = String(data.utm_term || "").trim();
+    const landingPage = String(data.landing_page || "").trim();
+    const offer = String(data.offer || "").trim();
+    text =
+      "🎁 Заявка со скидкой (exit pop-up)\n\n" +
+      "Имя: " + name + "\n" +
+      "Телефон: " + phone + "\n" +
+      "Telegram: " + telegram + "\n" +
+      "Скидка: " + (offer ? offer + " ₽" : "—") + promoLine + "\n" +
+      "Источник: " + (source || "—") + "\n" +
+      "UTM: source=" + (utmSource || "—") + " medium=" + (utmMedium || "—") + " campaign=" + (utmCampaign || "—") +
+        " content=" + (utmContent || "—") + " term=" + (utmTerm || "—") + "\n" +
+      "Страница: " + (landingPage || "—");
+    touchNote =
+      "utm_source=" + (utmSource || "-") + "; utm_medium=" + (utmMedium || "-") +
+      "; utm_campaign=" + (utmCampaign || "-") + (promo ? "; promo=" + promo : "");
   }
 
   if (!env.BOT_TOKEN || !env.CHAT_ID) {
@@ -398,8 +431,8 @@ async function handleSubmit(request, env) {
   await recordFormTouch(env, {
     phone,
     telegramHandle: telegram,
-    kind: type === "apply" ? "apply" : "event_signup",
-    note: type === "apply" ? null : String(data.event || "").trim() || null,
+    kind: type === "apply" ? "apply" : type === "event" ? "event_signup" : "exit_popup",
+    note: touchNote,
     name,
   });
 

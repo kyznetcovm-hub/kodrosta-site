@@ -342,6 +342,10 @@
       }
 
       var type = form.getAttribute("data-form-type");
+      // Промокод из exit-popup (js/exit-popup.js) "долетает" сюда, если пользователь
+      // получил скидку в pop-up, а потом отправил основную форму вступления/записи.
+      var pendingPromo = "";
+      try { pendingPromo = localStorage.getItem("kodrosta_promo_pending") || ""; } catch (e) {}
       var data = {
         type: type,
         name: form.querySelector('[name="name"]').value.trim(),
@@ -350,7 +354,8 @@
         comment: form.querySelector('[name="comment"]') ? form.querySelector('[name="comment"]').value.trim() : "",
         company: form.querySelector('[name="company"]') ? form.querySelector('[name="company"]').value.trim() : "",
         event: form.querySelector('[name="event"]') ? form.querySelector('[name="event"]').value : "",
-        website: form.querySelector('[name="website"]') ? form.querySelector('[name="website"]').value : ""
+        website: form.querySelector('[name="website"]') ? form.querySelector('[name="website"]').value : "",
+        promo: pendingPromo
       };
 
       var submitBtn = form.querySelector('[type="submit"]');
@@ -370,6 +375,14 @@
           showStatus(form, "ok", "Спасибо! Заявка отправлена, менеджер скоро свяжется с вами.");
           form.reset();
           if (typeof ym === "function") ym(111842641, "reachGoal", "form_submit", { type: type });
+          // Флаг для exit-popup: цель уже достигнута — больше не показывать pop-up этому пользователю.
+          try {
+            if (pendingPromo) {
+              if (typeof ym === "function") ym(111842641, "reachGoal", "discount_3000_used");
+              localStorage.removeItem("kodrosta_promo_pending");
+            }
+            localStorage.setItem("kodrosta_conversion_completed", "1");
+          } catch (e) {}
         })
         .catch(function () {
           showStatus(
