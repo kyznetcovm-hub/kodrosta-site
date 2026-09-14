@@ -162,10 +162,17 @@
                   '<input id="exit-popup-phone" name="phone" type="tel" inputmode="tel" required autocomplete="tel" placeholder="+7 (___) ___-__-__">' +
                 '</div>' +
                 '<div class="form-field">' +
-                  '<label for="exit-popup-telegram">Telegram</label>' +
-                  '<input id="exit-popup-telegram" name="telegram" type="text" required placeholder="@username">' +
+                  '<label for="exit-popup-channel">Куда удобнее отправить информацию о скидке?</label>' +
+                  '<select id="exit-popup-channel" name="channel">' +
+                    '<option value="telegram">Telegram</option>' +
+                    '<option value="max">MAX</option>' +
+                    '<option value="whatsapp">WhatsApp</option>' +
+                  '</select>' +
                 '</div>' +
-                '<p class="exit-popup-hint">Куда удобнее отправить информацию о скидке?</p>' +
+                '<div class="form-field js-exit-popup-telegram-field">' +
+                  '<label for="exit-popup-telegram">Telegram</label>' +
+                  '<input id="exit-popup-telegram" name="telegram" type="text" placeholder="@username">' +
+                '</div>' +
                 '<button class="btn btn--primary btn--block exit-popup-cta" type="submit">Получить скидку ' + fmtMoney(exitPopupConfig.discount) + '</button>' +
                 '<p class="form-consent">Нажимая кнопку, вы соглашаетесь на <a href="/privacy" target="_blank">обработку персональных данных</a> и получение информации от «Кода Роста».</p>' +
               '</form>' +
@@ -214,8 +221,18 @@
     var form = overlay.querySelector(".js-exit-popup-form");
     var phoneInput = form.querySelector('[name="phone"]');
     var tgInput = form.querySelector('[name="telegram"]');
+    var channelSelect = form.querySelector('[name="channel"]');
+    var telegramField = form.querySelector(".js-exit-popup-telegram-field");
     var openedAt = Date.now();
     var startedTracked = false;
+
+    // MAX и WhatsApp привязаны к номеру телефона (он уже есть в форме) — поле
+    // Telegram-username нужно только когда выбран сам Telegram.
+    function syncChannelField() {
+      telegramField.hidden = channelSelect.value !== "telegram";
+    }
+    channelSelect.addEventListener("change", syncChannelField);
+    syncChannelField();
 
     form.addEventListener("focusin", function () {
       if (startedTracked) return;
@@ -245,8 +262,10 @@
       var phoneDigits = phoneInput.value.replace(/\D/g, "");
       if (phoneDigits.length < 11) return "Проверьте номер телефона.";
 
-      var tg = tgInput.value.trim();
-      if (!/^@[A-Za-z0-9_]{4,32}$/.test(tg)) return "Проверьте Telegram-username (например, @username).";
+      if (channelSelect.value === "telegram") {
+        var tg = tgInput.value.trim();
+        if (!/^@[A-Za-z0-9_]{4,32}$/.test(tg)) return "Проверьте Telegram-username (например, @username).";
+      }
 
       return null;
     }
@@ -268,7 +287,8 @@
         type: "exit_popup",
         name: form.querySelector('[name="name"]').value.trim(),
         phone: phoneInput.value.trim(),
-        telegram: tgInput.value.trim(),
+        telegram: channelSelect.value === "telegram" ? tgInput.value.trim() : "",
+        channel: channelSelect.value,
         website: form.querySelector('[name="website"]').value,
         source: "exit_popup",
         offer: exitPopupConfig.discount,

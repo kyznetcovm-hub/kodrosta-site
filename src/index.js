@@ -354,7 +354,12 @@ async function handleSubmit(request, env) {
   const telegram = String(data.telegram || "").trim();
   const type = data.type === "event" ? "event" : data.type === "exit_popup" ? "exit_popup" : "apply";
 
-  if (!name || !phone || !telegram) {
+  // exit_popup даёт выбор канала связи (Telegram/MAX/WhatsApp) — Telegram-username
+  // обязателен, только если выбран сам Telegram; для MAX/WhatsApp достаточно телефона.
+  const CHANNELS = { telegram: "Telegram", max: "MAX", whatsapp: "WhatsApp" };
+  const channel = type === "exit_popup" && CHANNELS[data.channel] ? data.channel : "telegram";
+
+  if (!name || !phone || (channel === "telegram" && !telegram)) {
     return json({ ok: false, error: "validation" }, 400);
   }
 
@@ -399,18 +404,19 @@ async function handleSubmit(request, env) {
     const utmTerm = String(data.utm_term || "").trim();
     const landingPage = String(data.landing_page || "").trim();
     const offer = String(data.offer || "").trim();
+    const channelLabel = CHANNELS[channel];
     text =
       "🎁 Заявка со скидкой (exit pop-up)\n\n" +
       "Имя: " + name + "\n" +
       "Телефон: " + phone + "\n" +
-      "Telegram: " + telegram + "\n" +
+      "Канал связи: " + channelLabel + (channel === "telegram" && telegram ? " (" + telegram + ")" : "") + "\n" +
       "Скидка: " + (offer ? offer + " ₽" : "—") + promoLine + "\n" +
       "Источник: " + (source || "—") + "\n" +
       "UTM: source=" + (utmSource || "—") + " medium=" + (utmMedium || "—") + " campaign=" + (utmCampaign || "—") +
         " content=" + (utmContent || "—") + " term=" + (utmTerm || "—") + "\n" +
       "Страница: " + (landingPage || "—");
     touchNote =
-      "utm_source=" + (utmSource || "-") + "; utm_medium=" + (utmMedium || "-") +
+      "channel=" + channel + "; utm_source=" + (utmSource || "-") + "; utm_medium=" + (utmMedium || "-") +
       "; utm_campaign=" + (utmCampaign || "-") + (promo ? "; promo=" + promo : "");
   }
 
