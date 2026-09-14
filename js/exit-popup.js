@@ -143,10 +143,10 @@
     overlay.innerHTML =
       '<div class="exit-popup">' +
         '<button class="exit-popup-close js-exit-popup-close" type="button" aria-label="Закрыть">×</button>' +
-        '<div class="exit-popup-grid">' +
-          '<div class="exit-popup-main">' +
+        '<div class="exit-popup-main">' +
 
             '<div class="exit-popup-state js-exit-popup-form-state">' +
+              '<div class="exit-popup-eyebrow">&minus;' + fmtMoney(exitPopupConfig.discount) + '</div>' +
               '<h3 id="exit-popup-title">Не уходите без бонуса</h3>' +
               '<p class="exit-popup-sub">Дарим ' + fmtMoney(exitPopupConfig.discount) + ' на вступление в &laquo;Код Роста&raquo; или любое мероприятие клуба.</p>' +
               '<p class="exit-popup-text">Возможно, вы пока просто присматриваетесь. Оставьте контакты — сохраним за вами скидку ' + fmtMoney(exitPopupConfig.discount) + '.</p>' +
@@ -177,14 +177,6 @@
               '<button class="btn btn--primary btn--block js-exit-popup-cta-success" type="button">Перейти к выбору</button>' +
             '</div>' +
 
-          '</div>' +
-          '<div class="exit-popup-side" aria-hidden="true">' +
-            '<div class="exit-popup-badge">&minus;' + fmtMoney(exitPopupConfig.discount) + '</div>' +
-            '<svg class="exit-popup-vector" viewBox="0 0 200 140" xmlns="http://www.w3.org/2000/svg">' +
-              '<polyline points="10,120 55,80 90,100 140,40 190,15" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>' +
-              '<polygon points="190,15 163,21 186,39" fill="currentColor"/>' +
-            '</svg>' +
-          '</div>' +
         '</div>' +
       '</div>';
 
