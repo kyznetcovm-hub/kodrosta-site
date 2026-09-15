@@ -4,6 +4,14 @@
 // Добавляйте новые записи сверху (свежие — первыми).
 export var POSTS = [
   {
+    slug: "zachem-predprinimatelyu-biznes-klub",
+    title: "Зачем предпринимателю бизнес-клуб",
+    date: "2026-09-15",
+    tag: "О клубе",
+    cover: "assets/blog/zachem-predprinimatelyu-biznes-klub/cover.jpg",
+    excerpt: "Пять тысяч контактов в телефоне не решают ни один реальный вопрос бизнеса. Михаил Кузнецов — о ситуациях, для которых нужен именно клуб, а не ещё один чат предпринимателей."
+  },
+  {
     slug: "chto-proishodit-vnutri-koda-rosta",
     title: "Что происходит внутри «Кода Роста»",
     date: "2026-09-09",
