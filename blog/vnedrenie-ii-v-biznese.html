@@ -101,6 +101,19 @@
   .share-btn { display: inline-flex; align-items: center; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--gray-300); background: var(--white); color: var(--gray-700); font-family: var(--font-body); font-size: 13.5px; font-weight: 600; text-decoration: none; cursor: pointer; transition: border-color .15s, color .15s; }
   .share-btn:hover { border-color: var(--blue); color: var(--blue); }
   .share-btn.is-copied { border-color: var(--blue); color: var(--blue); }
+  .article-subscribe {
+    margin-top: 24px;
+    padding: 20px 24px;
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-100);
+    background: var(--gray-50);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .article-subscribe p { margin: 0; font-size: 14.5px; color: var(--gray-700); max-width: 440px; }
   .article-cta {
     margin-top: 40px;
     padding: 28px;
@@ -321,6 +334,11 @@
           <a class="share-btn js-share-wa" href="#" target="_blank" rel="noopener">WhatsApp</a>
           <a class="share-btn js-share-vk" href="#" target="_blank" rel="noopener">VK</a>
           <button type="button" class="share-btn js-share-copy">Скопировать ссылку</button>
+        </div>
+
+        <div class="article-subscribe">
+          <p>Подпишись на канал «Код Роста» — анонсы предпринимательских событий, отчёты и новые статьи.</p>
+          <a href="https://t.me/codrosta" target="_blank" rel="noopener" class="btn btn--outline btn--sm">Подписаться в Telegram</a>
         </div>
 
         <p class="article-views" hidden><span class="js-view-count"></span></p>
