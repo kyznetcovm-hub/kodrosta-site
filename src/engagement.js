@@ -148,12 +148,15 @@ async function ensureAdminRegistered(env, from) {
 }
 
 export async function handleTelegramUpdate(update, env) {
-  const from = (update.callback_query && update.callback_query.from) || (update.message && update.message.from) || null;
+  // Именуем отдельно от "from" ниже (там своя, локальная для message-веток) —
+  // одноимённая const в той же функции роняла сборку wrangler (см. коммит с
+  // фиксом дубликата "from").
+  const updateFrom = (update.callback_query && update.callback_query.from) || (update.message && update.message.from) || null;
   const kind = update.callback_query ? "callback_query" : update.message ? "message" : Object.keys(update).join(",");
-  await logWebhookDebug(env, from, `апдейт: ${kind}, is_bot=${from && from.is_bot}, isAdmin=${from ? isAdmin(from.username, env) : "нет from"}`);
+  await logWebhookDebug(env, updateFrom, `апдейт: ${kind}, is_bot=${updateFrom && updateFrom.is_bot}, isAdmin=${updateFrom ? isAdmin(updateFrom.username, env) : "нет from"}`);
 
-  if (env.DB && from && !from.is_bot && isAdmin(from.username, env)) {
-    await ensureAdminRegistered(env, from);
+  if (env.DB && updateFrom && !updateFrom.is_bot && isAdmin(updateFrom.username, env)) {
+    await ensureAdminRegistered(env, updateFrom);
   }
 
   if (update.callback_query) return handleCallbackQuery(update.callback_query, env);
