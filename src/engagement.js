@@ -89,7 +89,43 @@ export async function recordFormTouch(env, { phone, telegramHandle, kind, note, 
   }
 }
 
+// Админ (по ADMIN_USERNAMES) может быть не резидентом вообще — например,
+// корпоративный аккаунт @Kodrosta, которого нет в таблице «Вступившие» —
+// и тогда его chat_id никогда не попадёт в базу через обычную привязку по
+// телефону/сверку с таблицей, а рассылки по расписанию (sendToAdminsByUsername
+// в src/index.js) без chat_id никого не найдут и молча ничего не отправят.
+// Поэтому регистрируем chat_id при ЛЮБОМ обращении админа к боту (сообщение
+// или нажатие кнопки) — самовосстанавливается за одно взаимодействие, без
+// ручного вмешательства в базу.
+async function ensureAdminRegistered(env, from) {
+  if (!env.DB || !from || !from.id) return;
+  const username = normalizeUsername(from.username);
+  if (!username) return;
+  try {
+    const existing = await findResidentByUsername(env.DB, username);
+    if (existing) {
+      if (!existing.chat_id) {
+        await env.DB.prepare("UPDATE residents SET chat_id = ? WHERE id = ?").bind(from.id, existing.id).run();
+      }
+      return;
+    }
+    // Не резидент — служебная запись только для доставки сообщений;
+    // active = 0, чтобы не попадать в отчёты по вовлечённости резидентов.
+    await env.DB.prepare(
+      "INSERT INTO residents (full_name, telegram_username, chat_id, active) VALUES (?, ?, ?, 0)"
+    ).bind(from.first_name || ("@" + username), username, from.id).run();
+  } catch (err) {
+    // например, chat_id уже занят другим резидентом (сменил username) — пропускаем
+    console.error("ensureAdminRegistered failed", err);
+  }
+}
+
 export async function handleTelegramUpdate(update, env) {
+  const from = (update.callback_query && update.callback_query.from) || (update.message && update.message.from) || null;
+  if (env.DB && from && !from.is_bot && isAdmin(from.username, env)) {
+    await ensureAdminRegistered(env, from);
+  }
+
   if (update.callback_query) return handleCallbackQuery(update.callback_query, env);
   if (update.my_chat_member) return handleMyChatMember(update.my_chat_member, env);
   if (update.chat_member) return handleChatMember(update.chat_member, env);
