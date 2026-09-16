@@ -89,6 +89,22 @@ export async function recordFormTouch(env, { phone, telegramHandle, kind, note, 
   }
 }
 
+// ВРЕМЕННО (диагностика, см. migrations/0007_webhook_log.sql): пишем в D1,
+// что реально видит бот в каждом апдейте и что сделала ensureAdminRegistered.
+// Удалить вызовы и таблицу, когда разберёмся, почему @Kodrosta не
+// регистрируется.
+async function logWebhookDebug(env, from, detail) {
+  if (!env.DB) return;
+  try {
+    await env.DB
+      .prepare("INSERT INTO webhook_log (from_id, username, text, ts) VALUES (?, ?, ?, ?)")
+      .bind((from && from.id) ?? null, (from && from.username) ?? null, detail, new Date().toISOString())
+      .run();
+  } catch (err) {
+    console.error("logWebhookDebug failed", err);
+  }
+}
+
 // Админ (по ADMIN_USERNAMES) может быть не резидентом вообще — например,
 // корпоративный аккаунт @Kodrosta, которого нет в таблице «Вступившие» —
 // и тогда его chat_id никогда не попадёт в базу через обычную привязку по
@@ -98,14 +114,23 @@ export async function recordFormTouch(env, { phone, telegramHandle, kind, note, 
 // или нажатие кнопки) — самовосстанавливается за одно взаимодействие, без
 // ручного вмешательства в базу.
 async function ensureAdminRegistered(env, from) {
-  if (!env.DB || !from || !from.id) return;
+  if (!env.DB || !from || !from.id) {
+    await logWebhookDebug(env, from, "ensureAdminRegistered: пропущено (нет DB/from/from.id)");
+    return;
+  }
   const username = normalizeUsername(from.username);
-  if (!username) return;
+  if (!username) {
+    await logWebhookDebug(env, from, "ensureAdminRegistered: пустой username после normalizeUsername");
+    return;
+  }
   try {
     const existing = await findResidentByUsername(env.DB, username);
     if (existing) {
       if (!existing.chat_id) {
         await env.DB.prepare("UPDATE residents SET chat_id = ? WHERE id = ?").bind(from.id, existing.id).run();
+        await logWebhookDebug(env, from, `ensureAdminRegistered: обновил chat_id у существующего id=${existing.id}`);
+      } else {
+        await logWebhookDebug(env, from, `ensureAdminRegistered: уже был chat_id у id=${existing.id}`);
       }
       return;
     }
@@ -114,14 +139,19 @@ async function ensureAdminRegistered(env, from) {
     await env.DB.prepare(
       "INSERT INTO residents (full_name, telegram_username, chat_id, active) VALUES (?, ?, ?, 0)"
     ).bind(from.first_name || ("@" + username), username, from.id).run();
+    await logWebhookDebug(env, from, "ensureAdminRegistered: создал новую служебную запись");
   } catch (err) {
     // например, chat_id уже занят другим резидентом (сменил username) — пропускаем
     console.error("ensureAdminRegistered failed", err);
+    await logWebhookDebug(env, from, "ensureAdminRegistered: ОШИБКА — " + (err && err.message ? err.message : String(err)));
   }
 }
 
 export async function handleTelegramUpdate(update, env) {
   const from = (update.callback_query && update.callback_query.from) || (update.message && update.message.from) || null;
+  const kind = update.callback_query ? "callback_query" : update.message ? "message" : Object.keys(update).join(",");
+  await logWebhookDebug(env, from, `апдейт: ${kind}, is_bot=${from && from.is_bot}, isAdmin=${from ? isAdmin(from.username, env) : "нет from"}`);
+
   if (env.DB && from && !from.is_bot && isAdmin(from.username, env)) {
     await ensureAdminRegistered(env, from);
   }
