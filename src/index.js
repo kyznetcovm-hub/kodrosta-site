@@ -56,19 +56,37 @@ export default {
   // может вызвать любой админ себе, см. src/engagement.js).
   async scheduled(event, env, ctx) {
     if (event.cron === "0 5 * * *") {
-      ctx.waitUntil(runScheduledSubscriptionCheck(env));
+      ctx.waitUntil(runScheduledSubscriptionCheck(env, event.cron));
     } else if (event.cron === "0 6 * * 1") {
-      ctx.waitUntil(runScheduledMetrikaDigest(env));
+      ctx.waitUntil(runScheduledMetrikaDigest(env, event.cron));
     } else {
-      ctx.waitUntil(runScheduledSheetSync(env));
+      ctx.waitUntil(runScheduledSheetSync(env, event.cron));
     }
   }
 };
 
+// Пишем в D1 факт срабатывания cron — иначе, если Cloudflare почему-то не
+// вызовет триггер (или вызовет не в то время), это невозможно будет
+// обнаружить без доступа к живым логам Worker'а. Смотреть:
+// SELECT * FROM cron_runs ORDER BY ran_at DESC LIMIT 20; в консоли D1.
+async function logCronRun(env, cron, job, note) {
+  if (!env.DB) return;
+  try {
+    await env.DB.prepare("INSERT INTO cron_runs (cron, job, ran_at, note) VALUES (?, ?, ?, ?)")
+      .bind(cron || "?", job, new Date().toISOString(), note ?? null)
+      .run();
+  } catch (err) {
+    console.error("logCronRun failed", err);
+  }
+}
+
 // Понедельник 06:00 UTC = 09:00 по Казани — сводка по Метрике за прошедшую
 // неделю в личку всем админам (как отчёт синхронизации таблицы).
-async function runScheduledMetrikaDigest(env) {
-  if (!env.METRIKA_TOKEN) return;
+async function runScheduledMetrikaDigest(env, cron) {
+  if (!env.METRIKA_TOKEN) {
+    await logCronRun(env, cron, "metrika_digest", "METRIKA_TOKEN не задан — пропущено");
+    return;
+  }
   let report;
   try {
     const digest = await buildMetrikaDigest(env);
@@ -76,6 +94,7 @@ async function runScheduledMetrikaDigest(env) {
   } catch (err) {
     report = "Еженедельный отчёт по Метрике упал с ошибкой: " + (err && err.message ? err.message : String(err));
   }
+  await logCronRun(env, cron, "metrika_digest", "отправлено");
   const admins = String(env.ADMIN_USERNAMES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   await sendToAdminsByUsername(env, admins, report);
 }
@@ -155,18 +174,19 @@ async function sendToAdminsByUsername(env, usernames, text) {
   }
 }
 
-async function runScheduledSheetSync(env) {
+async function runScheduledSheetSync(env, cron) {
   let report;
   try {
     report = await syncResidentsFromSheet(env);
   } catch (err) {
     report = "Синхронизация с таблицей упала с ошибкой: " + (err && err.message ? err.message : String(err));
   }
+  await logCronRun(env, cron, "sheet_sync", "отправлено");
   const admins = String(env.ADMIN_USERNAMES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   await sendToAdminsByUsername(env, admins, report);
 }
 
-async function runScheduledSubscriptionCheck(env) {
+async function runScheduledSubscriptionCheck(env, cron) {
   if (!env.DB) return;
   let report;
   try {
@@ -174,6 +194,7 @@ async function runScheduledSubscriptionCheck(env) {
   } catch (err) {
     report = "Проверка абонементов упала с ошибкой: " + (err && err.message ? err.message : String(err));
   }
+  await logCronRun(env, cron, "subscriptions", report ? "отправлено" : "никого не найдено — не отправлено");
   if (!report) return; // ни у кого через неделю абонемент не заканчивается — молчим, не спамим
   const username = String(env.SUBSCRIPTION_ALERT_USERNAME || "").trim().toLowerCase();
   await sendToAdminsByUsername(env, username ? [username] : [], report);
