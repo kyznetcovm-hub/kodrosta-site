@@ -92,6 +92,11 @@
   .article-sign p { margin: 0; font-size: 16px; color: var(--gray-700); }
   .article-sign strong { display: block; color: var(--black); font-weight: 600; margin-bottom: 2px; }
   .article-views { margin: 22px 0 0; font-size: 13.5px; color: var(--gray-500); }
+  .article-share { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 32px 0 0; padding-top: 24px; border-top: 1px solid var(--gray-100); }
+  .article-share-label { font-size: 13.5px; font-weight: 600; color: var(--gray-500); }
+  .share-btn { display: inline-flex; align-items: center; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--gray-300); background: var(--white); color: var(--gray-700); font-family: var(--font-body); font-size: 13.5px; font-weight: 600; text-decoration: none; cursor: pointer; transition: border-color .15s, color .15s; }
+  .share-btn:hover { border-color: var(--blue); color: var(--blue); }
+  .share-btn.is-copied { border-color: var(--blue); color: var(--blue); }
   .article-cta {
     margin-top: 40px;
     padding: 28px;
@@ -189,6 +194,15 @@
           <p><strong>Михаил Кузнецов</strong>Основатель GR-сообщества предпринимателей Татарстана «Код Роста»</p>
         </div>
 
+        <div class="article-share">
+          <span class="article-share-label">Поделиться:</span>
+          <button type="button" class="share-btn js-share-native" data-share="native" hidden>Поделиться</button>
+          <a class="share-btn js-share-tg" href="#" target="_blank" rel="noopener">Telegram</a>
+          <a class="share-btn js-share-wa" href="#" target="_blank" rel="noopener">WhatsApp</a>
+          <a class="share-btn js-share-vk" href="#" target="_blank" rel="noopener">VK</a>
+          <button type="button" class="share-btn js-share-copy">Скопировать ссылку</button>
+        </div>
+
         <p class="article-views" hidden><span class="js-view-count"></span></p>
 
         <div class="article-cta">
@@ -238,6 +252,67 @@
         box.hidden = false;
       })
       .catch(function () {});
+  })();
+
+  // Кнопки «Поделиться»: на мобильном — системное меню (Web Share API),
+  // плюс прямые ссылки под Telegram/WhatsApp/VK — каналы, где реально
+  // сидит аудитория клуба — и копирование ссылки с подтверждением.
+  (function () {
+    var canonicalEl = document.querySelector('link[rel="canonical"]');
+    var shareUrl = canonicalEl ? canonicalEl.href : location.href;
+    var h1 = document.querySelector(".article h1");
+    var shareTitle = h1 ? h1.textContent.trim() : document.title;
+    var encUrl = encodeURIComponent(shareUrl);
+    var encTitle = encodeURIComponent(shareTitle);
+
+    var tg = document.querySelector(".js-share-tg");
+    if (tg) tg.href = "https://t.me/share/url?url=" + encUrl + "&text=" + encTitle;
+
+    var wa = document.querySelector(".js-share-wa");
+    if (wa) wa.href = "https://wa.me/?text=" + encodeURIComponent(shareTitle + " — " + shareUrl);
+
+    var vk = document.querySelector(".js-share-vk");
+    if (vk) vk.href = "https://vk.com/share.php?url=" + encUrl + "&title=" + encTitle;
+
+    var nativeBtn = document.querySelector(".js-share-native");
+    if (nativeBtn && navigator.share) {
+      nativeBtn.hidden = false;
+      nativeBtn.addEventListener("click", function () {
+        navigator.share({ title: shareTitle, url: shareUrl }).catch(function () {});
+      });
+    }
+
+    var copyBtn = document.querySelector(".js-share-copy");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", function () {
+        function done() {
+          var original = copyBtn.textContent;
+          copyBtn.textContent = "Скопировано ✓";
+          copyBtn.classList.add("is-copied");
+          setTimeout(function () {
+            copyBtn.textContent = original;
+            copyBtn.classList.remove("is-copied");
+          }, 1800);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(shareUrl).then(done, function () { fallbackCopy(shareUrl); done(); });
+        } else {
+          fallbackCopy(shareUrl);
+          done();
+        }
+      });
+    }
+
+    function fallbackCopy(text) {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(ta);
+    }
   })();
 </script>
 
