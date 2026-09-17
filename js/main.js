@@ -326,6 +326,9 @@
     var companyField = form.querySelector('[name="company"]');
     if (companyField && !companyField.value.trim()) return "Укажите компанию или сферу деятельности.";
 
+    var cityField = form.querySelector('[name="city"]');
+    if (cityField && !cityField.value.trim()) return "Укажите город.";
+
     // honeypot
     var hp = form.querySelector('[name="website"]');
     if (hp && hp.value) return "spam";
@@ -365,6 +368,8 @@
         telegram: form.querySelector('[name="telegram"]').value.trim(),
         comment: form.querySelector('[name="comment"]') ? form.querySelector('[name="comment"]').value.trim() : "",
         company: form.querySelector('[name="company"]') ? form.querySelector('[name="company"]').value.trim() : "",
+        objectType: form.querySelector('[name="objectType"]') ? form.querySelector('[name="objectType"]').value.trim() : "",
+        city: form.querySelector('[name="city"]') ? form.querySelector('[name="city"]').value.trim() : "",
         event: form.querySelector('[name="event"]') ? form.querySelector('[name="event"]').value : "",
         website: form.querySelector('[name="website"]') ? form.querySelector('[name="website"]').value : "",
         promo: pendingPromo

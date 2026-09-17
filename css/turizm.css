@@ -1,0 +1,139 @@
+/* Страница направления «Туризм» (codrosta.club/turizm) — стили, специфичные
+   для этой страницы. Общие переменные, типографика, кнопки, шапка/футер,
+   модалки — в css/styles.css, здесь только то, чего там нет.
+   Акцент направления: зелёный + бежевый (+ коричневый), без синего —
+   см. «Направление Туризм — ТЗ страницы сайта.md», раздел 5. */
+
+:root {
+  --green: #2F6B4F;
+  --green-dark: #22503B;
+  --beige: #F2EDE4;
+  --brown: #6B4A32;
+}
+
+/* eyebrow/футер-ссылки на этой странице — в акценте направления, а не в фирменном сине-малиновом */
+.eyebrow { color: var(--green); }
+.eyebrow::before { background: var(--brown); }
+.nav-links .is-current { color: var(--green); }
+.footer-col a:hover { color: #8FD6B4; }
+
+.btn--green { background: var(--green); color: #fff; box-shadow: 0 8px 20px -6px rgba(47,107,79,.5); }
+.btn--green:hover { background: var(--green-dark); }
+.btn--brown { background: var(--brown); color: #fff; box-shadow: 0 10px 24px -8px rgba(0,0,0,.4); }
+.btn--brown:hover { background: #54381F; }
+.btn--lg { padding: 20px 40px; font-size: 17px; }
+
+/* Лого в шапке этой страницы — цветной квадрат в акценте направления (как footer-logo-mark),
+   а не синий фирменный знак клуба: см. правку по месту от Михаила. */
+.logo-mark-square { width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, var(--green) 55%, var(--brown) 55%); flex-shrink: 0; }
+
+.form-field select {
+  width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--gray-300);
+  font-family: var(--font-body); font-size: 14.5px; background: #fff; color: var(--black);
+}
+.form-field select:focus { outline: none; border-color: var(--green); }
+
+/* кленовый лист — фирменный геометрический элемент направления «Туризм» */
+.leaf-mark { display: block; }
+
+/* ================= HERO ================= */
+.hero-turizm { position: relative; overflow: hidden; background: var(--black); color: #fff; padding: 88px 0 0; }
+.hero-turizm .container { position: relative; z-index: 2; }
+.hero-tag { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #8FD6B4; margin-bottom: 18px; }
+.hero-turizm h1 { font-size: clamp(34px, 5.6vw, 60px); margin-bottom: 8px; color: #fff; }
+.hero-turizm .hero-kicker { font-family: var(--font-body); font-weight: 500; font-size: clamp(16px, 2.2vw, 20px); color: rgba(255,255,255,.7); margin-bottom: 28px; }
+.hero-turizm .hero-promise { font-size: clamp(17px, 2.2vw, 21px); max-width: 600px; color: rgba(255,255,255,.92); margin-bottom: 36px; }
+.hero-turizm .hero-actions { margin-bottom: 56px; }
+.hero-visual { position: relative; height: 340px; margin-top: 20px; border-radius: var(--radius) var(--radius) 0 0; overflow: hidden; background: var(--beige); }
+.hero-visual img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(1.05); }
+.hero-visual .hv-leaf { position: absolute; right: -60px; bottom: -50px; width: 260px; opacity: .9; z-index: 1; }
+.hero-visual .hv-leaf path { fill: var(--green); }
+.hero-visual-caption { position: absolute; left: 24px; bottom: 18px; z-index: 1; font-size: 12px; color: #fff; background: rgba(11,11,12,.55); padding: 5px 12px; border-radius: 999px; letter-spacing: .02em; }
+
+/* ================= ЧТО ЭТО ТАКОЕ ================= */
+.about-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.card-flat { border: 1px solid var(--gray-100); border-radius: var(--radius); padding: 28px; background: var(--beige); }
+.card-flat h3 { font-size: 18px; margin-bottom: 10px; color: var(--green-dark); }
+.card-flat p { color: var(--gray-700); font-size: 15px; margin: 0; }
+
+/* ================= ЗАЧЕМ МЫ ПОЯВИЛИСЬ ================= */
+.why-founded { background: var(--beige); }
+.reason-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.reason-card { background: #fff; border-radius: var(--radius); padding: 30px 26px; position: relative; }
+.reason-num { font-family: var(--font-display); font-weight: 700; font-size: 34px; color: var(--brown); margin-bottom: 14px; }
+.reason-card h3 { font-size: 18px; margin-bottom: 10px; }
+.reason-card p { font-size: 14.5px; color: var(--gray-700); margin: 0; }
+
+/* ================= МИССИЯ, ЦЕЛЬ, ЗАДАЧИ ================= */
+.mission-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; align-items: stretch; }
+.mission-card { border-radius: var(--radius); padding: 30px 28px; background: var(--beige); }
+.mission-card .mc-label { font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--green-dark); margin-bottom: 14px; display: block; }
+.mission-card p { margin: 0; color: var(--black); font-size: 16px; line-height: 1.55; }
+.mission-card--tasks { background: var(--green); color: #fff; }
+.mission-card--tasks .mc-label { color: #fff; opacity: .8; }
+.tasks-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; }
+.tasks-list li { display: flex; gap: 10px; font-size: 15px; color: rgba(255,255,255,.95); align-items: flex-start; line-height: 1.5; }
+.tasks-list .leaf-bullet { flex-shrink: 0; width: 16px; height: 16px; margin-top: 2px; }
+
+/* ================= ЦИФРЫ-ЦЕЛИ ================= */
+.numbers-turizm { background: linear-gradient(120deg, var(--green) 0%, var(--green-dark) 100%); color: #fff; position: relative; overflow: hidden; }
+.numbers-turizm .eyebrow { color: #fff; opacity: .85; }
+.numbers-turizm .eyebrow::before { background: var(--black); }
+.numbers-turizm .section-head h2 { color: #fff; }
+.numbers-turizm .section-head p { color: rgba(255,255,255,.8); }
+.numgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(255,255,255,.2); border-radius: var(--radius); overflow: hidden; }
+.numgrid .stat { background: var(--green-dark); padding: 30px 20px; text-align: left; }
+.numgrid .stat-num { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 3vw, 38px); color: #fff; }
+.numgrid .stat-label { font-size: 13.5px; color: rgba(255,255,255,.8); margin-top: 6px; }
+.numgrid .stat-goal { display: inline-block; margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; color: var(--green-dark); background: #fff; padding: 3px 9px; border-radius: 999px; }
+.numbers-note { margin-top: 22px; font-size: 14px; color: rgba(255,255,255,.85); background: rgba(0,0,0,.2); display: inline-block; padding: 10px 18px; border-radius: 999px; }
+
+/* ================= ЧТО ПОЛУЧАЕТ УЧАСТНИК ================= */
+.benefit-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.benefit-card { border: 1px solid var(--gray-100); border-radius: var(--radius); padding: 26px 22px; background: #fff; }
+.benefit-card .b-icon { width: 42px; height: 42px; border-radius: 10px; background: var(--beige); color: var(--green-dark); display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700; margin-bottom: 16px; }
+.benefit-card h3 { font-size: 16.5px; margin-bottom: 8px; }
+.benefit-card p { font-size: 14px; color: var(--gray-700); margin: 0; }
+.benefit-card--club { background: var(--black); color: #fff; border-color: var(--black); }
+.benefit-card--club .b-icon { background: var(--green); color: #fff; }
+.benefit-card--club h3 { color: #fff; }
+.benefit-card--club p { color: rgba(255,255,255,.75); }
+
+/* ================= ЛИДЕР НАПРАВЛЕНИЯ ================= */
+.leader-section { background: var(--beige); }
+.leader-wrap { display: flex; gap: 44px; align-items: center; flex-wrap: wrap; }
+.leader-photo { position: relative; width: 190px; height: 210px; flex-shrink: 0; }
+.leader-lens { position: absolute; top: 0; left: -38px; width: 170px; height: 170px; opacity: .9; }
+.leader-photo-circle { position: absolute; top: 14px; left: 14px; z-index: 1; width: 190px; height: 190px; border-radius: 50%; overflow: hidden; background: var(--gray-100); }
+.leader-photo-circle img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1); }
+.leader-info { flex: 1 1 380px; }
+.leader-info .role { font-family: var(--font-display); font-size: 13px; color: var(--green-dark); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+.leader-info h3 { font-size: 26px; margin-bottom: 6px; }
+.leader-quote { border-left: 3px solid var(--brown); padding-left: 18px; font-style: italic; color: var(--black); font-size: 16px; margin: 0; }
+
+/* ================= БЛИЖАЙШИЕ СОБЫТИЯ ================= */
+.tevent-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.tevent-card { border: 1px solid var(--gray-100); border-radius: var(--radius); padding: 24px; background: #fff; display: flex; flex-direction: column; gap: 14px; transition: border-color .15s, box-shadow .15s; }
+.tevent-card:hover { border-color: var(--green); box-shadow: 0 10px 30px -18px rgba(11,11,12,.25); }
+.tevent-date { font-family: var(--font-display); font-size: 13px; font-weight: 700; color: var(--green-dark); text-transform: uppercase; letter-spacing: .04em; background: var(--beige); display: inline-block; padding: 6px 12px; border-radius: 999px; align-self: flex-start; }
+.tevent-card h3 { font-size: 17px; margin: 0; }
+.tevent-card p { font-size: 14px; color: var(--gray-700); margin: 0; flex-grow: 1; }
+
+/* ================= ФИНАЛЬНЫЙ ОФФЕР ================= */
+.offer-band { background: var(--green); color: #fff; border-radius: 24px; padding: 52px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
+.offer-band-text { max-width: 600px; }
+.offer-band h2 { color: #fff; font-size: clamp(24px, 3.4vw, 32px); margin-bottom: 10px; }
+.offer-note { font-size: 14px; color: rgba(255,255,255,.8); margin: 0; }
+.offer-actions { flex-shrink: 0; }
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 980px) {
+  .about-grid3, .reason-grid, .mission-grid, .benefit-grid, .tevent-grid, .numgrid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .about-grid3, .reason-grid, .mission-grid, .benefit-grid, .tevent-grid { grid-template-columns: 1fr; }
+  .numgrid { grid-template-columns: repeat(2, 1fr); }
+  .leader-wrap { flex-direction: column; align-items: flex-start; }
+  .offer-band { padding: 32px 22px; }
+  .hero-turizm { padding-top: 76px; }
+}

@@ -395,11 +395,17 @@ async function handleSubmit(request, env) {
   if (type === "apply") {
     const company = String(data.company || "").trim();
     const comment = String(data.comment || "").trim();
+    // objectType/city — поля формы вступления на странице направления «Туризм»
+    // (codrosta.club/turizm), на основной форме вступления их нет.
+    const objectType = String(data.objectType || "").trim();
+    const city = String(data.city || "").trim();
     text =
       "📝 Заявка на вступление\n\n" +
       "Имя: " + name + "\n" +
       "Телефон: " + phone + "\n" +
       "Telegram: " + telegram + "\n" +
+      (objectType ? "Тип объекта: " + objectType + "\n" : "") +
+      (city ? "Город: " + city + "\n" : "") +
       "Компания/сфера: " + (company || "—") + "\n" +
       "Комментарий: " + (comment || "—") + promoLine;
     touchNote = promo || null;
