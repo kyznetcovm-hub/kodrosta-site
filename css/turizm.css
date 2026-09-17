@@ -133,6 +133,9 @@
   .about-grid3, .reason-grid, .mission-grid, .benefit-grid, .tevent-grid { grid-template-columns: 1fr; }
   .numgrid { grid-template-columns: repeat(2, 1fr); }
   .leader-wrap { flex-direction: column; align-items: flex-start; }
-  .offer-band { padding: 32px 22px; }
+  .offer-band { padding: 32px 22px; flex-direction: column; text-align: center; }
+  .offer-band-text { max-width: none; }
+  .offer-actions { width: 100%; }
+  .offer-actions .btn { width: 100%; }
   .hero-turizm { padding-top: 76px; }
 }
