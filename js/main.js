@@ -126,6 +126,7 @@
         eventsExpanded = true;
         list.style.maxHeight = "";
         list.classList.remove("is-scrollable");
+        list.querySelectorAll(".event-card.is-peeking").forEach(function (c) { c.classList.remove("is-peeking"); });
         var fade = list.querySelector(".events-fade");
         if (fade) fade.remove();
       });
@@ -158,39 +159,47 @@
     });
   }
 
-  // Показываем не больше 4 карточек мероприятий целиком, остальное — скроллом внутри блока
+  // Показываем не больше 3 карточек мероприятий целиком, остальное — скроллом внутри блока.
+  // Порог "показывать/скрывать" завязан на общее число (>4), а не на FULL_COUNT: при 4 событиях
+  // ничего не сворачиваем — они просто висят на странице без градиента и скролла.
+  var EVENTS_FULL_COUNT = 3;
   function setupEventsScrollCap(list, total) {
     var hint = document.querySelector("#events .section-head p");
     if (total <= 4) {
       list.style.maxHeight = "";
       list.classList.remove("is-scrollable");
+      list.querySelectorAll(".event-card.is-peeking").forEach(function (c) { c.classList.remove("is-peeking"); });
       return;
     }
     // Класс добавляем до замера высот: он даёт padding-right, из-за которого текст
     // может переноситься на другую строку — если измерить карточки ДО этого,
-    // получим заниженную высоту и обрежем 5-ю карточку раньше времени.
+    // получим заниженную высоту и обрежем карточку раньше времени.
     list.classList.add("is-scrollable");
 
     var cards = list.querySelectorAll(".event-card");
     var height = 0;
-    for (var i = 0; i < 4 && i < cards.length; i++) {
+    for (var i = 0; i < EVENTS_FULL_COUNT && i < cards.length; i++) {
       height += cards[i].getBoundingClientRect().height;
       if (i > 0) height += 16; // gap
     }
-    // приоткрываем 5-е событие целиком, чтобы градиенту было что закрывать —
-    // иначе при maxHeight ровно по 4 карточки 5-я вообще не рендерится в области просмотра
-    var fifthCardHeight = cards.length > 4 ? cards[4].getBoundingClientRect().height : 0;
-    if (fifthCardHeight) height += 16 + fifthCardHeight;
+    // приоткрываем следующее событие целиком, чтобы градиенту было что закрывать —
+    // иначе при maxHeight ровно по EVENTS_FULL_COUNT карточек оно вообще не рендерится в области просмотра
+    var peekCard = cards.length > EVENTS_FULL_COUNT ? cards[EVENTS_FULL_COUNT] : null;
+    var peekCardHeight = peekCard ? peekCard.getBoundingClientRect().height : 0;
+    if (peekCardHeight) height += 16 + peekCardHeight;
     list.style.maxHeight = Math.ceil(height + 8) + "px"; // небольшой запас на подпиксельные округления
+
+    list.querySelectorAll(".event-card.is-peeking").forEach(function (c) { c.classList.remove("is-peeking"); });
+    if (peekCard) peekCard.classList.add("is-peeking"); // прячет кнопку "Записаться" под градиентом, см. CSS
 
     var fade = list.querySelector(".events-fade");
     if (fade) {
-      var fadeHeight = Math.max(260, Math.ceil(fifthCardHeight) + 24);
+      var fadeHeight = Math.max(260, Math.ceil(peekCardHeight) + 24);
       fade.style.height = fadeHeight + "px";
       fade.style.marginTop = "-" + fadeHeight + "px";
     }
     if (hint && hint.dataset.baseText === undefined) hint.dataset.baseText = hint.textContent;
-    if (hint) hint.textContent = hint.dataset.baseText + " Показаны ближайшие 4 из " + total + " — нажмите «Показать больше событий», чтобы увидеть остальные.";
+    if (hint) hint.textContent = hint.dataset.baseText + " Показаны ближайшие " + EVENTS_FULL_COUNT + " из " + total + " — нажмите «Показать больше событий», чтобы увидеть остальные.";
   }
 
   // JSON-LD для ближайших мероприятий — собирается из EVENTS, чтобы не расходиться со списком
@@ -242,6 +251,9 @@
     // фиксируем время открытия — анти-спам таймер
     var form = el.querySelector("form");
     if (form) form.dataset.openedAt = String(Date.now());
+    if (window.kodrostaAnalytics) window.kodrostaAnalytics.track(
+      id === "modal-apply" ? "apply_form_open" : "event_form_open"
+    );
     var firstInput = el.querySelector("input:not([type=hidden])");
     if (firstInput) setTimeout(function () { firstInput.focus(); }, 100);
   }
@@ -358,6 +370,8 @@
         promo: pendingPromo
       };
 
+      if (window.kodrostaAnalytics) Object.assign(data, window.kodrostaAnalytics.attribution());
+
       var submitBtn = form.querySelector('[type="submit"]');
       if (submitBtn) submitBtn.disabled = true;
 
@@ -375,6 +389,9 @@
           showStatus(form, "ok", "Спасибо! Заявка отправлена, менеджер скоро свяжется с вами.");
           form.reset();
           if (typeof ym === "function") ym(111842641, "reachGoal", "form_submit", { type: type });
+          if (window.kodrostaAnalytics) window.kodrostaAnalytics.track(
+            type === "apply" ? "apply_form_success" : "event_form_success"
+          );
           // Флаг для exit-popup: цель уже достигнута — больше не показывать pop-up этому пользователю.
           try {
             if (pendingPromo) {
