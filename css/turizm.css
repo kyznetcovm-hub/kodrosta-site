@@ -48,7 +48,6 @@
 .hero-visual img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(1.05); }
 .hero-visual .hv-leaf { position: absolute; right: -60px; bottom: -50px; width: 260px; opacity: .9; z-index: 1; }
 .hero-visual .hv-leaf path { fill: var(--green); }
-.hero-visual-caption { position: absolute; left: 24px; bottom: 18px; z-index: 1; font-size: 12px; color: #fff; background: rgba(11,11,12,.55); padding: 5px 12px; border-radius: 999px; letter-spacing: .02em; }
 
 /* ================= ЧТО ЭТО ТАКОЕ ================= */
 .about-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
