@@ -278,14 +278,20 @@
   // ---- Бургер-меню (мобильная навигация) -------------------------------------
   var burger = document.querySelector(".js-burger");
   if (burger) {
+    var navOpenCss = "display:flex; position:fixed; top:76px; left:0; right:0; background:#fff; flex-direction:column; padding:20px 24px; gap:18px; box-shadow:0 12px 24px -12px rgba(0,0,0,.15); border-bottom:1px solid var(--gray-100);";
     burger.addEventListener("click", function () {
       var nav = document.querySelector(".nav-links");
       if (!nav) return;
       var isOpen = nav.style.display === "flex";
-      nav.style.cssText = isOpen
-        ? ""
-        : "display:flex; position:fixed; top:76px; left:0; right:0; background:#fff; flex-direction:column; padding:20px 24px; gap:18px; box-shadow:0 12px 24px -12px rgba(0,0,0,.15); border-bottom:1px solid var(--gray-100);";
+      nav.style.cssText = isOpen ? "" : navOpenCss;
     });
+    // Меню — position:fixed поверх страницы, и сама страница при этом остаётся
+    // скроллящейся под ним. Если пользователь начал листать, ничего не выбрав —
+    // сворачиваем меню само, а не оставляем его висеть поверх контента.
+    window.addEventListener("scroll", function () {
+      var nav = document.querySelector(".nav-links");
+      if (nav && nav.style.display === "flex") nav.style.cssText = "";
+    }, { passive: true });
   }
 
   // ---- Формы: валидация, анти-спам, отправка в Telegram через /api/submit ----
