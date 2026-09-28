@@ -131,13 +131,17 @@ function formatPeriod(period) {
   return `${formatRuDate(period.from)} – ${formatRuDate(period.to)}`;
 }
 
-function formatRecordLines(items) {
+// showDate = false — только ФИО и username, по алфавиту (так выводим «Ушли»:
+// дата окончания там не нужна; в выборку она всё равно попадает — по ней
+// решается, относится ли человек к периоду).
+function formatRecordLines(items, showDate = true) {
   if (!items.length) return ["— никого"];
+  const byName = (a, b) => a.fullName.localeCompare(b.fullName, "ru");
   return items
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.fullName.localeCompare(b.fullName, "ru")))
+    .sort(showDate ? (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : byName(a, b)) : byName)
     .map((r, i) => {
       const username = r.telegramUsername ? "@" + r.telegramUsername : "—";
-      return `${i + 1}. ${r.fullName} / ${username} / ${formatRuDate(r.date)}`;
+      return `${i + 1}. ${r.fullName} / ${username}` + (showDate ? ` / ${formatRuDate(r.date)}` : "");
     });
 }
 
@@ -161,9 +165,9 @@ export async function listLeftMembersThisMonth(env) {
   if (!items.length) return null;
   return [
     `<b>Ушли — ${period.label}</b>`,
-    `${formatPeriod(period)} · статус «отказ», дата окончания абонемента`,
+    `${formatPeriod(period)} · статус «отказ»`,
     "",
-    ...formatRecordLines(items),
+    ...formatRecordLines(items, false),
   ].join("\n");
 }
 
@@ -180,8 +184,8 @@ export async function buildMonthlySubscriptionReport(env) {
     `<b>Отчёт по абонементам — ${period.label}</b>`,
     formatPeriod(period),
     "",
-    `<b>1. Ушли (${left.length})</b> — не продлили, дата окончания`,
-    ...formatRecordLines(left),
+    `<b>1. Ушли (${left.length})</b> — не продлили`,
+    ...formatRecordLines(left, false),
     "",
     `<b>2. Продлили (${renewed.length})</b> — дата начала нового абонемента`,
     ...formatRecordLines(renewed),

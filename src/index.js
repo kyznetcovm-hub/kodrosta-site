@@ -54,10 +54,10 @@ export default {
   // 05:00 UTC — напоминание об абонементах, истекающих через неделю
   // (отчёт — только SUBSCRIPTION_ALERT_USERNAME, вручную кнопкой в меню
   // может вызвать любой админ себе, см. src/engagement.js);
-  // 05:00 UTC 1-го числа — «Отчёт по абонементам» за прошедший месяц
+  // 06:00 UTC 1-го числа — «Отчёт по абонементам» за прошедший месяц
   // (тоже только SUBSCRIPTION_ALERT_USERNAME).
   async scheduled(event, env, ctx) {
-    if (event.cron === "0 5 1 * *") {
+    if (event.cron === "0 6 1 * *") {
       ctx.waitUntil(runScheduledMonthlySubscriptionReport(env, event.cron));
     } else if (event.cron === "0 5 * * *") {
       ctx.waitUntil(runScheduledSubscriptionCheck(env, event.cron));
