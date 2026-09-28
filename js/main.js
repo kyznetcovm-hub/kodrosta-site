@@ -147,21 +147,10 @@
     });
   }
 
-  // Пока внутри списка есть что доскроллить — градиент виден (и сам едет вместе со
-  // скроллом за счёт position:sticky). Как только докрутили до последней карточки —
-  // прячем градиент, чтобы не намекать на несуществующий "ещё есть, крутите дальше".
-  function setupEventsFadeOnScroll(list) {
-    list.addEventListener("scroll", function () {
-      var fade = list.querySelector(".events-fade");
-      if (!fade) return;
-      var atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 4;
-      fade.classList.toggle("is-hidden", atBottom);
-    });
-  }
-
-  // Показываем не больше 3 карточек мероприятий целиком, остальное — скроллом внутри блока.
-  // Порог "показывать/скрывать" завязан на общее число (>4), а не на FULL_COUNT: при 4 событиях
-  // ничего не сворачиваем — они просто висят на странице без градиента и скролла.
+  // Показываем не больше 3 карточек мероприятий целиком, остальное — обрезано по высоте
+  // (overflow:hidden, БЕЗ внутреннего скролла — см. ниже, почему). Порог "показывать/скрывать"
+  // завязан на общее число (>4), а не на FULL_COUNT: при 4 событиях ничего не сворачиваем —
+  // они просто висят на странице без градиента.
   var EVENTS_FULL_COUNT = 3;
   function setupEventsScrollCap(list, total) {
     var hint = document.querySelector("#events .section-head p");
@@ -171,9 +160,6 @@
       list.querySelectorAll(".event-card.is-peeking").forEach(function (c) { c.classList.remove("is-peeking"); });
       return;
     }
-    // Класс добавляем до замера высот: он даёт padding-right, из-за которого текст
-    // может переноситься на другую строку — если измерить карточки ДО этого,
-    // получим заниженную высоту и обрежем карточку раньше времени.
     list.classList.add("is-scrollable");
 
     var cards = list.querySelectorAll(".event-card");
@@ -542,6 +528,5 @@
   var eventsListEl = document.querySelector(".js-events-list");
   if (eventsListEl) {
     setupEventsResizeRecalc(eventsListEl);
-    setupEventsFadeOnScroll(eventsListEl);
   }
 })();

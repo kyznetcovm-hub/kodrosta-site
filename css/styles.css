@@ -434,7 +434,11 @@ a { color: inherit; }
   margin-bottom: 32px;
 }
 .events-list { display: flex; flex-direction: column; gap: 16px; }
-.events-list.is-scrollable { overflow-y: auto; padding-right: 6px; scrollbar-width: thin; }
+/* overflow:hidden, НЕ auto — списку нельзя быть отдельной скролл-областью: на мобильных
+   вложенный скролл внутри .events-list перехватывал тач-скролл страницы, и когда он
+   упирался в свой предел, скролл не всегда передавался обратно наружу — страница "залипала"
+   и не листалась, пока её не перезагрузишь. Открыть остальные события можно только кнопкой. */
+.events-list.is-scrollable { overflow: hidden; }
 .events-fade {
   position: sticky;
   bottom: 0; left: 0; right: 0;
@@ -455,12 +459,8 @@ a { color: inherit; }
   justify-content: center;
   padding-bottom: 18px;
   pointer-events: none;
-  opacity: 1;
-  transition: opacity .25s ease;
 }
-.events-fade.is-hidden { opacity: 0; }
 .events-fade .btn { pointer-events: auto; }
-.events-fade.is-hidden .btn { pointer-events: none; }
 /* Карточка, которая приоткрыта под градиентом (см. setupEventsScrollCap) —
    прячем её кнопку записи, чтобы она не наслаивалась на «Показать больше событий». */
 .event-card.is-peeking .event-actions { visibility: hidden; }
