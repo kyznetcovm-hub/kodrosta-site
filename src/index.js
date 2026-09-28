@@ -61,7 +61,7 @@ export default {
       ctx.waitUntil(runScheduledMonthlySubscriptionReport(env, event.cron));
     } else if (event.cron === "0 5 * * *") {
       ctx.waitUntil(runScheduledSubscriptionCheck(env, event.cron));
-    } else if (event.cron === "0 6 * * 1") {
+    } else if (event.cron === "0 7 * * 1") {
       ctx.waitUntil(runScheduledMetrikaDigest(env, event.cron));
     } else {
       ctx.waitUntil(runScheduledSheetSync(env, event.cron));
@@ -84,7 +84,7 @@ async function logCronRun(env, cron, job, note) {
   }
 }
 
-// Понедельник 06:00 UTC = 09:00 по Казани — сводка по Метрике за прошедшую
+// Понедельник 07:00 UTC = 10:00 по Казани — сводка по Метрике за прошедшую
 // неделю в личку всем админам (как отчёт синхронизации таблицы).
 async function runScheduledMetrikaDigest(env, cron) {
   if (!env.METRIKA_TOKEN) {
