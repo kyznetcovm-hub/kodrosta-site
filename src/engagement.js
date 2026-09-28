@@ -16,7 +16,7 @@ import {
   getSectionValues, setSectionValues, setPendingEdit, getPendingEdit, clearPendingEdit,
 } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
-import { listSubscriptionsDueThisMonth, listNewMembersThisMonth, listLeftMembersThisMonth, listReportMonths, buildSubscriptionReportForMonth } from "./subscriptions.js";
+import { listSubscriptionsDueThisMonth, listNewMembersThisMonth, listLeftMembersThisMonth, listReportMonths, buildSubscriptionReportForMonth, currentReportYear, FIRST_REPORT_YEAR } from "./subscriptions.js";
 import {
   recordBotSignup, recordManualSignups, attachSignupPhone, listEventSignups,
 } from "./event-signups.js";
@@ -286,6 +286,7 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:matchgroups") return handleMatchGroupsPicker(fakeMsg, env);
   if (data === "menu:syncsheet") return handleSyncSheetCommand(fakeMsg, env);
   if (data === "menu:subsreport") return handleSubscriptionReportPicker(fakeMsg, env);
+  if (data.startsWith("srepy:")) return handleSubscriptionReportPicker(fakeMsg, env, Number(data.slice(6)));
   if (data.startsWith("srep:")) return handleSubscriptionReportForMonth(fakeMsg, env, data.slice(5));
   if (data.startsWith("cool:")) return handleCoolingDetail(fakeMsg, env, data.slice(5));
   if (data === "menu:match") return sendMatchHelp(fakeMsg, env);
@@ -1310,17 +1311,24 @@ async function handleMonthMembersCommand(msg, env, kind, callbackQueryId) {
   return sendMessage(env, msg.from.id, report, { inline_keyboard: [backButtonRow()] });
 }
 
-// Кнопка «Отчёт за прошлый период» -> кнопки месяцев текущего года (с января
-// по текущий), по нажатию на месяц — «Отчёт по абонементам» за этот месяц
-// (тот же, что приходит 1-го числа, см. src/subscriptions.js). Текущий
-// месяц — с 1-го числа по сегодня.
-async function handleSubscriptionReportPicker(msg, env) {
+// Кнопка «Отчёт за прошлый период» -> кнопки месяцев выбранного года (по
+// умолчанию текущего: с января по текущий месяц) и переключатель года
+// «◀ 2025 · 2027 ▶» (с FIRST_REPORT_YEAR по текущий). По нажатию на месяц —
+// «Отчёт по абонементам» за этот месяц (тот же, что приходит 1-го числа,
+// см. src/subscriptions.js). Текущий месяц — с 1-го числа по сегодня.
+async function handleSubscriptionReportPicker(msg, env, yearArg) {
   if (!isAdmin(msg.from.username, env)) return;
-  const months = listReportMonths().map((mo) => ({ text: mo.label, callback_data: "srep:" + mo.key }));
+  const thisYear = currentReportYear();
+  const year = Number.isInteger(yearArg) && yearArg >= FIRST_REPORT_YEAR && yearArg <= thisYear ? yearArg : thisYear;
+  const months = listReportMonths(year).map((mo) => ({ text: mo.label, callback_data: "srep:" + mo.key }));
   const rows = [];
   for (let i = 0; i < months.length; i += 3) rows.push(months.slice(i, i + 3));
+  const yearNav = [];
+  if (year > FIRST_REPORT_YEAR) yearNav.push({ text: `◀ ${year - 1}`, callback_data: "srepy:" + (year - 1) });
+  if (year < thisYear) yearNav.push({ text: `${year + 1} ▶`, callback_data: "srepy:" + (year + 1) });
+  if (yearNav.length) rows.push(yearNav);
   rows.push(backButtonRow());
-  return sendMessage(env, msg.from.id, "За какой месяц сформировать отчёт по абонементам?", { inline_keyboard: rows });
+  return sendMessage(env, msg.from.id, `Отчёт по абонементам — ${year} год. За какой месяц?`, { inline_keyboard: rows });
 }
 
 async function handleSubscriptionReportForMonth(msg, env, monthKey) {
@@ -1333,7 +1341,8 @@ async function handleSubscriptionReportForMonth(msg, env, monthKey) {
   }
   if (!report) report = "Нет такого месяца.";
   return sendMessage(env, msg.from.id, report, {
-    inline_keyboard: [[{ text: "📊 Другой месяц", callback_data: "menu:subsreport" }], backButtonRow()],
+    // «Другой месяц» — обратно к месяцам того же года, что и отчёт
+    inline_keyboard: [[{ text: "📊 Другой месяц", callback_data: "srepy:" + String(monthKey).slice(0, 4) }], backButtonRow()],
   });
 }
 

@@ -108,15 +108,25 @@ function previousMonth() {
   return monthPeriod(y, m - 2);
 }
 
-// Месяцы текущего года с января по текущий — для кнопок «Отчёт за прошлый
-// период». key («2026-08») уходит в callback_data и обратно в
-// buildSubscriptionReportForMonth.
-export function listReportMonths() {
+// Первый год, за который есть смысл строить отчёт: клуб стартовал в 2023-м
+// (первые «Дата начала» во «Вступивших» — октябрь 2023).
+export const FIRST_REPORT_YEAR = 2023;
+
+export function currentReportYear() {
+  return Number(mskToday().slice(0, 4));
+}
+
+// Месяцы выбранного года для кнопок «Отчёт за прошлый период»: для прошлых
+// лет — все двенадцать, для текущего — с января по текущий. key («2026-08»)
+// уходит в callback_data и обратно в buildSubscriptionReportForMonth.
+export function listReportMonths(year = currentReportYear()) {
   const [y, m] = mskToday().split("-").map(Number);
+  if (year > y || year < FIRST_REPORT_YEAR) return [];
+  const count = year === y ? m : 12;
   const out = [];
-  for (let i = 0; i < m; i++) {
+  for (let i = 0; i < count; i++) {
     const name = MONTHS_RU[i];
-    out.push({ key: `${y}-${String(i + 1).padStart(2, "0")}`, label: name[0].toUpperCase() + name.slice(1) });
+    out.push({ key: `${year}-${String(i + 1).padStart(2, "0")}`, label: name[0].toUpperCase() + name.slice(1) });
   }
   return out;
 }
