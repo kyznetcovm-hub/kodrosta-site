@@ -16,7 +16,7 @@ import {
   getSectionValues, setSectionValues, setPendingEdit, getPendingEdit, clearPendingEdit,
 } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
-import { listSubscriptionsDueThisMonth, listNewMembersThisMonth, listLeftMembersThisMonth } from "./subscriptions.js";
+import { listSubscriptionsDueThisMonth, listNewMembersThisMonth, listLeftMembersThisMonth, listReportMonths, buildSubscriptionReportForMonth } from "./subscriptions.js";
 import {
   recordBotSignup, recordManualSignups, attachSignupPhone, listEventSignups,
 } from "./event-signups.js";
@@ -217,6 +217,7 @@ function adminMenuKeyboard() {
       [{ text: "🟦 АБОНЕМЕНТЫ 🟦", callback_data: "noop" }],
       [{ text: "🔁 Продление", callback_data: "menu:subscriptions" }],
       [{ text: "🆕 Новые", callback_data: "menu:subsnew" }, { text: "🚪 Ушли", callback_data: "menu:subsleft" }],
+      [{ text: "📊 Отчёт за прошлый период", callback_data: "menu:subsreport" }],
     ],
   };
 }
@@ -284,6 +285,8 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:faq") return handleFaqPicker(fakeMsg, env);
   if (data === "menu:matchgroups") return handleMatchGroupsPicker(fakeMsg, env);
   if (data === "menu:syncsheet") return handleSyncSheetCommand(fakeMsg, env);
+  if (data === "menu:subsreport") return handleSubscriptionReportPicker(fakeMsg, env);
+  if (data.startsWith("srep:")) return handleSubscriptionReportForMonth(fakeMsg, env, data.slice(5));
   if (data.startsWith("cool:")) return handleCoolingDetail(fakeMsg, env, data.slice(5));
   if (data === "menu:match") return sendMatchHelp(fakeMsg, env);
   if (data.startsWith("mg:")) return handleMatchGroup(fakeMsg, env, data.slice(3));
@@ -1305,6 +1308,33 @@ async function handleMonthMembersCommand(msg, env, kind, callbackQueryId) {
   }
   if (callbackQueryId) await answerCallback(env, callbackQueryId);
   return sendMessage(env, msg.from.id, report, { inline_keyboard: [backButtonRow()] });
+}
+
+// Кнопка «Отчёт за прошлый период» -> кнопки месяцев текущего года (с января
+// по текущий), по нажатию на месяц — «Отчёт по абонементам» за этот месяц
+// (тот же, что приходит 1-го числа, см. src/subscriptions.js). Текущий
+// месяц — с 1-го числа по сегодня.
+async function handleSubscriptionReportPicker(msg, env) {
+  if (!isAdmin(msg.from.username, env)) return;
+  const months = listReportMonths().map((mo) => ({ text: mo.label, callback_data: "srep:" + mo.key }));
+  const rows = [];
+  for (let i = 0; i < months.length; i += 3) rows.push(months.slice(i, i + 3));
+  rows.push(backButtonRow());
+  return sendMessage(env, msg.from.id, "За какой месяц сформировать отчёт по абонементам?", { inline_keyboard: rows });
+}
+
+async function handleSubscriptionReportForMonth(msg, env, monthKey) {
+  if (!isAdmin(msg.from.username, env)) return;
+  let report;
+  try {
+    report = await buildSubscriptionReportForMonth(env, monthKey);
+  } catch (err) {
+    report = "Не получилось прочитать таблицу: " + (err && err.message ? err.message : String(err));
+  }
+  if (!report) report = "Нет такого месяца.";
+  return sendMessage(env, msg.from.id, report, {
+    inline_keyboard: [[{ text: "📊 Другой месяц", callback_data: "menu:subsreport" }], backButtonRow()],
+  });
 }
 
 async function handleMatchGroupsPicker(msg, env) {

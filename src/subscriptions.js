@@ -91,13 +91,34 @@ function currentMonthToDate() {
   return { from: isoDate(y, m - 1, 1), to: today, label: `${MONTHS_RU[m - 1]} ${y}` };
 }
 
-// Прошедший месяц целиком: с 1-го по последнее число (для отчёта 1-го числа).
+// Календарный месяц целиком: с 1-го по последнее число (monthIndex — 0..11,
+// можно выйти за границы: -1 = декабрь прошлого года). Текущий месяц
+// обрезается по сегодня — дальше данных всё равно нет.
+function monthPeriod(year, monthIndex) {
+  const from = isoDate(year, monthIndex, 1);
+  const lastDay = isoDate(year, monthIndex + 1, 0); // нулевой день следующего месяца = последний день этого
+  const today = mskToday();
+  const [y, m] = from.split("-").map(Number);
+  return { from, to: lastDay < today ? lastDay : today, label: `${MONTHS_RU[m - 1]} ${y}` };
+}
+
+// Прошедший месяц целиком (для отчёта 1-го числа).
 function previousMonth() {
   const [y, m] = mskToday().split("-").map(Number);
-  const from = isoDate(y, m - 2, 1);
-  const to = isoDate(y, m - 1, 0); // нулевой день текущего месяца = последний день прошлого
-  const [py, pm] = from.split("-").map(Number);
-  return { from, to, label: `${MONTHS_RU[pm - 1]} ${py}` };
+  return monthPeriod(y, m - 2);
+}
+
+// Месяцы текущего года с января по текущий — для кнопок «Отчёт за прошлый
+// период». key («2026-08») уходит в callback_data и обратно в
+// buildSubscriptionReportForMonth.
+export function listReportMonths() {
+  const [y, m] = mskToday().split("-").map(Number);
+  const out = [];
+  for (let i = 0; i < m; i++) {
+    const name = MONTHS_RU[i];
+    out.push({ key: `${y}-${String(i + 1).padStart(2, "0")}`, label: name[0].toUpperCase() + name.slice(1) });
+  }
+  return out;
 }
 
 function inRange(iso, period) {
@@ -175,7 +196,23 @@ export async function listLeftMembersThisMonth(env) {
 // всегда, даже если все три раздела пустые: отсутствие отчёта 1-го числа
 // выглядело бы как поломка.
 export async function buildMonthlySubscriptionReport(env) {
-  const period = previousMonth();
+  return buildSubscriptionReport(env, previousMonth());
+}
+
+// Тот же отчёт за выбранный месяц (кнопка «Отчёт за прошлый период»).
+// monthKey — «ГГГГ-ММ»; месяцы из будущего не принимаем. null — ключ кривой.
+export async function buildSubscriptionReportForMonth(env, monthKey) {
+  const match = /^(\d{4})-(\d{2})$/.exec(monthKey || "");
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+  const period = monthPeriod(year, month - 1);
+  if (period.from > mskToday()) return null;
+  return buildSubscriptionReport(env, period);
+}
+
+async function buildSubscriptionReport(env, period) {
   const records = await fetchMembershipRecords(env);
   const left = selectLeft(records, period);
   const renewed = selectRenewed(records, period);
