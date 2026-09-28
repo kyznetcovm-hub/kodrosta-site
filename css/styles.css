@@ -178,6 +178,8 @@ a { color: inherit; }
 }
 .nav-links a { text-decoration: none; color: var(--gray-700); transition: color .15s; white-space: nowrap; }
 .nav-links a:hover { color: var(--blue); }
+/* Пункт только для выпадающего (бургер) меню — в строке шапки на десктопе не показываем */
+.nav-links .nav-only-menu { display: none; }
 .header-cta { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
 .header-cta .cta-short { display: none; }
 .burger {
@@ -900,6 +902,7 @@ a { color: inherit; }
 
 @media (max-width: 1040px) {
   .nav-links { display: none; }
+  .nav-links .nav-only-menu { display: list-item; }
   .burger { display: flex; }
   .header-cta .cta-full { display: none; }
   .header-cta .cta-short { display: inline; }
