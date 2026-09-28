@@ -2,13 +2,20 @@
 // окончания» гугл-таблицы «Вступившие» — см. src/sheets-sync.js, который
 // эту дату кладёт в residents.subscription_end при синхронизации).
 //
-// Два независимых сценария:
+// Сценарии:
 // - по расписанию раз в сутки (src/index.js) — ровно за неделю до даты
 //   окончания, только @Kodrosta;
-// - кнопка «Абонементы» в админ-меню (src/engagement.js) — список всех,
+// - кнопка «Продление» в админ-меню (src/engagement.js) — список всех,
 //   у кого абонемент заканчивается от сегодня и в течение месяца вперёд,
 //   чтобы видеть потенциал продлений на месяц; вызвать может любой админ,
-//   отвечает тому, кто нажал.
+//   отвечает тому, кто нажал;
+// - кнопки «Новые» и «Ушли» — за текущий календарный месяц (с 1-го числа
+//   по сегодня), читают вкладку «Вступившие» напрямую (статуса «отказ» и
+//   даты продления в базе нет, см. fetchMembershipRecords);
+// - «Отчёт по абонементам» 1-го числа каждого месяца (src/index.js) — за
+//   весь прошедший месяц: Ушли / Продлили / Новые, только @Kodrosta.
+
+import { fetchMembershipRecords } from "./sheets-sync.js";
 
 function isoDatePlusDays(days) {
   const d = new Date();
@@ -44,7 +51,7 @@ export async function checkExpiringSubscriptions(env) {
   return formatSubscriptionList("Абонементы — истекают через неделю", results);
 }
 
-// Для кнопки «Абонементы» — от сегодня и на месяц вперёд, отсортировано по
+// Для кнопки «Продление» — от сегодня и на месяц вперёд, отсортировано по
 // дате окончания (ближайшие продления — первые). Возвращает null, если за
 // этот месяц ни у кого абонемент не заканчивается.
 export async function listSubscriptionsDueThisMonth(env) {
@@ -59,5 +66,127 @@ export async function listSubscriptionsDueThisMonth(env) {
     .all();
 
   if (!results.length) return null;
-  return formatSubscriptionList("Абонементы — заканчиваются в течение месяца", results);
+  return formatSubscriptionList("Продление — абонементы заканчиваются в течение месяца", results);
+}
+
+// ---- Новые / Ушли / Продлили за календарный месяц -------------------------
+
+// Клуб в Казани — «сегодня» и границы месяца считаем по московскому времени,
+// а не по UTC: иначе ночью 1-го числа кнопка показала бы прошлый месяц.
+const MSK_OFFSET_MS = 3 * 60 * 60 * 1000;
+const MONTHS_RU = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
+
+function mskToday() {
+  return new Date(Date.now() + MSK_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function isoDate(year, monthIndex, day) {
+  return new Date(Date.UTC(year, monthIndex, day)).toISOString().slice(0, 10);
+}
+
+// Текущий месяц: с 1-го числа по сегодня включительно.
+function currentMonthToDate() {
+  const today = mskToday();
+  const [y, m] = today.split("-").map(Number);
+  return { from: isoDate(y, m - 1, 1), to: today, label: `${MONTHS_RU[m - 1]} ${y}` };
+}
+
+// Прошедший месяц целиком: с 1-го по последнее число (для отчёта 1-го числа).
+function previousMonth() {
+  const [y, m] = mskToday().split("-").map(Number);
+  const from = isoDate(y, m - 2, 1);
+  const to = isoDate(y, m - 1, 0); // нулевой день текущего месяца = последний день прошлого
+  const [py, pm] = from.split("-").map(Number);
+  return { from, to, label: `${MONTHS_RU[pm - 1]} ${py}` };
+}
+
+function inRange(iso, period) {
+  return Boolean(iso) && iso >= period.from && iso <= period.to;
+}
+
+function isRefused(record) {
+  return record.status.toLowerCase().includes("отказ");
+}
+
+// Новые — «Дата начала» (первый абонемент) попадает в период.
+function selectNew(records, period) {
+  return records.filter((r) => inRange(r.startDate, period))
+    .map((r) => ({ ...r, date: r.startDate }));
+}
+
+// Ушли — статус «отказ» и абонемент закончился в этом периоде (последняя из
+// дат окончания — если человек успел продлиться, то дата после продления).
+function selectLeft(records, period) {
+  return records.filter((r) => isRefused(r) && inRange(r.endDate, period))
+    .map((r) => ({ ...r, date: r.endDate }));
+}
+
+// Продлили — «Дата продления» (начало нового абонемента) попадает в период.
+function selectRenewed(records, period) {
+  return records.filter((r) => inRange(r.renewalDate, period))
+    .map((r) => ({ ...r, date: r.renewalDate }));
+}
+
+function formatPeriod(period) {
+  return `${formatRuDate(period.from)} – ${formatRuDate(period.to)}`;
+}
+
+function formatRecordLines(items) {
+  if (!items.length) return ["— никого"];
+  return items
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.fullName.localeCompare(b.fullName, "ru")))
+    .map((r, i) => {
+      const username = r.telegramUsername ? "@" + r.telegramUsername : "—";
+      return `${i + 1}. ${r.fullName} / ${username} / ${formatRuDate(r.date)}`;
+    });
+}
+
+// Для кнопки «Новые». Возвращает null, если в этом месяце никто не вступил.
+export async function listNewMembersThisMonth(env) {
+  const period = currentMonthToDate();
+  const items = selectNew(await fetchMembershipRecords(env), period);
+  if (!items.length) return null;
+  return [
+    `<b>Новые — ${period.label}</b>`,
+    `${formatPeriod(period)} · дата начала абонемента`,
+    "",
+    ...formatRecordLines(items),
+  ].join("\n");
+}
+
+// Для кнопки «Ушли». Возвращает null, если в этом месяце никто не ушёл.
+export async function listLeftMembersThisMonth(env) {
+  const period = currentMonthToDate();
+  const items = selectLeft(await fetchMembershipRecords(env), period);
+  if (!items.length) return null;
+  return [
+    `<b>Ушли — ${period.label}</b>`,
+    `${formatPeriod(period)} · статус «отказ», дата окончания абонемента`,
+    "",
+    ...formatRecordLines(items),
+  ].join("\n");
+}
+
+// «Отчёт по абонементам» — 1-го числа за весь прошедший месяц. Отправляется
+// всегда, даже если все три раздела пустые: отсутствие отчёта 1-го числа
+// выглядело бы как поломка.
+export async function buildMonthlySubscriptionReport(env) {
+  const period = previousMonth();
+  const records = await fetchMembershipRecords(env);
+  const left = selectLeft(records, period);
+  const renewed = selectRenewed(records, period);
+  const fresh = selectNew(records, period);
+  return [
+    `<b>Отчёт по абонементам — ${period.label}</b>`,
+    formatPeriod(period),
+    "",
+    `<b>1. Ушли (${left.length})</b> — не продлили, дата окончания`,
+    ...formatRecordLines(left),
+    "",
+    `<b>2. Продлили (${renewed.length})</b> — дата начала нового абонемента`,
+    ...formatRecordLines(renewed),
+    "",
+    `<b>3. Новые (${fresh.length})</b> — дата начала абонемента`,
+    ...formatRecordLines(fresh),
+  ].join("\n");
 }

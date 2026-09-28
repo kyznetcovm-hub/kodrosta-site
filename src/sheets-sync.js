@@ -252,3 +252,50 @@ export async function syncResidentsFromSheet(env) {
   }
   return lines.join("\n");
 }
+
+// Для отчётов по абонементам («Новые», «Ушли», ежемесячный «Отчёт по
+// абонементам» — см. src/subscriptions.js). В базе резидентов нет ни статуса
+// («отказ …»), ни даты продления, поэтому эти отчёты читают вкладку
+// «Вступившие» напрямую, в момент вызова. В отличие от parseResidentsSheet,
+// строки без телефона/telegram не пропускаем — тут они не для сопоставления.
+function parseMembershipSheet(rows) {
+  if (!rows.length) return [];
+  const header = rows[0].map((c) => String(c || ""));
+  const colName = findColumn(header, ["фио"]);
+  const colTg = findColumn(header, ["телеграм"]);
+  const colStart = findColumn(header, ["дата", "начала"]);
+  const colRenewal = findColumn(header, ["дата", "продления"]);
+  const colsEnd = findColumns(header, ["дата", "окончания"]);
+  const colStatus = findColumn(header, ["статус"]);
+  if (colName === -1) return [];
+
+  const out = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const joined = row.join(" ").toUpperCase();
+    if (joined.includes("ПОТЕНЦИАЛЬНЫЕ") || joined.includes("ДОЛГИ")) break;
+
+    const fullName = String(row[colName] || "").trim();
+    if (!fullName) continue;
+    out.push({
+      fullName,
+      // normalizeUsername приводит к нижнему регистру (для сопоставления),
+      // а в отчёте показываем username так, как он записан в таблице.
+      telegramUsername: colTg >= 0 && normalizeUsername(row[colTg]) ? String(row[colTg]).trim().replace(/^@/, "") : null,
+      startDate: colStart >= 0 ? parseDateCell(row[colStart]) : null,
+      renewalDate: colRenewal >= 0 ? parseDateCell(row[colRenewal]) : null,
+      endDate: colsEnd.length ? latestEndDate(row, colsEnd) : null,
+      status: colStatus >= 0 ? String(row[colStatus] == null ? "" : row[colStatus]).trim() : "",
+    });
+  }
+  return out;
+}
+
+export async function fetchMembershipRecords(env) {
+  if (!env.GOOGLE_SERVICE_ACCOUNT_JSON || !env.GOOGLE_SHEET_ID) {
+    throw new Error("нет GOOGLE_SERVICE_ACCOUNT_JSON / GOOGLE_SHEET_ID в секретах Worker'а");
+  }
+  const accessToken = await getGoogleAccessToken(env);
+  const rows = await fetchSheetRows(accessToken, env.GOOGLE_SHEET_ID, SHEET_TAB_NAME);
+  return parseMembershipSheet(rows);
+}

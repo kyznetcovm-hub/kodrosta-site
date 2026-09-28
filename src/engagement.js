@@ -16,7 +16,7 @@ import {
   getSectionValues, setSectionValues, setPendingEdit, getPendingEdit, clearPendingEdit,
 } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
-import { listSubscriptionsDueThisMonth } from "./subscriptions.js";
+import { listSubscriptionsDueThisMonth, listNewMembersThisMonth, listLeftMembersThisMonth } from "./subscriptions.js";
 import {
   recordBotSignup, recordManualSignups, attachSignupPhone, listEventSignups,
 } from "./event-signups.js";
@@ -174,6 +174,8 @@ export async function handleTelegramUpdate(update, env) {
   if (text.startsWith("/match")) return handleMatchCommand(msg, env, text);
   if (text.startsWith("/syncsheet")) return handleSyncSheetCommand(msg, env);
   if (text.startsWith("/subscriptions")) return handleSubscriptionsCommand(msg, env);
+  if (text.startsWith("/newmembers")) return handleMonthMembersCommand(msg, env, "new");
+  if (text.startsWith("/leftmembers")) return handleMonthMembersCommand(msg, env, "left");
   if (text.startsWith("/award")) return handleAwardCommand(msg, env, text);
   if (text.startsWith("/attended")) return handleAttendedCommand(msg, env, text);
   if (text.startsWith("/events")) return handleListEventsCommand(msg, env);
@@ -213,7 +215,8 @@ function adminMenuKeyboard() {
       [{ text: "🔄 Синхронизировать с таблицей", callback_data: "menu:syncsheet" }],
 
       [{ text: "🟦 АБОНЕМЕНТЫ 🟦", callback_data: "noop" }],
-      [{ text: "🎫 Абонементы", callback_data: "menu:subscriptions" }],
+      [{ text: "🔁 Продление", callback_data: "menu:subscriptions" }],
+      [{ text: "🆕 Новые", callback_data: "menu:subsnew" }, { text: "🚪 Ушли", callback_data: "menu:subsleft" }],
     ],
   };
 }
@@ -262,11 +265,13 @@ async function handleCallbackQuery(cq, env) {
     return answerCallback(env, cq.id, "Доступно только менеджеру клуба");
   }
 
-  // «Абонементы» отвечается отдельно — либо всплывающим уведомлением, если
-  // никто не заканчивается через неделю, либо обычным подтверждением и
+  // «Продление», «Новые», «Ушли» отвечаются отдельно — либо всплывающим
+  // уведомлением, если список пуст, либо обычным подтверждением и
   // сообщением; общий answerCallback ниже тут не подходит, потому что
   // callback_query можно ответить только один раз.
   if (data === "menu:subscriptions") return handleSubscriptionsCommand(fakeMsg, env, cq.id);
+  if (data === "menu:subsnew") return handleMonthMembersCommand(fakeMsg, env, "new", cq.id);
+  if (data === "menu:subsleft") return handleMonthMembersCommand(fakeMsg, env, "left", cq.id);
 
   await answerCallback(env, cq.id);
 
@@ -1250,7 +1255,7 @@ async function handleSyncSheetCommand(msg, env) {
   return sendMessage(env, msg.from.id, report, { inline_keyboard: [backButtonRow()] });
 }
 
-// Кнопка «Абонементы» -> резиденты, у которых абонемент заканчивается от
+// Кнопка «Продление» -> резиденты, у которых абонемент заканчивается от
 // сегодня и в течение месяца вперёд (не то же самое, что рассылка по
 // расписанию в 8:00 — та строго за неделю, см. scheduled в src/index.js;
 // кнопка — шире, чтобы видеть потенциал продлений на месяц).
@@ -1269,6 +1274,32 @@ async function handleSubscriptionsCommand(msg, env, callbackQueryId) {
   const report = await listSubscriptionsDueThisMonth(env);
   if (!report) {
     const text = "Нет абонементов, которые заканчиваются в течение месяца.";
+    if (callbackQueryId) return answerCallback(env, callbackQueryId, text);
+    return sendMessage(env, msg.from.id, text, { inline_keyboard: [backButtonRow()] });
+  }
+  if (callbackQueryId) await answerCallback(env, callbackQueryId);
+  return sendMessage(env, msg.from.id, report, { inline_keyboard: [backButtonRow()] });
+}
+
+// Кнопки «Новые» (kind = "new") и «Ушли» (kind = "left") -> кто вступил /
+// ушёл (статус «отказ») в текущем календарном месяце, с 1-го числа по
+// сегодня. Данные читаются из гугл-таблицы в момент нажатия, см.
+// src/subscriptions.js. callbackQueryId — как в handleSubscriptionsCommand.
+async function handleMonthMembersCommand(msg, env, kind, callbackQueryId) {
+  if (!isAdmin(msg.from.username, env)) {
+    if (callbackQueryId) await answerCallback(env, callbackQueryId, "Доступно только менеджеру клуба");
+    return;
+  }
+  let report;
+  try {
+    report = kind === "new" ? await listNewMembersThisMonth(env) : await listLeftMembersThisMonth(env);
+  } catch (err) {
+    if (callbackQueryId) await answerCallback(env, callbackQueryId);
+    const text = "Не получилось прочитать таблицу: " + (err && err.message ? err.message : String(err));
+    return sendMessage(env, msg.from.id, text, { inline_keyboard: [backButtonRow()] });
+  }
+  if (!report) {
+    const text = kind === "new" ? "В этом месяце новых резидентов пока нет." : "В этом месяце никто не ушёл.";
     if (callbackQueryId) return answerCallback(env, callbackQueryId, text);
     return sendMessage(env, msg.from.id, text, { inline_keyboard: [backButtonRow()] });
   }

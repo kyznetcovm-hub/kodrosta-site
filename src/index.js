@@ -9,7 +9,7 @@ import { handleTelegramUpdate, recordFormTouch } from "./engagement.js";
 import { listUpcomingEvents } from "./events-store.js";
 import { getAllContent } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
-import { checkExpiringSubscriptions } from "./subscriptions.js";
+import { checkExpiringSubscriptions, buildMonthlySubscriptionReport } from "./subscriptions.js";
 import { buildMetrikaDigest, fetchBlogViews } from "./metrika.js";
 
 const SITE_URL = "https://codrosta.club";
@@ -53,9 +53,13 @@ export default {
   // «Вступившие» гугл-таблицы с базой резидентов (отчёт — всем админам);
   // 05:00 UTC — напоминание об абонементах, истекающих через неделю
   // (отчёт — только SUBSCRIPTION_ALERT_USERNAME, вручную кнопкой в меню
-  // может вызвать любой админ себе, см. src/engagement.js).
+  // может вызвать любой админ себе, см. src/engagement.js);
+  // 05:00 UTC 1-го числа — «Отчёт по абонементам» за прошедший месяц
+  // (тоже только SUBSCRIPTION_ALERT_USERNAME).
   async scheduled(event, env, ctx) {
-    if (event.cron === "0 5 * * *") {
+    if (event.cron === "0 5 1 * *") {
+      ctx.waitUntil(runScheduledMonthlySubscriptionReport(env, event.cron));
+    } else if (event.cron === "0 5 * * *") {
       ctx.waitUntil(runScheduledSubscriptionCheck(env, event.cron));
     } else if (event.cron === "0 6 * * 1") {
       ctx.waitUntil(runScheduledMetrikaDigest(env, event.cron));
@@ -196,6 +200,19 @@ async function runScheduledSubscriptionCheck(env, cron) {
   }
   await logCronRun(env, cron, "subscriptions", report ? "отправлено" : "никого не найдено — не отправлено");
   if (!report) return; // ни у кого через неделю абонемент не заканчивается — молчим, не спамим
+  const username = String(env.SUBSCRIPTION_ALERT_USERNAME || "").trim().toLowerCase();
+  await sendToAdminsByUsername(env, username ? [username] : [], report);
+}
+
+async function runScheduledMonthlySubscriptionReport(env, cron) {
+  if (!env.DB) return;
+  let report;
+  try {
+    report = await buildMonthlySubscriptionReport(env);
+  } catch (err) {
+    report = "Отчёт по абонементам упал с ошибкой: " + (err && err.message ? err.message : String(err));
+  }
+  await logCronRun(env, cron, "subscriptions_monthly", "отправлено");
   const username = String(env.SUBSCRIPTION_ALERT_USERNAME || "").trim().toLowerCase();
   await sendToAdminsByUsername(env, username ? [username] : [], report);
 }
