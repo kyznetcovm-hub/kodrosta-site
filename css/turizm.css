@@ -117,6 +117,7 @@
 .tevent-date { font-family: var(--font-display); font-size: 13px; font-weight: 700; color: var(--green-dark); text-transform: uppercase; letter-spacing: .04em; background: var(--beige); display: inline-block; padding: 6px 12px; border-radius: 999px; align-self: flex-start; }
 .tevent-card h3 { font-size: 17px; margin: 0; }
 .tevent-card p { font-size: 14px; color: var(--gray-700); margin: 0; flex-grow: 1; }
+.tevent-meta { font-size: 13px; color: var(--gray-500); flex-grow: 0; }
 
 /* ================= ФИНАЛЬНЫЙ ОФФЕР ================= */
 .offer-band { background: var(--green); color: #fff; border-radius: 24px; padding: 52px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
