@@ -14,6 +14,25 @@ import { buildMetrikaDigest, fetchBlogViews } from "./metrika.js";
 
 const SITE_URL = "https://codrosta.club";
 
+// Отдельные ссылки на мероприятия страницы «Туризм» (codrosta.club/turizm/<slug>) —
+// чтобы можно было поделиться конкретным мероприятием в соцсетях с нормальным
+// превью (заголовок/описание), а не общей карточкой всей страницы. Сами события
+// пока статичные (в HTML туризм.html), не в D1 — см. handleTurizmEventPage.
+const TURIZM_EVENTS = {
+  "konferenciya": {
+    title: "Отраслевая конференция «Полная загрузка» — 30 сентября",
+    description: "Закон, проверки, прямые продажи, запуск сообщества. Конференция направления «Туризм» клуба «Код Роста»."
+  },
+  "sezd": {
+    title: "Первый съезд сообщества — 20 октября",
+    description: "Глэмп-парк «Илеть», Республика Марий Эл: разбор объекта, экспертный блок, питание, съёмка, интерактив от собственника."
+  },
+  "nominaciya": {
+    title: "Номинация «Туристический объект года» — 27 ноября",
+    description: "На ежегодной премии клуба «Код Роста»."
+  }
+};
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -46,6 +65,12 @@ export default {
       return handleCalendarFeed(env);
     }
 
+    if (url.pathname.startsWith("/turizm/") && request.method === "GET") {
+      const slug = url.pathname.slice("/turizm/".length).replace(/\/+$/, "");
+      if (TURIZM_EVENTS[slug]) {
+        return handleTurizmEventPage(request, env, slug);
+      }
+    }
     return env.ASSETS.fetch(request);
   },
 
@@ -198,6 +223,41 @@ async function runScheduledSubscriptionCheck(env, cron) {
   if (!report) return; // ни у кого через неделю абонемент не заканчивается — молчим, не спамим
   const username = String(env.SUBSCRIPTION_ALERT_USERNAME || "").trim().toLowerCase();
   await sendToAdminsByUsername(env, username ? [username] : [], report);
+}
+
+// Отдаёт turizm.html с подменёнными title/description/og/twitter/canonical под
+// конкретное мероприятие (см. TURIZM_EVENTS) — сама страница и вёрстка те же,
+// меняются только теги для превью при шаринге. Клиентский скрипт в turizm.html
+// сам скроллит и подсвечивает нужную карточку по data-атрибуту на <body>.
+async function handleTurizmEventPage(request, env, slug) {
+  const event = TURIZM_EVENTS[slug];
+  // "/turizm" (без .html) — иначе ASSETS сам 307-редиректит запрос explicit-.html
+  // пути на чистый URL, и base.ok окажется false ещё до подмены тегов.
+  const base = await env.ASSETS.fetch(new Request(new URL("/turizm", request.url), request));
+  if (!base.ok) return base;
+
+  let html = await base.text();
+  const pageUrl = SITE_URL + "/turizm/" + slug;
+  const title = event.title + " | Туризм Поволжья";
+
+  html = html
+    .replace(/<title>[^<]*<\/title>/, "<title>" + escapeHtml(title) + "</title>")
+    .replace(/(<meta name="description" content=")[^"]*(")/, "$1" + escapeHtml(event.description) + "$2")
+    .replace(/(<link rel="canonical" href=")[^"]*(")/, "$1" + SITE_URL + "/turizm" + "$2")
+    .replace(/(<meta property="og:url" content=")[^"]*(")/, "$1" + pageUrl + "$2")
+    .replace(/(<meta property="og:title" content=")[^"]*(")/, "$1" + escapeHtml(title) + "$2")
+    .replace(/(<meta property="og:description" content=")[^"]*(")/, "$1" + escapeHtml(event.description) + "$2")
+    .replace(/(<meta name="twitter:title" content=")[^"]*(")/, "$1" + escapeHtml(title) + "$2")
+    .replace(/(<meta name="twitter:description" content=")[^"]*(")/, "$1" + escapeHtml(event.description) + "$2")
+    .replace("<body>", '<body data-share-event="' + slug + '">');
+
+  return new Response(html, {
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" }
+  });
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
 }
 
 async function handleContentApi(env) {

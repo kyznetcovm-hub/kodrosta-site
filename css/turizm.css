@@ -118,6 +118,17 @@
 .tevent-card h3 { font-size: 17px; margin: 0; }
 .tevent-card p { font-size: 14px; color: var(--gray-700); margin: 0; flex-grow: 1; }
 .tevent-meta { font-size: 13px; color: var(--gray-500); flex-grow: 0; }
+.tevent-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.tevent-share {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--gray-500);
+}
+.tevent-share:hover { color: var(--green-dark); }
+.tevent-share.is-copied { color: var(--green-dark); }
+
+/* Подсветка карточки, на которую пришли по прямой ссылке /turizm/<slug> */
+.tevent-card.is-shared { border-color: var(--green); box-shadow: 0 0 0 3px rgba(47,107,79,.18); transition: box-shadow .3s ease, border-color .3s ease; }
 
 /* ================= ФИНАЛЬНЫЙ ОФФЕР ================= */
 .offer-band { background: var(--green); color: #fff; border-radius: 24px; padding: 52px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
