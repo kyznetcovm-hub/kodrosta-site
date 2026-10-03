@@ -18,8 +18,9 @@
     discount: 3000,               // размер скидки, ₽ — подставляется во все тексты
     promoCode: "KOD3000",         // промокод в экране успеха; "" — не показывать промокод
     cooldownDays: 7,              // сколько дней не показывать повторно после показа
-    minTimeOnPage: 25,            // секунд на сайте, раньше которых pop-up не сработает (реком. 20-30)
-    mobileFallbackSeconds: 35,    // мобильный fallback по таймауту, если сигналов ухода не было (реком. 30-45)
+    qrDelaySeconds: 60,          // QR: показ через 60 секунд без обращения
+    minTimeOnPage: 60,            // минимальное время до показа при уходе курсора
+    mobileFallbackSeconds: 60,    // телефон без QR: показ через 60 секунд
     successCtaTarget: "#events",  // куда ведёт кнопка "Перейти к выбору" на экране успеха
     managerTelegram: "t.me/Kodrosta", // куда отправить писать вручную, если заявка не ушла
     metrikaCounterId: 111842641   // счётчик Яндекс.Метрики, уже установленный на сайте (index.html)
@@ -40,6 +41,7 @@
 
   // ---- Аналитика: используем уже установленную на сайте Яндекс.Метрику -------
   function track(goal, params) {
+    if (window.kodrostaAnalytics) { window.kodrostaAnalytics.track(goal, params); return; }
     if (typeof window.ym !== "function") return;
     try { window.ym(exitPopupConfig.metrikaCounterId, "reachGoal", goal, params || {}); } catch (e) {}
   }
@@ -48,6 +50,9 @@
   // Рекомендованный вид ссылки на баннере:
   // https://codrosta.club/?utm_source=banner&utm_medium=qr&utm_campaign=kod_rosta_3000
   function captureUtm() {
+    if (window.kodrostaAnalytics) {
+      return Object.assign({ landing_page: location.origin + location.pathname }, window.kodrostaAnalytics.attribution());
+    }
     var params;
     try { params = new URLSearchParams(location.search); } catch (e) { return { landing_page: location.href }; }
 
@@ -62,7 +67,7 @@
     if (hasAny) {
       fresh.landing_page = location.href;
       safeSessionSet(STORAGE_UTM, JSON.stringify(fresh));
-      track("qr_landing_open", fresh);
+      // qr_landing_open отправляется общим campaign-analytics.js только для medium=qr.
       return fresh;
     }
 
@@ -74,6 +79,7 @@
   }
 
   var utmData = captureUtm();
+  var isQrVisitor = utmData.utm_medium === "qr";
 
   // ---- Гейты показа -------------------------------------------------------------
   var pageLoadTime = Date.now();
@@ -93,11 +99,12 @@
   }
 
   function minTimeElapsed() {
-    return Date.now() - pageLoadTime >= exitPopupConfig.minTimeOnPage * 1000;
+    var seconds = isQrVisitor ? exitPopupConfig.qrDelaySeconds : exitPopupConfig.minTimeOnPage;
+    return Date.now() - pageLoadTime >= seconds * 1000;
   }
 
   function canShow() {
-    return !hasConverted() && !inCooldown() && !anyOtherModalOpen() && minTimeElapsed();
+    return !hasConverted() && !safeSessionGet("kodrosta_contact_clicked") && !inCooldown() && !anyOtherModalOpen() && minTimeElapsed();
   }
 
   function maybeTrigger() {
@@ -234,11 +241,15 @@
     channelSelect.addEventListener("change", syncChannelField);
     syncChannelField();
 
-    form.addEventListener("focusin", function () {
-      if (startedTracked) return;
+    // Автофокус и фокус на поле не означают, что человек начал заполнять форму.
+    function trackFormStarted(event) {
+      var field = event.target;
+      if (startedTracked || !field || field.name === "website" || !String(field.value || "").trim()) return;
       startedTracked = true;
       track("exit_popup_form_started");
-    });
+    }
+    form.addEventListener("input", trackFormStarted);
+    form.addEventListener("change", trackFormStarted);
 
     phoneInput.addEventListener("focus", function () {
       if (!phoneInput.value) phoneInput.value = "+7 (";
@@ -349,7 +360,7 @@
     safeSet(STORAGE_SHOWN, String(Date.now()));
     track("exit_popup_triggered");
 
-    var firstInput = popupEl.querySelector("input:not([type=hidden])");
+    var firstInput = popupEl.querySelector('input[name="name"]');
     if (firstInput) setTimeout(function () { firstInput.focus(); }, 150);
   }
 
@@ -367,40 +378,29 @@
 
   function setupDesktopExitIntent() {
     document.addEventListener("mouseout", function (e) {
-      if (isMobileViewport()) return;
+      if (isQrVisitor || isMobileViewport()) return;
       if (e.clientY > 0) return; // курсор ушёл не через верх окна
       if (e.relatedTarget) return; // ушёл на другой элемент страницы, а не за пределы окна
       maybeTrigger();
     });
   }
 
-  // На мобильных нет курсора — используем комбинацию сигналов ухода/возврата плюс
-  // таймер-fallback. Важно: браузеры НЕ гарантируют возможность показать полноценный
-  // UI в момент реального закрытия вкладки — это лучшее из доступного.
-  function setupMobileSignals() {
-    var hiddenAt = null;
-
-    document.addEventListener("visibilitychange", function () {
-      if (document.visibilityState === "hidden") {
-        hiddenAt = Date.now();
-      } else if (document.visibilityState === "visible" && hiddenAt) {
-        hiddenAt = null;
-        maybeTrigger(); // вернулся с другой вкладки/приложения — похоже, раздумывал уходить
-      }
-    });
-
-    window.addEventListener("pagehide", function () {
-      maybeTrigger(); // best-effort: сработает, только если браузер успеет отрисовать до выгрузки
-    });
-
-    if (isMobileViewport()) {
-      setTimeout(function () { maybeTrigger(); }, exitPopupConfig.mobileFallbackSeconds * 1000);
+  // На телефоне и при переходе с QR курсор не нужен. Если форма открыта
+  // или вкладка в фоне, ждём подходящего момента после 60 секунд.
+  function setupTimedPopup() {
+    if (!isQrVisitor && !isMobileViewport()) return;
+    function attempt() {
+      if (triggered || hasConverted() || inCooldown() || safeSessionGet("kodrosta_contact_clicked")) return;
+      maybeTrigger();
+      if (!triggered) setTimeout(attempt, 1000);
     }
+    var seconds = isQrVisitor ? exitPopupConfig.qrDelaySeconds : exitPopupConfig.mobileFallbackSeconds;
+    setTimeout(attempt, seconds * 1000);
   }
 
   function init() {
+    setupTimedPopup();
     setupDesktopExitIntent();
-    setupMobileSignals();
   }
 
   if (document.readyState === "loading") {

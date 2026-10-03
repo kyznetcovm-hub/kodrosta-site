@@ -3,8 +3,8 @@
 // эту дату кладёт в residents.subscription_end при синхронизации).
 //
 // Сценарии:
-// - по расписанию раз в сутки (src/index.js) — ровно за неделю до даты
-//   окончания, только @Kodrosta;
+// - автоматический регламент НЕДЕЛЯ / ДЕНЬ / СМС / ЗВОНОК и ФИНАЛ —
+//   в subscription-notifications.js, свежая таблица, только @Kodrosta;
 // - кнопка «Продление» в админ-меню (src/engagement.js) — список всех,
 //   у кого абонемент заканчивается от сегодня и в течение месяца вперёд,
 //   чтобы видеть потенциал продлений на месяц; вызвать может любой админ,
@@ -37,9 +37,8 @@ function formatSubscriptionList(title, results) {
   return lines.join("\n");
 }
 
-// Для рассылки по расписанию — ровно за неделю. Возвращает null, если ни у
-// кого абонемент не заканчивается ровно через неделю: вызывающий код в этом
-// случае ничего не шлёт (см. runScheduledSubscriptionCheck в src/index.js).
+// Совместимость с прежней проверкой за неделю из D1. Текущее расписание
+// использует расширенный регламент в subscription-notifications.js.
 export async function checkExpiringSubscriptions(env) {
   const targetDate = isoDatePlusDays(7);
   const { results } = await env.DB

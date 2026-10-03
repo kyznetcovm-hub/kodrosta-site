@@ -65,6 +65,15 @@ async function fetchSheetRows(accessToken, sheetId, tabName) {
   return data.values;
 }
 
+// Свежий снимок для регламента продления: не зависит от утренней копии в D1.
+export async function readResidentsSheetRows(env) {
+  if (!env.GOOGLE_SERVICE_ACCOUNT_JSON || !env.GOOGLE_SHEET_ID) {
+    throw new Error("Не настроен доступ к таблице абонементов");
+  }
+  const token = await getGoogleAccessToken(env);
+  return fetchSheetRows(token, env.GOOGLE_SHEET_ID, SHEET_TAB_NAME);
+}
+
 function normalizePhone(raw) {
   const digits = String(raw == null ? "" : raw).replace(/\D/g, "");
   if (digits.length === 11 && digits.startsWith("8")) return "7" + digits.slice(1);

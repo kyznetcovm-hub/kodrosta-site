@@ -9,7 +9,8 @@ import { handleTelegramUpdate, recordFormTouch } from "./engagement.js";
 import { listUpcomingEvents } from "./events-store.js";
 import { getAllContent } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
-import { checkExpiringSubscriptions, buildMonthlySubscriptionReport } from "./subscriptions.js";
+import { buildMonthlySubscriptionReport } from "./subscriptions.js";
+import { runSubscriptionNotifications } from "./subscription-notifications.js";
 import { buildMetrikaDigest, fetchBlogViews } from "./metrika.js";
 
 const SITE_URL = "https://codrosta.club";
@@ -71,12 +72,13 @@ export default {
         return handleTurizmEventPage(request, env, slug);
       }
     }
+
     return env.ASSETS.fetch(request);
   },
 
   // См. triggers.crons в wrangler.jsonc: 03:00 UTC — синхронизация вкладки
   // «Вступившие» гугл-таблицы с базой резидентов (отчёт — всем админам);
-  // 05:00 UTC — напоминание об абонементах, истекающих через неделю
+  // 05:00 UTC — регламент НЕДЕЛЯ / ДЕНЬ / СМС / ЗВОНОК и ежемесячный ФИНАЛ
   // (отчёт — только SUBSCRIPTION_ALERT_USERNAME, вручную кнопкой в меню
   // может вызвать любой админ себе, см. src/engagement.js);
   // 06:00 UTC 1-го числа — «Отчёт по абонементам» за прошедший месяц
@@ -84,8 +86,8 @@ export default {
   async scheduled(event, env, ctx) {
     if (event.cron === "0 6 1 * *") {
       ctx.waitUntil(runScheduledMonthlySubscriptionReport(env, event.cron));
-    } else if (event.cron === "0 5 * * *") {
-      ctx.waitUntil(runScheduledSubscriptionCheck(env, event.cron));
+    } else if (event.cron === "0 5 * * *" || event.cron === "0,15,30 5 * * *") {
+      ctx.waitUntil(runScheduledSubscriptionCheck(env, event.cron, new Date(event.scheduledTime)));
     } else if (event.cron === "0 7 * * 1") {
       ctx.waitUntil(runScheduledMetrikaDigest(env, event.cron));
     } else {
@@ -215,18 +217,15 @@ async function runScheduledSheetSync(env, cron) {
   await sendToAdminsByUsername(env, admins, report);
 }
 
-async function runScheduledSubscriptionCheck(env, cron) {
-  if (!env.DB) return;
-  let report;
+async function runScheduledSubscriptionCheck(env, cron, now = new Date()) {
   try {
-    report = await checkExpiringSubscriptions(env);
+    const outcome = await runSubscriptionNotifications(env, now);
+    await logCronRun(env, cron, "subscriptions", outcome);
   } catch (err) {
-    report = "Проверка абонементов упала с ошибкой: " + (err && err.message ? err.message : String(err));
+    // Ошибка не маскируется отметкой «отправлено»: её видно в cron_runs и логах.
+    await logCronRun(env, cron, "subscriptions", "ОШИБКА: " + err.message);
+    throw err;
   }
-  await logCronRun(env, cron, "subscriptions", report ? "отправлено" : "никого не найдено — не отправлено");
-  if (!report) return; // ни у кого через неделю абонемент не заканчивается — молчим, не спамим
-  const username = String(env.SUBSCRIPTION_ALERT_USERNAME || "").trim().toLowerCase();
-  await sendToAdminsByUsername(env, username ? [username] : [], report);
 }
 
 async function runScheduledMonthlySubscriptionReport(env, cron) {
@@ -522,6 +521,18 @@ async function handleSubmit(request, env) {
     touchNote =
       "channel=" + channel + "; utm_source=" + (utmSource || "-") + "; utm_medium=" + (utmMedium || "-") +
       "; utm_campaign=" + (utmCampaign || "-") + (promo ? "; promo=" + promo : "");
+  }
+
+  // Сохраняем рекламный источник и для обычной заявки/записи.
+  if (type !== "exit_popup") {
+    const attribution = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"]
+      .filter((key) => typeof data[key] === "string" && data[key].trim())
+      .map((key) => key + "=" + data[key].trim().replace(/[\r\n]/g, " ").slice(0, 200))
+      .join("; ");
+    if (attribution) {
+      text += "\nUTM: " + attribution;
+      touchNote = [touchNote, attribution].filter(Boolean).join("; ");
+    }
   }
 
   if (!env.BOT_TOKEN || !env.CHAT_ID) {
