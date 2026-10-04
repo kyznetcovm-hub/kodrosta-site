@@ -55,6 +55,8 @@
   .post-card p { color: var(--gray-700); font-size: 14.5px; line-height: 1.5; margin: 0; }
   .post-card .post-date { color: var(--gray-500); font-size: 13px; margin-top: auto; padding-top: 8px; }
   .blog-empty { color: var(--gray-500); padding: 32px 0; }
+  /* шапка fixed — 77px; на узком экране отступ секции 64px её не перекрывал */
+  @media (max-width: 720px) { .blog-page-section { padding-top: 112px; } }
 </style>
 <script src="/js/campaign-analytics.js"></script>
 </head>
@@ -76,7 +78,7 @@
 </header>
 
 <main>
-  <section class="section">
+  <section class="section blog-page-section">
     <div class="container">
       <span class="eyebrow">Блог</span>
       <div class="section-head">
