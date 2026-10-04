@@ -182,7 +182,7 @@
 .k-partners-strip { background: var(--k-black); color: #fff; font-family: var(--font-display); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; font-size: clamp(16px, 2vw, 22px); padding: 18px 0; }
 /* логотипы — в одной горизонтали: у каждого одинаковое поле фиксированной высоты
    (знак по центру), подписи начинаются на одной линии под ним */
-.k-partners-logos { list-style: none; margin: 48px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; }
+.k-partners-logos { list-style: none; margin: 48px 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 28px; }
 .k-partners-logos li { display: grid; grid-template-rows: 110px auto; row-gap: 16px; justify-items: center; text-align: center; }
 .k-partners-logos img { align-self: center; max-height: 76px; max-width: 100%; width: auto; height: auto; object-fit: contain; }
 .k-partners-logos img[src*="calzen"] { max-height: 104px; } /* квадратный знак без подписи — оптически выравниваем по весу */
@@ -209,6 +209,7 @@
   .k-about { grid-template-columns: 1fr; row-gap: 0; }
   .k-facts { margin-top: 24px; grid-auto-rows: auto; }
   .k-partners-logos { grid-template-columns: 1fr 1fr; gap: 36px 24px; }
+  .k-partners-logos li:last-child:nth-child(odd) { grid-column: 1 / -1; } /* пятый партнёр — по центру отдельной строкой */
 }
 
 @media (max-width: 860px) {
