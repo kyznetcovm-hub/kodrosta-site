@@ -25,6 +25,8 @@
 
 .page-kalorimetr .nav-links a:hover,
 .page-kalorimetr .nav-links .is-current { color: var(--k-red); }
+.page-kalorimetr .nav-dropdown a:hover,
+.page-kalorimetr .nav-dropdown a.is-current { color: var(--k-red); }
 .page-kalorimetr .footer-col a:hover { color: #FF7B88; }
 .page-kalorimetr .site-header { background: #fff; } /* без полупрозрачности — иначе над красным экраном шапка розовеет */
 /* якоря не должны уезжать под фиксированную шапку (76px) */

@@ -71,8 +71,22 @@
     </nav>
     <div class="header-cta">
       <button class="btn btn--green btn--sm js-open-apply" type="button"><span class="cta-full">Вступить</span><span class="cta-short">Вступить</span></button>
-      <button class="burger js-burger" type="button" aria-label="Меню"><span></span></button>
+      <button class="burger burger--always js-burger" type="button" aria-label="Меню" aria-expanded="false" data-menu="panel"><span></span></button>
     </div>
+    <!-- Полный список разделов сайта для выпадающего меню (☰) — тот же, что на главной;
+         js/main.js копирует его в панель .nav-dropdown -->
+    <ul class="js-menu-source" hidden>
+        <li><a href="/#about">О клубе</a></li>
+        <li><a href="/#numbers">Цифры</a></li>
+        <li><a href="/#why">Зачем вступать</a></li>
+        <li><a href="/#events">Мероприятия</a></li>
+        <li><a href="/#how">Как вступить</a></li>
+        <li><a href="/#faq">Вопросы</a></li>
+        <li><a href="/blog">Блог</a></li>
+        <li><a href="/#contacts">Контакты</a></li>
+        <li class="nav-only-menu"><a href="/turizm" class="is-current">Туризм</a></li>
+        <li class="nav-only-menu"><a href="/kalorimetr">Калориметр</a></li>
+    </ul>
   </div>
 </header>
 

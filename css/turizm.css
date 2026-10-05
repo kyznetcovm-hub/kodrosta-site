@@ -15,6 +15,7 @@
 .eyebrow { color: var(--green); }
 .eyebrow::before { background: var(--brown); }
 .nav-links .is-current { color: var(--green); }
+.nav-dropdown a:hover, .nav-dropdown a.is-current { color: var(--green); }
 .footer-col a:hover { color: #8FD6B4; }
 
 .btn--green { background: var(--green); color: #fff; box-shadow: 0 8px 20px -6px rgba(47,107,79,.5); }
