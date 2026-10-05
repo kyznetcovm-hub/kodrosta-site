@@ -239,6 +239,10 @@ a { color: inherit; }
 .nav-dropdown a:hover { background: var(--gray-50); color: var(--blue); }
 /* подразделы (Туризм, Калориметр) — внизу списка, жирным, отделены линией */
 .nav-dropdown .nav-only-menu a { font-weight: 800; color: var(--black); }
+/* ссылки на разделы сайта — в фирменном цвете каждого раздела */
+.nav-dropdown .nav-only-menu a.menu-brand--kodrosta { color: #296EF7; }
+.nav-dropdown .nav-only-menu a.menu-brand--turizm { color: #2F6B4F; }
+.nav-dropdown .nav-only-menu a.menu-brand--kalorimetr { color: #E23145; }
 .nav-dropdown li:not(.nav-only-menu) + .nav-only-menu { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--gray-100); }
 /* С бургером на десктопе шапке нужно больше места: на главной строку разделов
    прячем чуть раньше общего брейкпоинта (1040px) — все пункты есть в панели. */

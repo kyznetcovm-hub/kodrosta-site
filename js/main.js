@@ -278,9 +278,8 @@
   // ---- Бургер-меню (мобильная навигация) -------------------------------------
   var burger = document.querySelector(".js-burger");
   if (burger && burger.getAttribute("data-menu") === "panel") {
-    // Режим «панель» (главная, Туризм, Калориметр): бургер виден на всех ширинах и открывает отдельную
-    // выпадающую панель — копию списка разделов из шапки, где показаны все пункты,
-    // в том числе скрытые из строки шапки (Туризм, Калориметр).
+    // Режим «панель» (главная, Туризм, Калориметр): бургер виден на всех ширинах и открывает
+    // выпадающую панель с разделами страницы; внизу — ссылки на другие разделы сайта.
     var dropdown = null;
     function closeDropdown() {
       if (!dropdown) return;
@@ -290,8 +289,8 @@
     burger.addEventListener("click", function (e) {
       e.stopPropagation();
       if (!dropdown) {
-        // Источник списка: полный список разделов (.js-menu-source, есть на
-        // подстраницах), иначе — список из шапки (.nav-links, главная).
+        // Источник списка: свой список страницы (.js-menu-source — на Туризме и
+        // Калориметре), иначе — список из шапки (.nav-links, главная).
         var src = document.querySelector(".js-menu-source") || document.querySelector(".nav-links");
         if (!src) return;
         dropdown = src.cloneNode(true);

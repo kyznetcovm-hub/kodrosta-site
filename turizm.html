@@ -73,19 +73,19 @@
       <button class="btn btn--green btn--sm js-open-apply" type="button"><span class="cta-full">Вступить</span><span class="cta-short">Вступить</span></button>
       <button class="burger burger--always js-burger" type="button" aria-label="Меню" aria-expanded="false" data-menu="panel"><span></span></button>
     </div>
-    <!-- Полный список разделов сайта для выпадающего меню (☰) — тот же, что на главной;
-         js/main.js копирует его в панель .nav-dropdown -->
+    <!-- Выпадающее меню (☰): разделы этой страницы, внизу — ссылки на другие разделы сайта
+         в их фирменных цветах; js/main.js копирует список в панель .nav-dropdown -->
     <ul class="js-menu-source" hidden>
-        <li><a href="/#about">О клубе</a></li>
-        <li><a href="/#numbers">Цифры</a></li>
-        <li><a href="/#why">Зачем вступать</a></li>
-        <li><a href="/#events">Мероприятия</a></li>
-        <li><a href="/#how">Как вступить</a></li>
-        <li><a href="/#faq">Вопросы</a></li>
-        <li><a href="/blog">Блог</a></li>
-        <li><a href="/#contacts">Контакты</a></li>
-        <li class="nav-only-menu"><a href="/turizm" class="is-current">Туризм</a></li>
-        <li class="nav-only-menu"><a href="/kalorimetr">Калориметр</a></li>
+        <li><a href="#about">Что это такое</a></li>
+        <li><a href="#why">Зачем мы появились</a></li>
+        <li><a href="#mission">Миссия и задачи</a></li>
+        <li><a href="#goals">Цели на первый год</a></li>
+        <li><a href="#benefits">Что получает участник</a></li>
+        <li><a href="#leader">Лидер направления</a></li>
+        <li><a href="#events">Ближайшие события</a></li>
+        <li><a href="#join">Вступить</a></li>
+        <li class="nav-only-menu"><a href="/" class="menu-brand menu-brand--kodrosta">Код Роста</a></li>
+        <li class="nav-only-menu"><a href="/kalorimetr" class="menu-brand menu-brand--kalorimetr">Калориметр</a></li>
     </ul>
   </div>
 </header>
@@ -138,7 +138,7 @@
   </section>
 
   <!-- ===== БЛОК 3. ЗАЧЕМ МЫ ПОЯВИЛИСЬ ===== -->
-  <section class="section why-founded">
+  <section class="section why-founded" id="why">
     <div class="container">
       <span class="eyebrow">Зачем мы появились</span>
       <div class="section-head">
@@ -165,7 +165,7 @@
   </section>
 
   <!-- ===== БЛОК 4. МИССИЯ, ЦЕЛЬ, ЗАДАЧИ ===== -->
-  <section class="section">
+  <section class="section" id="mission">
     <div class="container">
       <span class="eyebrow">Миссия, цель и задачи</span>
       <div class="mission-grid">
@@ -199,7 +199,7 @@
   </section>
 
   <!-- ===== БЛОК 5. ЦИФРЫ-ЦЕЛИ ===== -->
-  <section class="section numbers-turizm">
+  <section class="section numbers-turizm" id="goals">
     <div class="container">
       <span class="eyebrow">Куда идём в первый год</span>
       <div class="section-head">
@@ -232,7 +232,7 @@
   </section>
 
   <!-- ===== БЛОК 6. ЧТО ПОЛУЧАЕТ УЧАСТНИК ===== -->
-  <section class="section">
+  <section class="section" id="benefits">
     <div class="container">
       <span class="eyebrow">Что получает участник</span>
       <div class="section-head">
@@ -264,7 +264,7 @@
   </section>
 
   <!-- ===== БЛОК 7. ЛИДЕР НАПРАВЛЕНИЯ ===== -->
-  <section class="section leader-section">
+  <section class="section leader-section" id="leader">
     <div class="container">
       <span class="eyebrow">Лидер направления</span>
       <div class="leader-wrap">
@@ -285,7 +285,7 @@
   </section>
 
   <!-- ===== БЛОК 8. БЛИЖАЙШИЕ СОБЫТИЯ ===== -->
-  <section class="section">
+  <section class="section" id="events">
     <div class="container">
       <span class="eyebrow">Ближайшие события</span>
       <div class="section-head">
@@ -322,7 +322,7 @@
   </section>
 
   <!-- ===== БЛОК 9. ФИНАЛЬНЫЙ ОФФЕР ===== -->
-  <section class="section section--tight">
+  <section class="section section--tight" id="join">
     <div class="container">
       <div class="offer-band">
         <div class="offer-band-text">
