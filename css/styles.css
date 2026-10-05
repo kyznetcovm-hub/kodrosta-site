@@ -237,6 +237,9 @@ a { color: inherit; }
   text-decoration: none;
 }
 .nav-dropdown a:hover { background: var(--gray-50); color: var(--blue); }
+/* подразделы (Туризм, Калориметр) — внизу списка, жирным, отделены линией */
+.nav-dropdown .nav-only-menu a { font-weight: 800; color: var(--black); }
+.nav-dropdown li:not(.nav-only-menu) + .nav-only-menu { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--gray-100); }
 /* С бургером на десктопе шапке нужно больше места: на главной строку разделов
    прячем чуть раньше общего брейкпоинта (1040px) — все пункты есть в панели. */
 @media (max-width: 1160px) {
