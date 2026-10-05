@@ -202,6 +202,47 @@ a { color: inherit; }
 .burger span::before { position: absolute; top: -6px; }
 .burger span::after { position: absolute; top: 6px; }
 
+/* Бургер в режиме «панель» (главная): виден и на десктопе, открывает выпадающую
+   панель со всеми разделами — включая пункты, скрытые из строки шапки (.nav-only-menu).
+   Панель — копия .nav-links, её создаёт js/main.js при первом открытии. */
+.burger--always { display: flex; }
+.burger[aria-expanded="true"] { border-color: var(--black); }
+.burger[aria-expanded="true"] span { background: transparent; }
+.burger[aria-expanded="true"] span::before { transform: translateY(6px) rotate(45deg); }
+.burger[aria-expanded="true"] span::after { transform: translateY(-6px) rotate(-45deg); }
+.nav-dropdown {
+  display: none;
+  position: fixed;
+  top: 84px;
+  right: max(24px, calc((100vw - var(--container)) / 2 + 24px));
+  width: 280px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+  margin: 0; padding: 8px;
+  list-style: none;
+  background: var(--white);
+  border: 1px solid var(--gray-100);
+  border-radius: 14px;
+  box-shadow: 0 20px 40px -16px rgba(0,0,0,.25);
+  z-index: 101;
+}
+.nav-dropdown.is-open { display: block; }
+.nav-dropdown li { display: block; }
+.nav-dropdown a {
+  display: block;
+  padding: 11px 14px;
+  border-radius: 8px;
+  font-size: 15px; font-weight: 600;
+  color: var(--gray-700);
+  text-decoration: none;
+}
+.nav-dropdown a:hover { background: var(--gray-50); color: var(--blue); }
+/* С бургером на десктопе шапке нужно больше места: на главной строку разделов
+   прячем чуть раньше общего брейкпоинта (1040px) — все пункты есть в панели. */
+@media (max-width: 1160px) {
+  .site-header:has(.burger--always) .nav-links { display: none; }
+}
+
 /* ---------- Hero ---------- */
 .hero {
   position: relative;
@@ -903,6 +944,7 @@ a { color: inherit; }
 @media (max-width: 1040px) {
   .nav-links { display: none; }
   .nav-links .nav-only-menu { display: list-item; }
+  .nav-dropdown { top: 76px; left: 0; right: 0; width: auto; border-radius: 0; border-width: 0 0 1px; padding: 12px 16px; }
   .burger { display: flex; }
   .header-cta .cta-full { display: none; }
   .header-cta .cta-short { display: inline; }

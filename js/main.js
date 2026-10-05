@@ -277,7 +277,42 @@
 
   // ---- Бургер-меню (мобильная навигация) -------------------------------------
   var burger = document.querySelector(".js-burger");
-  if (burger) {
+  if (burger && burger.getAttribute("data-menu") === "panel") {
+    // Режим «панель» (главная): бургер виден на всех ширинах и открывает отдельную
+    // выпадающую панель — копию списка разделов из шапки, где показаны все пункты,
+    // в том числе скрытые из строки шапки (Туризм, Калориметр).
+    var dropdown = null;
+    function closeDropdown() {
+      if (!dropdown) return;
+      dropdown.classList.remove("is-open");
+      burger.setAttribute("aria-expanded", "false");
+    }
+    burger.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (!dropdown) {
+        var src = document.querySelector(".nav-links");
+        if (!src) return;
+        dropdown = src.cloneNode(true);
+        dropdown.className = "nav-dropdown";
+        dropdown.addEventListener("click", function (ev) {
+          if (ev.target.closest("a")) closeDropdown();
+        });
+        document.body.appendChild(dropdown);
+      }
+      var open = !dropdown.classList.contains("is-open");
+      dropdown.classList.toggle("is-open", open);
+      burger.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    document.addEventListener("click", function (e) {
+      if (dropdown && !dropdown.contains(e.target)) closeDropdown();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeDropdown();
+    });
+    // Панель — position:fixed поверх страницы; если начали листать, ничего не
+    // выбрав, — сворачиваем, а не оставляем висеть поверх контента.
+    window.addEventListener("scroll", closeDropdown, { passive: true });
+  } else if (burger) {
     var navOpenCss = "display:flex; position:fixed; top:76px; left:0; right:0; background:#fff; flex-direction:column; padding:20px 24px; gap:18px; box-shadow:0 12px 24px -12px rgba(0,0,0,.15); border-bottom:1px solid var(--gray-100);";
     burger.addEventListener("click", function () {
       var nav = document.querySelector(".nav-links");
