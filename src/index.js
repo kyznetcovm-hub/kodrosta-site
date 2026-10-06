@@ -5,8 +5,9 @@
 // (см. events-store.js) — публикуются через Telegram-бота, см. engagement.js.
 // BOT_TOKEN и CHAT_ID заданы как секреты проекта в Cloudflare (см. README).
 
-import { handleTelegramUpdate, recordFormTouch } from "./engagement.js";
-import { listUpcomingEvents } from "./events-store.js";
+import { handleTelegramUpdate, recordFormTouch, normalizePhone } from "./engagement.js";
+import { listUpcomingEvents, getEventById } from "./events-store.js";
+import { recordSiteSignup } from "./event-signups.js";
 import { getAllContent } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
 import { buildMonthlySubscriptionReport } from "./subscriptions.js";
@@ -64,6 +65,11 @@ export default {
 
     if (url.pathname === "/calendar.ics" && (request.method === "GET" || request.method === "HEAD")) {
       return handleCalendarFeed(env);
+    }
+
+    // Ссылка на конкретное мероприятие для постов: codrosta.club/e/<id>
+    if (url.pathname.startsWith("/e/") && (request.method === "GET" || request.method === "HEAD")) {
+      return handleEventSharePage(request, env, decodeURIComponent(url.pathname.slice("/e/".length).replace(/\/+$/, "")));
     }
 
     if (url.pathname.startsWith("/turizm/") && request.method === "GET") {
@@ -272,6 +278,49 @@ async function handleTurizmEventPage(request, env, slug) {
   });
 }
 
+// codrosta.club/e/<id> — главная страница с превью (title/description/og) этого
+// мероприятия, чтобы в посте Telegram/Instagram ссылка выглядела как само событие.
+// Клиентский скрипт (js/main.js) по data-share-event на <body> сразу открывает
+// форму записи. Заявка с формы попадает в «Список участников» мероприятия в боте.
+async function handleEventSharePage(request, env, id) {
+  const event = env.DB && id ? await getEventById(env.DB, id) : null;
+  if (!event) return Response.redirect(SITE_URL + "/#events", 302);
+
+  const base = await env.ASSETS.fetch(new Request(new URL("/", request.url), request));
+  if (!base.ok) return base;
+
+  let html = await base.text();
+  const pageUrl = SITE_URL + "/e/" + encodeURIComponent(event.id);
+  const title = event.title + " — " + formatShareDate(event.start) + " | Код Роста";
+  const description = "Запись на мероприятие клуба «Код Роста». " +
+    (event.place ? event.place + ". " : "") + (event.description || "");
+
+  html = html
+    .replace(/<title>[^<]*<\/title>/, "<title>" + escapeHtml(title) + "</title>")
+    .replace(/(<meta name="description" content=")[^"]*(")/, "$1" + escapeHtml(description) + "$2")
+    .replace(/(<meta property="og:url" content=")[^"]*(")/, "$1" + pageUrl + "$2")
+    .replace(/(<meta property="og:title" content=")[^"]*(")/, "$1" + escapeHtml(title) + "$2")
+    .replace(/(<meta property="og:description" content=")[^"]*(")/, "$1" + escapeHtml(description) + "$2")
+    .replace(/(<meta name="twitter:title" content=")[^"]*(")/, "$1" + escapeHtml(title) + "$2")
+    .replace(/(<meta name="twitter:description" content=")[^"]*(")/, "$1" + escapeHtml(description) + "$2")
+    .replace("<body>", '<body data-share-event="' + escapeHtml(event.id) + '">')
+    // В index.html стили/скрипты/картинки подключены относительными путями
+    // ("css/…", "js/…", "assets/…") — с адреса /e/<id> они искали бы /e/css/….
+    .replace(/((?:src|href)=")(assets|css|js)\//g, "$1/$2/");
+
+  return new Response(html, {
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" }
+  });
+}
+
+// "24 октября, 09:00" — время мероприятия хранится как местное (МСК), без пояса.
+function formatShareDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso || "");
+  if (!m) return "";
+  const months = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+  return Number(m[3]) + " " + months[Number(m[2]) - 1] + (m[4] === "00" && m[5] === "00" ? "" : ", " + m[4] + ":" + m[5]);
+}
+
 function escapeHtml(value) {
   return String(value).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
 }
@@ -363,11 +412,11 @@ function icsFoldLine(line) {
   return segs.join("\r\n ");
 }
 
-// Ссылка «записаться» для конкретного мероприятия: внешняя форма, если она
-// указана при публикации, иначе — страница сайта с открытой формой записи.
+// Ссылка «записаться» для конкретного мероприятия — всегда своя форма записи
+// (заявка попадает в бота), даже если у мероприятия указан чат: в чат человек
+// попадает уже после записи.
 function eventRegisterLink(e) {
-  if (e.registerUrl && /^https?:\/\//.test(e.registerUrl)) return e.registerUrl;
-  return SITE_URL + "/?e=" + e.id;
+  return SITE_URL + "/e/" + encodeURIComponent(e.id);
 }
 
 async function handleCalendarFeed(env) {
@@ -489,7 +538,7 @@ async function handleSubmit(request, env) {
     const event = String(data.event || "").trim();
     const comment = String(data.comment || "").trim();
     text =
-      "📅 Запись на мероприятие\n\n" +
+      "📅 Запись на мероприятие (с сайта)\n\n" +
       "Мероприятие: " + (event || "—") + "\n" +
       "Имя: " + name + "\n" +
       "Telegram: " + telegram + "\n" +
@@ -539,6 +588,29 @@ async function handleSubmit(request, env) {
     return json({ ok: false, error: "not_configured" }, 500);
   }
 
+  // Сначала сохраняем в базу, потом шлём в Telegram: если Telegram не ответит,
+  // заявка всё равно останется у бота и не потеряется.
+  const residentId = await recordFormTouch(env, {
+    phone,
+    telegramHandle: telegram,
+    kind: type === "apply" ? "apply" : type === "event" ? "event_signup" : "exit_popup",
+    note: touchNote,
+    name,
+  });
+
+  // Запись на мероприятие — ещё и в «Список участников» этого мероприятия в боте,
+  // по id (название в форме человек не меняет, но id надёжнее сверки по тексту).
+  const eventId = String(data.eventId || "").trim();
+  if (type === "event" && eventId && env.DB) {
+    try {
+      if (await getEventById(env.DB, eventId)) {
+        await recordSiteSignup(env, eventId, { name, phone: normalizePhone(phone), username: telegram, residentId });
+      }
+    } catch (err) {
+      console.error("recordSiteSignup failed", err);
+    }
+  }
+
   const tgResp = await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/sendMessage", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -548,14 +620,6 @@ async function handleSubmit(request, env) {
   if (!tgResp.ok) {
     return json({ ok: false, error: "telegram_failed" }, 502);
   }
-
-  await recordFormTouch(env, {
-    phone,
-    telegramHandle: telegram,
-    kind: type === "apply" ? "apply" : type === "event" ? "event_signup" : "exit_popup",
-    note: touchNote,
-    name,
-  });
 
   return json({ ok: true });
 }

@@ -8,7 +8,8 @@
     // Без этого Cloudflare пытается сначала сматчить /turizm/<slug> как статический
     // файл/редирект и не доходит до Worker'а — из-за этого ссылки на конкретные
     // мероприятия (handleTurizmEventPage в src/index.js) не открывались.
-    "run_worker_first": ["/turizm/*"]
+    // То же для ссылок на мероприятия клуба codrosta.club/e/<id> (handleEventSharePage).
+    "run_worker_first": ["/turizm/*", "/e/*"]
   },
   "d1_databases": [
     {

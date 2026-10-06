@@ -52,11 +52,14 @@
       });
   }
 
-  // Ссылка вида codrosta.club/?e=<id> — сразу открываем запись на это мероприятие
-  // (менеджер шлёт такую ссылку тем, кто просит записать их на мероприятие).
+  // Ссылка на мероприятие — сразу открываем запись на него. Основной вид —
+  // codrosta.club/e/<id> (Worker отдаёт главную с превью мероприятия и
+  // data-share-event на <body>); старый вид codrosta.club/?e=<id> тоже работает.
   function maybeOpenEventFromUrl() {
-    var id;
-    try { id = new URLSearchParams(location.search).get("e"); } catch (err) { return; }
+    var id = document.body.getAttribute("data-share-event");
+    if (!id) {
+      try { id = new URLSearchParams(location.search).get("e"); } catch (err) { return; }
+    }
     if (!id) return;
     var ev = EVENTS.find(function (e) { return e.id === id; });
     if (ev) openEventModal(ev);
@@ -84,10 +87,10 @@
                 '<button class="event-desc-toggle js-desc-toggle" type="button">Читать полностью</button>'
               : '') +
           '</div>' +
+          // Запись — всегда через свою форму (заявка попадает в бота). Ссылка на чат
+          // мероприятия (registerUrl), если есть, показывается уже после записи.
           '<div class="event-actions">' +
-            (e.registerUrl
-              ? '<a class="btn btn--primary btn--sm" target="_blank" rel="noopener" href="' + e.registerUrl + '">Записаться</a>'
-              : '<button class="btn btn--primary btn--sm js-open-event" type="button" data-event-id="' + e.id + '">Записаться</button>') +
+            '<button class="btn btn--primary btn--sm js-open-event" type="button" data-event-id="' + e.id + '">Записаться</button>' +
           '</div>' +
         '</article>'
       );
@@ -201,6 +204,7 @@
         "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
         "location": { "@type": "Place", "name": e.place },
         "description": e.description,
+        "url": "https://codrosta.club/e/" + encodeURIComponent(e.id),
         "organizer": { "@type": "Organization", "name": "Код Роста", "url": "https://codrosta.club/" }
       };
     });
@@ -253,12 +257,38 @@
     btn.addEventListener("click", function () { openModal("modal-apply"); });
   });
 
+  var currentEvent = null; // мероприятие, открытое в форме записи
+
   function openEventModal(event) {
     var overlay = overlays["modal-event"];
     if (!overlay || !event) return;
+    currentEvent = event;
     overlay.querySelector(".js-modal-event-sub").textContent = event.title + " · " + fmtFull(event.start);
     overlay.querySelector(".js-event-title").value = event.title;
+    var idField = overlay.querySelector(".js-event-id");
+    if (idField) idField.value = event.id;
+    var oldChat = overlay.querySelector(".js-event-chat");
+    if (oldChat) oldChat.remove();
     openModal("modal-event");
+  }
+
+  // После записи: если у мероприятия есть чат (ссылка «Регистрация» в шаблоне) —
+  // предлагаем вступить в него. Сама запись к этому моменту уже в боте.
+  function showEventChatLink(form) {
+    if (!currentEvent || !currentEvent.registerUrl || !/^https?:\/\//.test(currentEvent.registerUrl)) return;
+    var status = form.parentElement.querySelector(".js-form-status");
+    if (!status) return;
+    var p = document.createElement("p");
+    p.className = "js-event-chat";
+    p.style.marginTop = "8px";
+    var a = document.createElement("a");
+    a.href = currentEvent.registerUrl;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = "Вступить в чат мероприятия →";
+    a.style.fontWeight = "600";
+    p.appendChild(a);
+    status.appendChild(p);
   }
 
   document.querySelectorAll(".js-modal-close").forEach(function (btn) {
@@ -400,6 +430,7 @@
         objectType: form.querySelector('[name="objectType"]') ? form.querySelector('[name="objectType"]').value.trim() : "",
         city: form.querySelector('[name="city"]') ? form.querySelector('[name="city"]').value.trim() : "",
         event: form.querySelector('[name="event"]') ? form.querySelector('[name="event"]').value : "",
+        eventId: form.querySelector('[name="eventId"]') ? form.querySelector('[name="eventId"]').value : "",
         website: form.querySelector('[name="website"]') ? form.querySelector('[name="website"]').value : "",
         promo: pendingPromo
       };
@@ -420,7 +451,10 @@
         })
         .then(function (result) {
           if (!result.ok) throw new Error(result.error || "unknown");
-          showStatus(form, "ok", "Спасибо! Заявка отправлена, менеджер скоро свяжется с вами.");
+          showStatus(form, "ok", type === "event"
+            ? "Готово, вы записаны! Менеджер свяжется с вами перед мероприятием."
+            : "Спасибо! Заявка отправлена, менеджер скоро свяжется с вами.");
+          if (type === "event") showEventChatLink(form);
           form.reset();
           if (typeof ym === "function") ym(111842641, "reachGoal", "form_submit", { type: type });
           if (window.kodrostaAnalytics) window.kodrostaAnalytics.track(

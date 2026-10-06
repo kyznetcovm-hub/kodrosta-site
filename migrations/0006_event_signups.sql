@@ -1,9 +1,10 @@
 -- Записи на мероприятие, собранные ботом (не через сайт) — см. src/event-signups.js.
 --   source='bot'    — человек перешёл по ссылке t.me/<бот>?start=e_<eventId> и
 --                     нажал «Записаться» (@username и имя из профиля, телефон по желанию).
+--   source='site'   — форма «Записаться» на сайте (добавлено позже, схема не менялась).
 --   source='manual' — менеджер добавил вручную на карточке мероприятия.
--- Заявки с сайта сюда НЕ пишутся — они остаются в touches (kind='event_signup');
--- «Список участников» в engagement.js объединяет оба хранилища.
+-- Старые заявки с сайта (до source='site') есть только в touches (kind='event_signup');
+-- «Список участников» в engagement.js учитывает оба хранилища.
 --
 -- Код также создаёт эти объекты через CREATE ... IF NOT EXISTS (ensureSignupTables),
 -- этот файл — для истории схемы и на случай применения миграций через wrangler.
@@ -11,7 +12,7 @@
 CREATE TABLE IF NOT EXISTS event_signups (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id     TEXT NOT NULL,
-    source       TEXT NOT NULL,          -- bot | manual
+    source       TEXT NOT NULL,          -- bot | site | manual
     tg_user_id   INTEGER,
     username     TEXT,                    -- без @, в нижнем регистре
     person_name  TEXT,

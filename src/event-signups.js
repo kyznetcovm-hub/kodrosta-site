@@ -4,11 +4,15 @@
 //   source='bot'    — человек перешёл по ссылке t.me/<бот>?start=e_<eventId>
 //                     и нажал «Записаться». @username и имя берём из профиля
 //                     Telegram, телефон — только если сам поделился контактом.
+//   source='site'   — форма «Записаться» на сайте (в т.ч. по ссылке
+//                     codrosta.club/e/<eventId>). Привязана к мероприятию по id,
+//                     а не по названию, как старые заявки в touches.
 //   source='manual' — менеджер вручную добавил имена/@ники на карточке
 //                     мероприятия (для тех, кто не жмёт ссылки).
 //
-// Заявки с САЙТА сюда НЕ пишутся — они по-прежнему в touches (kind='event_signup'),
-// «Список участников» в engagement.js объединяет оба хранилища.
+// Заявки с сайта, отправленные ДО появления source='site', есть только в touches
+// (kind='event_signup', сверка по названию) — «Список участников» в engagement.js
+// учитывает и их.
 
 let signupTablesReady = false;
 
@@ -18,7 +22,7 @@ export async function ensureSignupTables(env) {
     "CREATE TABLE IF NOT EXISTS event_signups (" +
     "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
     "event_id TEXT NOT NULL, " +
-    "source TEXT NOT NULL, " +            // bot | manual
+    "source TEXT NOT NULL, " +            // bot | site | manual
     "tg_user_id INTEGER, " +
     "username TEXT, " +                    // без @, в нижнем регистре
     "person_name TEXT, " +
@@ -59,6 +63,32 @@ export async function recordBotSignup(env, eventId, user, residentId) {
   return { created: true };
 }
 
+// Запись с сайта. Повторная отправка формы тем же человеком (тот же телефон)
+// на то же мероприятие обновляет запись, а не создаёт дубль.
+export async function recordSiteSignup(env, eventId, { name, phone, username, residentId }) {
+  await ensureSignupTables(env);
+  // в форме пишут и «@ник», и «t.me/ник» — храним как у бота: без @, нижний регистр
+  const u = username
+    ? String(username).trim().replace(/^(https?:\/\/)?t\.me\//i, "").replace(/^@/, "").toLowerCase() || null
+    : null;
+  const existing = phone
+    ? await env.DB.prepare(
+        "SELECT id FROM event_signups WHERE event_id = ? AND source = 'site' AND phone = ?"
+      ).bind(eventId, phone).first()
+    : null;
+  if (existing) {
+    await env.DB.prepare(
+      "UPDATE event_signups SET username = ?, person_name = ?, resident_id = COALESCE(?, resident_id) WHERE id = ?"
+    ).bind(u, name || null, residentId ?? null, existing.id).run();
+    return { created: false };
+  }
+  await env.DB.prepare(
+    "INSERT INTO event_signups (event_id, source, username, person_name, phone, resident_id, created_at) " +
+    "VALUES (?, 'site', ?, ?, ?, ?, ?)"
+  ).bind(eventId, u, name || null, phone || null, residentId ?? null, new Date().toISOString()).run();
+  return { created: true };
+}
+
 // Телефон + возможная привязка к резиденту для уже созданной записи через бота.
 export async function attachSignupPhone(env, eventId, tgUserId, phone, residentId) {
   await ensureSignupTables(env);
@@ -96,7 +126,7 @@ export async function recordManualSignups(env, eventId, items) {
   return added;
 }
 
-// Все записи мероприятия из этого хранилища (bot + manual).
+// Все записи мероприятия из этого хранилища (bot + site + manual).
 export async function listEventSignups(env, eventId) {
   await ensureSignupTables(env);
   const { results } = await env.DB.prepare(

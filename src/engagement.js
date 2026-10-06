@@ -30,8 +30,9 @@ export function normalizePhone(raw) {
   return digits;
 }
 
+// «@Nick», «nick», «t.me/nick», «https://t.me/nick» → «nick»
 export function normalizeUsername(raw) {
-  return String(raw || "").replace(/^@/, "").trim().toLowerCase();
+  return String(raw || "").trim().replace(/^(https?:\/\/)?t\.me\//i, "").replace(/^@/, "").trim().toLowerCase();
 }
 
 function isAdmin(username, env) {
@@ -75,8 +76,9 @@ async function backfillUsername(db, resident, from) {
 
 // Вызывается из /api/submit на сайте: заявка на вступление или запись на
 // мероприятие — это тоже касание, и заодно резидент подвязывается по телефону.
+// Возвращает id опознанного резидента (или null) — нужен записи на мероприятие.
 export async function recordFormTouch(env, { phone, telegramHandle, kind, note, name }) {
-  if (!env.DB) return; // база ещё не подключена — не должно ломать основную форму
+  if (!env.DB) return null; // база ещё не подключена — не должно ломать основную форму
   try {
     const normPhone = normalizePhone(phone);
     let resident = await findResidentByPhone(env.DB, normPhone);
@@ -84,8 +86,10 @@ export async function recordFormTouch(env, { phone, telegramHandle, kind, note, 
     // Имя и telegram сохраняем всегда, не только для неопознанных — если резидент
     // напишет на сайте другое имя, будет видно в «Списке участников» именно оно.
     await recordTouch(env.DB, resident ? resident.id : null, null, kind, note, name || null, normalizeUsername(telegramHandle) || null);
+    return resident ? resident.id : null;
   } catch (err) {
     console.error("recordFormTouch failed", err);
+    return null;
   }
 }
 
@@ -407,9 +411,12 @@ async function handleNewEventCommand(msg, env, text) {
     "",
     escapeHtml(e.description),
     "",
+    "🔗 Ссылка для поста (Telegram, Instagram) — по ней человек сразу попадает в форму записи, заявка придёт в бота:",
+    eventShareLink(id),
+    "",
     `Удалить: /delevent ${id}`,
   ].join("\n");
-  return sendMessage(env, msg.from.id, preview);
+  return sendMessage(env, msg.from.id, preview, undefined, { noPreview: true });
 }
 
 async function handleDeleteEventCommand(msg, env, text) {
@@ -460,6 +467,11 @@ async function handleEventSignupsPicker(msg, env) {
   return sendMessage(env, msg.from.id, "Какое мероприятие — список записавшихся?", { inline_keyboard: buttons });
 }
 
+function byNameRu(a, b) {
+  // ✅ в начале не должен влиять на алфавитный порядок
+  return a.replace(/^✅ /, "").localeCompare(b.replace(/^✅ /, ""), "ru");
+}
+
 function titleMatches(a, b) {
   const x = (a || "").trim().toLowerCase();
   const y = (b || "").trim().toLowerCase();
@@ -482,53 +494,87 @@ async function handleEventSignupsDetail(msg, env, id) {
   const e = await getEventById(env.DB, id);
   if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
 
-  // username-и, уже учтённые более надёжными источниками (бот, ручной ввод) —
+  // Резиденты клуба — чтобы пометить их в списке ✅ и посчитать «резиденты / гости».
+  // Опознаём по привязке записи к резиденту, а если её нет — по @нику.
+  const { results: residentRows } = await env.DB.prepare(
+    "SELECT id, telegram_username FROM residents WHERE active = 1"
+  ).all();
+  const residentIds = new Set((residentRows || []).map((r) => r.id));
+  const residentUsernames = new Set(
+    (residentRows || []).map((r) => normalizeUsername(r.telegram_username)).filter(Boolean)
+  );
+  let residentCount = 0;
+  function mark(display, residentId, username) {
+    const isResident = (residentId != null && residentIds.has(residentId)) ||
+      (!!username && residentUsernames.has(normalizeUsername(username)));
+    if (isResident) residentCount++;
+    return (isResident ? "✅ " : "") + display;
+  }
+
+  // username-и и телефоны, уже учтённые более надёжными источниками —
   // чтобы не считать одного человека дважды.
   const takenUsernames = new Set();
+  const takenPhones = new Set();
+  const takenResidents = new Set();
+  function take(username, phone, residentId) {
+    if (username) takenUsernames.add(username.toLowerCase());
+    if (phone) takenPhones.add(normalizePhone(phone));
+    if (residentId != null) takenResidents.add(residentId);
+  }
+  function isTaken(username, phone, residentId) {
+    return (!!username && takenUsernames.has(username.toLowerCase())) ||
+      (!!phone && takenPhones.has(normalizePhone(phone))) ||
+      (residentId != null && takenResidents.has(residentId));
+  }
 
-  // Источник 1 — записи через бота (ссылка-диплинк) и добавленные вручную.
+  // Источник 1 — записи через бота (ссылка-диплинк), с сайта и добавленные вручную.
   const signupRows = await listEventSignups(env, id);
   const botNames = [];
-  const manualRows = [];
-  for (const s of signupRows) {
-    if (s.source === "bot") {
-      if (s.username) takenUsernames.add(s.username.toLowerCase());
-      const disp = formatPerson(s.person_name, s.username);
-      botNames.push((disp || `id${s.tg_user_id}`) + (s.phone ? " 📞" : ""));
-    } else {
-      manualRows.push(s);
-    }
-  }
+  const siteNames = [];
   const manualNames = [];
-  for (const s of manualRows) {
-    if (s.username && takenUsernames.has(s.username.toLowerCase())) continue; // уже записан через бота
-    if (s.username) takenUsernames.add(s.username.toLowerCase());
+  for (const s of signupRows.filter((r) => r.source === "bot")) {
+    take(s.username, s.phone, s.resident_id);
     const disp = formatPerson(s.person_name, s.username);
-    if (disp) manualNames.push(disp);
+    botNames.push(mark((disp || `id${s.tg_user_id}`) + (s.phone ? " 📞" : ""), s.resident_id, s.username));
   }
-  botNames.sort((a, b) => a.localeCompare(b, "ru"));
-  manualNames.sort((a, b) => a.localeCompare(b, "ru"));
+  for (const s of signupRows.filter((r) => r.source === "site")) {
+    if (isTaken(s.username, s.phone, s.resident_id)) continue; // уже записан через бота
+    take(s.username, s.phone, s.resident_id);
+    const disp = formatPerson(s.person_name, s.username);
+    if (disp) siteNames.push(mark(disp + (s.phone ? " · " + s.phone : ""), s.resident_id, s.username));
+  }
+  for (const s of signupRows.filter((r) => r.source === "manual")) {
+    if (isTaken(s.username, null, s.resident_id)) continue; // уже записан через бота или сайт
+    take(s.username, null, s.resident_id);
+    const disp = formatPerson(s.person_name, s.username);
+    if (disp) manualNames.push(mark(disp, s.resident_id, s.username));
+  }
 
-  // Источник 2 — заявки с сайта
+  // Старые заявки с сайта (до привязки к мероприятию по id) — только в touches,
+  // сопоставляем по названию.
   const { results: touchRows } = await env.DB.prepare(
-    "SELECT t.note, t.person_name, t.person_username, r.full_name AS resident_name, r.telegram_username AS resident_username " +
+    "SELECT t.note, t.resident_id, t.person_name, t.person_username, r.full_name AS resident_name, r.telegram_username AS resident_username " +
     "FROM touches t LEFT JOIN residents r ON r.id = t.resident_id " +
     "WHERE t.kind = 'event_signup' AND t.note IS NOT NULL"
   ).all();
   const siteSeen = new Set();
-  const siteNames = [];
   for (const row of touchRows || []) {
     if (!titleMatches(row.note, e.title)) continue;
     const uname = normalizeUsername(row.resident_username || row.person_username);
-    if (uname && takenUsernames.has(uname)) continue; // уже учтён ботом/вручную
+    // Новые заявки с сайта пишутся и сюда, и в event_signups — проверяем оба ника
+    // (из базы резидентов и введённый в форме), чтобы не посчитать человека дважды.
+    if (isTaken(uname, null, row.resident_id) || isTaken(normalizeUsername(row.person_username), null, null)) continue;
     const display = formatPerson(row.resident_name || row.person_name, row.resident_username || row.person_username);
     if (!display || siteSeen.has(display)) continue;
     siteSeen.add(display);
-    siteNames.push(display);
+    if (uname) takenUsernames.add(uname);
+    siteNames.push(mark(display, row.resident_id, uname));
   }
-  siteNames.sort((a, b) => a.localeCompare(b, "ru"));
+  botNames.sort(byNameRu);
+  siteNames.sort(byNameRu);
+  manualNames.sort(byNameRu);
 
-  // Источник 3 — участники привязанной Telegram-группы (если привязана)
+  // Источник 2 — участники привязанной Telegram-группы (если привязана)
   let groupNames = null;
   let groupTitle = null;
   if (e.signupChatId) {
@@ -540,40 +586,46 @@ async function handleEventSignupsDetail(msg, env, id) {
     );
     const { results } = await stmt.bind.apply(stmt, [e.signupChatId].concat(ACTIVE_STATUSES)).all();
     groupNames = (results || [])
-      .map((m) => formatPerson([m.first_name, m.last_name].filter(Boolean).join(" "), m.username))
+      .map((m) => {
+        const disp = formatPerson([m.first_name, m.last_name].filter(Boolean).join(" "), m.username);
+        return disp ? mark(disp, null, m.username) : null;
+      })
       .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b, "ru"));
+      .sort(byNameRu);
   }
 
-  const total = botNames.length + manualNames.length + siteNames.length + (groupNames ? groupNames.length : 0);
+  const total = botNames.length + siteNames.length + manualNames.length + (groupNames ? groupNames.length : 0);
   const lines = [
     `<b>${escapeHtml(e.title)}</b>`,
     formatRuDateTime(e.start),
     "",
     `<b>ИТОГО участников: ${total}</b>`,
+    `✅ резидентов клуба: ${residentCount} · гостей: ${total - residentCount}`,
     "",
   ];
 
   lines.push(`<b>Через бота (ссылка): ${botNames.length}</b>`);
-  lines.push(...(botNames.length ? botNames.map((n) => "• " + n) : ["  —"]));
-  lines.push("");
-
-  lines.push(`<b>Добавлены вручную: ${manualNames.length}</b>`);
-  lines.push(...(manualNames.length ? manualNames.map((n) => "• " + n) : ["  —"]));
+  lines.push(...(botNames.length ? botNames.map((n) => "• " + escapeHtml(n)) : ["  —"]));
   lines.push("");
 
   lines.push(`<b>С сайта: ${siteNames.length}</b>`);
-  lines.push(...(siteNames.length ? siteNames.map((n) => "• " + n) : ["  —"]));
+  lines.push(...(siteNames.length ? siteNames.map((n) => "• " + escapeHtml(n)) : ["  —"]));
+  lines.push("");
+
+  lines.push(`<b>Добавлены вручную: ${manualNames.length}</b>`);
+  lines.push(...(manualNames.length ? manualNames.map((n) => "• " + escapeHtml(n)) : ["  —"]));
   lines.push("");
 
   if (groupNames === null) {
     lines.push("Группа мероприятия не привязана — список участников группы не учтён.");
   } else {
     lines.push(`<b>Группа «${escapeHtml(groupTitle || String(e.signupChatId))}»: ${groupNames.length}</b>`);
-    lines.push(...(groupNames.length ? groupNames.map((n) => "• " + n) : ["  —"]));
+    lines.push(...(groupNames.length ? groupNames.map((n) => "• " + escapeHtml(n)) : ["  —"]));
     lines.push("");
     lines.push("Участники группы дублей с записями по @нику не дают; те, у кого ника нет, могут пересекаться с другими списками.");
   }
+  lines.push("");
+  lines.push("🔗 Ссылка для поста: " + eventShareLink(id));
 
   const keyboard = [];
   keyboard.push([{ text: "📨 Пригласить на мероприятие", callback_data: `srl:${id}` }]);
@@ -584,7 +636,7 @@ async function handleEventSignupsDetail(msg, env, id) {
   const report = lines.join("\n");
   for (let i = 0; i < report.length; i += 3500) {
     const isLast = i + 3500 >= report.length;
-    await sendMessage(env, msg.from.id, report.slice(i, i + 3500), isLast ? { inline_keyboard: keyboard } : undefined);
+    await sendMessage(env, msg.from.id, report.slice(i, i + 3500), isLast ? { inline_keyboard: keyboard } : undefined, { noPreview: true });
   }
 }
 
@@ -633,6 +685,9 @@ async function handleEventDetail(msg, env, id) {
     escapeHtml(e.place),
     "",
     escapeHtml(e.description),
+    "",
+    "🔗 Ссылка для поста:",
+    eventShareLink(id),
   ].join("\n");
   const keyboard = {
     inline_keyboard: [
@@ -642,7 +697,7 @@ async function handleEventDetail(msg, env, id) {
       backButtonRow(),
     ],
   };
-  return sendMessage(env, msg.from.id, text, keyboard);
+  return sendMessage(env, msg.from.id, text, keyboard, { noPreview: true });
 }
 
 // «📨 Пригласить на мероприятие» — обе ссылки (бот + сайт) и готовый текст,
@@ -653,18 +708,18 @@ async function handleEventRegLink(msg, env, id) {
   const e = await getEventById(env.DB, id);
   if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
   const botLink = `https://t.me/${BOT_USERNAME}?start=e_${id}`;
-  const siteLink = `${SITE_URL}/?e=${id}`;
+  const siteLink = eventShareLink(id);
   const text = [
     `Приглашаем вас на «<b>${escapeHtml(e.title)}</b>»`,
     `${escapeHtml(formatRuDateTime(e.start))}${e.place ? " · " + escapeHtml(e.place) : ""}`,
     "",
     "Записаться — выберите удобный способ:",
     "",
-    "<b>Через бота</b> — быстро, ничего заполнять не нужно:",
-    botLink,
-    "",
-    "<b>Через сайт</b> — обычная форма:",
+    "<b>Через сайт</b> — короткая форма:",
     siteLink,
+    "",
+    "<b>Через бота</b> — в один клик, ничего заполнять не нужно:",
+    botLink,
   ].join("\n");
   // Одно сообщение — его менеджер и пересылает участнику (удержать → Переслать).
   // Кнопка «Назад» при пересылке отваливается сама, участник её не увидит.
@@ -757,6 +812,13 @@ async function handleEventEditReply(msg, env, text, id) {
     `✅ Мероприятие обновлено (id: ${id}). Проверьте на сайте — обновится сразу.`,
     { inline_keyboard: [backButtonRow()] }
   );
+}
+
+// Ссылка на мероприятие для постов и приглашений: страница сайта с превью
+// именно этого мероприятия и сразу открытой формой записи (см. handleEventSharePage
+// в src/index.js). Заявка с неё попадает в «Список участников» этого мероприятия.
+function eventShareLink(id) {
+  return `${SITE_URL}/e/${id}`;
 }
 
 function escapeHtml(s) {
@@ -912,6 +974,18 @@ async function handleEventRegConfirm(msg, env, eventId) {
 
   const { created } = await recordBotSignup(env, eventId, from, residentId);
   await setPendingEdit(env.DB, from.id, "signup:" + eventId);
+
+  // Та же группа заявок, куда приходят записи с сайта (CHAT_ID) — организаторы
+  // видят все записи в одном месте, независимо от того, как человек записался.
+  if (created && env.CHAT_ID) {
+    const who = formatPerson([from.first_name, from.last_name].filter(Boolean).join(" "), from.username) || `id${from.id}`;
+    await sendMessage(env, env.CHAT_ID, [
+      "📅 Запись на мероприятие (через бота)",
+      "",
+      "Мероприятие: " + escapeHtml(e.title),
+      "Участник: " + escapeHtml(who) + (residentId ? " — ✅ резидент клуба" : ""),
+    ].join("\n"));
+  }
 
   const head = created
     ? `✅ Готово, вы записаны на «${escapeHtml(e.title)}».`
