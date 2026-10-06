@@ -249,9 +249,6 @@ async function handleMenu(msg, env) {
 function eventTemplateText(direction) {
   const turizm = direction === "turizm";
   return [
-    turizm
-      ? "🌲 Новое мероприятие для сайта «Туризм Поволжья» (codrosta.club/turizm)."
-      : "Новое мероприятие для сайта клуба «Код Роста» (главная страница).",
     "Скопируйте, заполните и пришлите этим же сообщением обратно мне:",
     "",
     "Дата: ",
@@ -278,7 +275,7 @@ async function handleNewEventStart(msg, env, direction) {
   if (!isAdmin(msg.from.username, env)) return;
   if (!env.DB) return;
   await setPendingEdit(env.DB, msg.from.id, "newevent:" + direction);
-  return sendMessage(env, msg.from.id, eventTemplateText(direction), { inline_keyboard: [backButtonRow()] });
+  return sendMessage(env, msg.from.id, eventTemplateText(direction), { inline_keyboard: [backButtonRow()] }, { noPreview: true });
 }
 
 async function handleCallbackQuery(cq, env) {
