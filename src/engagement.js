@@ -266,7 +266,7 @@ function eventTemplateText(direction) {
   ].join("\n");
 }
 
-// Куда добавляем: две кнопки — и в «Списке мероприятий», и в меню «Создать мероприятие».
+// «02 · Создать мероприятие» → куда добавляем: две кнопки.
 function newEventButtonRows() {
   return [
     [{ text: "➕ Добавить на сайт Код Роста", callback_data: "newev:club" }],
@@ -474,16 +474,15 @@ async function handleListEventsCommand(msg, env) {
   if (!isAdmin(msg.from.username, env)) return;
   if (!env.DB) return;
   const events = await listUpcomingEvents(env.DB);
+  if (!events.length) {
+    return sendMessage(env, msg.from.id, "Актуальных мероприятий нет.", { inline_keyboard: [backButtonRow()] });
+  }
   // 🌲 — мероприятия направления «Туризм» (на сайте они только на странице /turizm)
   const buttons = events.map((e) => [
     { text: `${isTurizmEvent(e) ? "🌲 " : ""}${formatRuDateTime(e.start)} — ${e.title}`.slice(0, 60), callback_data: `ev:${e.id}` },
   ]);
-  buttons.push(...newEventButtonRows());
   buttons.push(backButtonRow());
-  const head = events.length
-    ? "Мероприятия клуба — нажмите, чтобы посмотреть и изменить, или добавьте новое:"
-    : "Актуальных мероприятий нет. Добавить новое:";
-  return sendMessage(env, msg.from.id, head, { inline_keyboard: buttons });
+  return sendMessage(env, msg.from.id, "Мероприятия клуба — нажмите, чтобы посмотреть и изменить:", { inline_keyboard: buttons });
 }
 
 // ---- Список записавшихся на мероприятие ------------------------------------
