@@ -164,6 +164,9 @@ export async function handleTelegramUpdate(update, env) {
   // сообщение воспринимается как новое содержимое, а не как что-то ещё.
   if (!text.startsWith("/") && isAdmin(from.username, env)) {
     const pending = await getPendingEdit(env.DB, from.id);
+    if (pending && pending.section.startsWith("newevent:")) {
+      return handleNewEventCommand(msg, env, text, pending.section.slice("newevent:".length));
+    }
     if (pending && pending.section.startsWith("event:")) {
       return handleEventEditReply(msg, env, text, pending.section.slice(6));
     }
@@ -240,19 +243,43 @@ async function handleMenu(msg, env) {
   return sendMessage(env, msg.from.id, "Что нужно сделать?", adminMenuKeyboard());
 }
 
-const EVENT_TEMPLATE_TEXT = [
-  "Скопируйте, заполните и пришлите этим же сообщением обратно мне:",
-  "",
-  "Дата: ",
-  "Время: с — до",
-  "Место проведения (название): ",
-  "Адрес: ",
-  "Название мероприятия: ",
-  "Категория (Обучение / Нетворкинг / Диалог с властью / Экспертиза резидентов / Семейный формат / другое): ",
-  "Описание: ",
-  "",
-  "Регистрация: (необязательно — оставьте пустым, если запись через сайт)",
-].join("\n");
+// Шаблон нового мероприятия. Направление (сайт клуба или «Туризм») выбирается
+// кнопкой перед шаблоном и запоминается (pending "newevent:club|turizm") —
+// поэтому для «Туризма» строки «Категория» в шаблоне нет: её ставит бот сам.
+function eventTemplateText(direction) {
+  const turizm = direction === "turizm";
+  return [
+    turizm
+      ? "🌲 Новое мероприятие для сайта «Туризм Поволжья» (codrosta.club/turizm)."
+      : "Новое мероприятие для сайта клуба «Код Роста» (главная страница).",
+    "Скопируйте, заполните и пришлите этим же сообщением обратно мне:",
+    "",
+    "Дата: ",
+    "Время: с — до",
+    "Место проведения (название): ",
+    "Адрес: ",
+    "Название мероприятия: ",
+    ...(turizm ? [] : ["Категория (Обучение / Нетворкинг / Диалог с властью / Экспертиза резидентов / Семейный формат / другое): "]),
+    "Описание: ",
+    "",
+    "Регистрация: (необязательно) ссылка на чат мероприятия — человек увидит её после записи",
+  ].join("\n");
+}
+
+// Куда добавляем: две кнопки — и в «Списке мероприятий», и в меню «Создать мероприятие».
+function newEventButtonRows() {
+  return [
+    [{ text: "➕ Добавить на сайт Код Роста", callback_data: "newev:club" }],
+    [{ text: "🌲 ➕ Добавить на сайт Туризм", callback_data: "newev:turizm" }],
+  ];
+}
+
+async function handleNewEventStart(msg, env, direction) {
+  if (!isAdmin(msg.from.username, env)) return;
+  if (!env.DB) return;
+  await setPendingEdit(env.DB, msg.from.id, "newevent:" + direction);
+  return sendMessage(env, msg.from.id, eventTemplateText(direction), { inline_keyboard: [backButtonRow()] });
+}
 
 async function handleCallbackQuery(cq, env) {
   const from = cq.from || {};
@@ -283,7 +310,10 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:home") return handleMenu(fakeMsg, env);
   if (data === "menu:events") return handleListEventsCommand(fakeMsg, env);
   if (data === "menu:report") return handleCoolingCommand(fakeMsg, env);
-  if (data === "menu:create") return sendMessage(env, from.id, EVENT_TEMPLATE_TEXT, { inline_keyboard: [backButtonRow()] });
+  if (data === "menu:create") {
+    return sendMessage(env, from.id, "Куда добавляем мероприятие?", { inline_keyboard: newEventButtonRows().concat([backButtonRow()]) });
+  }
+  if (data === "newev:club" || data === "newev:turizm") return handleNewEventStart(fakeMsg, env, data.slice("newev:".length));
   // Отдельной кнопки «Список участников» в меню больше нет — тот же экран открывается
   // с карточки мероприятия («👥 Список записавшихся»). Нажатие на кнопку в старом,
   // ещё не обновлённом меню ведёт в список мероприятий.
@@ -386,7 +416,9 @@ async function answerCallback(env, callbackQueryId, text) {
   });
 }
 
-async function handleNewEventCommand(msg, env, text) {
+// direction — "club" | "turizm", если админ выбрал направление кнопкой перед
+// шаблоном; без него (шаблон прислан сам по себе) направление — по «Категории».
+async function handleNewEventCommand(msg, env, text, direction) {
   if (!isAdmin(msg.from.username, env)) {
     return sendMessage(env, msg.from.id, "Публиковать мероприятия может только менеджер клуба.");
   }
@@ -401,7 +433,13 @@ async function handleNewEventCommand(msg, env, text) {
     );
   }
 
+  // Кнопка направления главнее строки «Категория»: «Туризм» ставим сами,
+  // а на сайт клуба мероприятие с категорией «Туризм» не уводим на /turizm.
+  if (direction === "turizm") result.event.tag = "Туризм";
+  if (direction === "club" && isTurizmEvent(result.event)) result.event.tag = "Мероприятие";
+
   const id = await insertEvent(env.DB, result.event, msg.from.username);
+  if (direction) await clearPendingEdit(env.DB, msg.from.id);
   const e = result.event;
   const preview = [
     isTurizmEvent(e)
@@ -436,15 +474,16 @@ async function handleListEventsCommand(msg, env) {
   if (!isAdmin(msg.from.username, env)) return;
   if (!env.DB) return;
   const events = await listUpcomingEvents(env.DB);
-  if (!events.length) {
-    return sendMessage(env, msg.from.id, "Актуальных мероприятий нет.", { inline_keyboard: [backButtonRow()] });
-  }
   // 🌲 — мероприятия направления «Туризм» (на сайте они только на странице /turizm)
   const buttons = events.map((e) => [
     { text: `${isTurizmEvent(e) ? "🌲 " : ""}${formatRuDateTime(e.start)} — ${e.title}`.slice(0, 60), callback_data: `ev:${e.id}` },
   ]);
+  buttons.push(...newEventButtonRows());
   buttons.push(backButtonRow());
-  return sendMessage(env, msg.from.id, "Мероприятия клуба — нажмите, чтобы посмотреть и изменить:", { inline_keyboard: buttons });
+  const head = events.length
+    ? "Мероприятия клуба — нажмите, чтобы посмотреть и изменить, или добавьте новое:"
+    : "Актуальных мероприятий нет. Добавить новое:";
+  return sendMessage(env, msg.from.id, head, { inline_keyboard: buttons });
 }
 
 // ---- Список записавшихся на мероприятие ------------------------------------
