@@ -507,6 +507,7 @@ async function handleSubmit(request, env) {
 
   let text;
   let touchNote;
+  let signupEvent = null; // мероприятие из D1, на которое записываются (по eventId из формы)
   if (type === "apply") {
     const company = String(data.company || "").trim();
     const comment = String(data.comment || "").trim();
@@ -527,8 +528,11 @@ async function handleSubmit(request, env) {
   } else if (type === "event") {
     const event = String(data.event || "").trim();
     const comment = String(data.comment || "").trim();
+    // Запись на мероприятие «Туризма» помечаем в заголовке — в группе заявок
+    // иначе не видно, с какого сайта она пришла.
+    signupEvent = await findSignupEvent(env, data.eventId);
     text =
-      "📅 Запись на мероприятие (с сайта)\n\n" +
+      "📅 Запись на мероприятие (" + (signupEvent && isTurizmEvent(signupEvent) ? "с сайта Туризм" : "с сайта") + ")\n\n" +
       "Мероприятие: " + (event || "—") + "\n" +
       "Имя: " + name + "\n" +
       "Telegram: " + telegram + "\n" +
@@ -590,12 +594,9 @@ async function handleSubmit(request, env) {
 
   // Запись на мероприятие — ещё и в «Список участников» этого мероприятия в боте,
   // по id (название в форме человек не меняет, но id надёжнее сверки по тексту).
-  const eventId = String(data.eventId || "").trim();
-  if (type === "event" && eventId && env.DB) {
+  if (type === "event" && signupEvent) {
     try {
-      if (await getEventById(env.DB, eventId)) {
-        await recordSiteSignup(env, eventId, { name, phone: normalizePhone(phone), username: telegram, residentId });
-      }
+      await recordSiteSignup(env, signupEvent.id, { name, phone: normalizePhone(phone), username: telegram, residentId });
     } catch (err) {
       console.error("recordSiteSignup failed", err);
     }
@@ -612,6 +613,18 @@ async function handleSubmit(request, env) {
   }
 
   return json({ ok: true });
+}
+
+// Мероприятие, на которое пришла запись с сайта (по eventId из формы), или null.
+async function findSignupEvent(env, rawId) {
+  const id = String(rawId || "").trim();
+  if (!id || !env.DB) return null;
+  try {
+    return await getEventById(env.DB, id);
+  } catch (err) {
+    console.error("findSignupEvent failed", err);
+    return null;
+  }
 }
 
 function json(obj, status) {
