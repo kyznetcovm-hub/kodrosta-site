@@ -213,7 +213,7 @@ function adminMenuKeyboard() {
       [{ text: "🟦 ВОВЛЕЧЁННОСТЬ 🟦", callback_data: "noop" }],
       [{ text: "📊 Вовлечённость", callback_data: "menu:report" }],
 
-      [{ text: "🟦 СВЕРКА УЧАСТНИКОВ 🟦", callback_data: "noop" }],
+      [{ text: "🟦 БОТ АДМИН ГРУППЫ 🟦", callback_data: "noop" }],
       [{ text: "📇 Сверка участников", callback_data: "menu:matchgroups" }],
       [{ text: "🔄 Синхронизировать с таблицей", callback_data: "menu:syncsheet" }],
 
