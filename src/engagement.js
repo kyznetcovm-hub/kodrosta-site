@@ -209,7 +209,6 @@ function adminMenuKeyboard() {
       [{ text: "🟦 РЕДАКТИРОВАТЬ МЕРОПРИЯТИЯ 🟦", callback_data: "noop" }],
       [{ text: "01 · Список мероприятий", callback_data: "menu:events" }],
       [{ text: "02 · Создать мероприятие", callback_data: "menu:create" }],
-      [{ text: "03 · Список участников", callback_data: "menu:signups" }],
 
       [{ text: "🟦 ВОВЛЕЧЁННОСТЬ 🟦", callback_data: "noop" }],
       [{ text: "📊 Вовлечённость", callback_data: "menu:report" }],
@@ -285,7 +284,10 @@ async function handleCallbackQuery(cq, env) {
   if (data === "menu:events") return handleListEventsCommand(fakeMsg, env);
   if (data === "menu:report") return handleCoolingCommand(fakeMsg, env);
   if (data === "menu:create") return sendMessage(env, from.id, EVENT_TEMPLATE_TEXT, { inline_keyboard: [backButtonRow()] });
-  if (data === "menu:signups") return handleEventSignupsPicker(fakeMsg, env);
+  // Отдельной кнопки «Список участников» в меню больше нет — тот же экран открывается
+  // с карточки мероприятия («👥 Список записавшихся»). Нажатие на кнопку в старом,
+  // ещё не обновлённом меню ведёт в список мероприятий.
+  if (data === "menu:signups") return handleListEventsCommand(fakeMsg, env);
   if (data === "menu:faq") return handleFaqPicker(fakeMsg, env);
   if (data === "menu:matchgroups") return handleMatchGroupsPicker(fakeMsg, env);
   if (data === "menu:syncsheet") return handleSyncSheetCommand(fakeMsg, env);
@@ -443,29 +445,10 @@ async function handleListEventsCommand(msg, env) {
 }
 
 // ---- Список записавшихся на мероприятие ------------------------------------
-// Два независимых источника, оба реальные люди, не только резиденты:
-//   1) Заявки с сайта — kind='event_signup' в touches, note = название
-//      мероприятия как ввёл человек. Имя — из residents (если опознан) или
-//      person_name (если нет, но записался через форму).
-//   2) Участники Telegram-группы мероприятия — tg_group_members, если админ
-//      один раз указал, какая группа отвечает этому мероприятию (events.signup_chat_id).
-//      Тут все, кто состоит в группе, вне зависимости от того, резидент или нет.
-// Пересечение (человек и заполнил форму, и состоит в группе) не убираем —
-// нет надёжного способа сопоставить гостя между источниками без резидентской
-// привязки, поэтому считаем и показываем раздельно, с пометкой источника.
-async function handleEventSignupsPicker(msg, env) {
-  if (!isAdmin(msg.from.username, env)) return;
-  if (!env.DB) return;
-  const events = await listUpcomingEvents(env.DB);
-  if (!events.length) {
-    return sendMessage(env, msg.from.id, "Актуальных мероприятий нет.", { inline_keyboard: [backButtonRow()] });
-  }
-  const buttons = events.map((e) => [
-    { text: `${formatRuDateTime(e.start)} — ${e.title}`.slice(0, 60), callback_data: `es:${e.id}` },
-  ]);
-  buttons.push(backButtonRow());
-  return sendMessage(env, msg.from.id, "Какое мероприятие — список записавшихся?", { inline_keyboard: buttons });
-}
+// Открывается с карточки мероприятия («👥 Список записавшихся», es:<id>).
+// Источники: записи через бота, с сайта и добавленные вручную (event_signups),
+// старые заявки с сайта (touches, сверка по названию) и участники привязанной
+// Telegram-группы мероприятия. Подробности — в handleEventSignupsDetail.
 
 function byNameRu(a, b) {
   // ✅ в начале не должен влиять на алфавитный порядок
