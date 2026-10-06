@@ -6,7 +6,7 @@
 // BOT_TOKEN и CHAT_ID заданы как секреты проекта в Cloudflare (см. README).
 
 import { handleTelegramUpdate, recordFormTouch, normalizePhone } from "./engagement.js";
-import { listUpcomingEvents, getEventById } from "./events-store.js";
+import { listUpcomingEvents, getEventById, isTurizmEvent } from "./events-store.js";
 import { recordSiteSignup } from "./event-signups.js";
 import { getAllContent } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
@@ -15,25 +15,6 @@ import { runSubscriptionNotifications } from "./subscription-notifications.js";
 import { buildMetrikaDigest, fetchBlogViews } from "./metrika.js";
 
 const SITE_URL = "https://codrosta.club";
-
-// Отдельные ссылки на мероприятия страницы «Туризм» (codrosta.club/turizm/<slug>) —
-// чтобы можно было поделиться конкретным мероприятием в соцсетях с нормальным
-// превью (заголовок/описание), а не общей карточкой всей страницы. Сами события
-// пока статичные (в HTML туризм.html), не в D1 — см. handleTurizmEventPage.
-const TURIZM_EVENTS = {
-  "konferenciya": {
-    title: "Отраслевая конференция «Полная загрузка» — 30 сентября",
-    description: "Закон, проверки, прямые продажи, запуск сообщества. Конференция направления «Туризм» клуба «Код Роста»."
-  },
-  "sezd": {
-    title: "Первый съезд сообщества — 20 октября",
-    description: "Глэмп-парк «Илеть», Республика Марий Эл: разбор объекта, экспертный блок, питание, съёмка, интерактив от собственника."
-  },
-  "nominaciya": {
-    title: "Номинация «Туристический объект года» — 27 ноября",
-    description: "На ежегодной премии клуба «Код Роста»."
-  }
-};
 
 export default {
   async fetch(request, env, ctx) {
@@ -48,7 +29,7 @@ export default {
     }
 
     if (url.pathname === "/api/events" && request.method === "GET") {
-      return handleEventsApi(env);
+      return handleEventsApi(env, url.searchParams.get("section"));
     }
 
     if (url.pathname === "/api/content" && request.method === "GET") {
@@ -72,11 +53,10 @@ export default {
       return handleEventSharePage(request, env, decodeURIComponent(url.pathname.slice("/e/".length).replace(/\/+$/, "")));
     }
 
-    if (url.pathname.startsWith("/turizm/") && request.method === "GET") {
-      const slug = url.pathname.slice("/turizm/".length).replace(/\/+$/, "");
-      if (TURIZM_EVENTS[slug]) {
-        return handleTurizmEventPage(request, env, slug);
-      }
+    // Ссылка на мероприятие направления «Туризм»: codrosta.club/turizm/<id>
+    if (url.pathname.startsWith("/turizm/") && (request.method === "GET" || request.method === "HEAD")) {
+      const slug = decodeURIComponent(url.pathname.slice("/turizm/".length).replace(/\/+$/, ""));
+      if (slug) return handleTurizmEventPage(request, env, slug);
     }
 
     return env.ASSETS.fetch(request);
@@ -247,31 +227,35 @@ async function runScheduledMonthlySubscriptionReport(env, cron) {
   await sendToAdminsByUsername(env, username ? [username] : [], report);
 }
 
-// Отдаёт turizm.html с подменёнными title/description/og/twitter/canonical под
-// конкретное мероприятие (см. TURIZM_EVENTS) — сама страница и вёрстка те же,
-// меняются только теги для превью при шаринге. Клиентский скрипт в turizm.html
-// сам скроллит и подсвечивает нужную карточку по data-атрибуту на <body>.
-async function handleTurizmEventPage(request, env, slug) {
-  const event = TURIZM_EVENTS[slug];
+// codrosta.club/turizm/<id> — страница «Туризм» с превью (title/description/og)
+// конкретного мероприятия направления (из D1, категория «Туризм»). Вёрстка та же,
+// скрипт в turizm.html по data-share-event на <body> подсвечивает карточку и сразу
+// открывает форму записи; заявка попадает в «Список записавшихся» в боте.
+async function handleTurizmEventPage(request, env, id) {
+  const event = env.DB ? await getEventById(env.DB, id) : null;
+  if (!event || !isTurizmEvent(event)) return Response.redirect(SITE_URL + "/turizm#events", 302);
+
   // "/turizm" (без .html) — иначе ASSETS сам 307-редиректит запрос explicit-.html
   // пути на чистый URL, и base.ok окажется false ещё до подмены тегов.
   const base = await env.ASSETS.fetch(new Request(new URL("/turizm", request.url), request));
   if (!base.ok) return base;
 
   let html = await base.text();
-  const pageUrl = SITE_URL + "/turizm/" + slug;
-  const title = event.title + " | Туризм Поволжья";
+  const pageUrl = SITE_URL + "/turizm/" + encodeURIComponent(event.id);
+  const title = event.title + " — " + formatShareDate(event.start) + " | Туризм Поволжья";
+  const description = (event.place ? event.place + ". " : "") + (event.description || "");
 
   html = html
     .replace(/<title>[^<]*<\/title>/, "<title>" + escapeHtml(title) + "</title>")
-    .replace(/(<meta name="description" content=")[^"]*(")/, "$1" + escapeHtml(event.description) + "$2")
+    .replace(/(<meta name="description" content=")[^"]*(")/, "$1" + escapeHtml(description) + "$2")
     .replace(/(<link rel="canonical" href=")[^"]*(")/, "$1" + SITE_URL + "/turizm" + "$2")
     .replace(/(<meta property="og:url" content=")[^"]*(")/, "$1" + pageUrl + "$2")
     .replace(/(<meta property="og:title" content=")[^"]*(")/, "$1" + escapeHtml(title) + "$2")
-    .replace(/(<meta property="og:description" content=")[^"]*(")/, "$1" + escapeHtml(event.description) + "$2")
+    .replace(/(<meta property="og:description" content=")[^"]*(")/, "$1" + escapeHtml(description) + "$2")
     .replace(/(<meta name="twitter:title" content=")[^"]*(")/, "$1" + escapeHtml(title) + "$2")
-    .replace(/(<meta name="twitter:description" content=")[^"]*(")/, "$1" + escapeHtml(event.description) + "$2")
-    .replace("<body>", '<body data-share-event="' + slug + '">');
+    .replace(/(<meta name="twitter:description" content=")[^"]*(")/, "$1" + escapeHtml(description) + "$2")
+    .replace("<body>", '<body data-share-event="' + escapeHtml(event.id) + '">')
+    .replace(/((?:src|href)=")(assets|css|js)\//g, "$1/$2/");
 
   return new Response(html, {
     headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" }
@@ -285,6 +269,8 @@ async function handleTurizmEventPage(request, env, slug) {
 async function handleEventSharePage(request, env, id) {
   const event = env.DB && id ? await getEventById(env.DB, id) : null;
   if (!event) return Response.redirect(SITE_URL + "/#events", 302);
+  // мероприятие Туризма — на его собственную страницу
+  if (isTurizmEvent(event)) return Response.redirect(SITE_URL + "/turizm/" + encodeURIComponent(event.id), 302);
 
   const base = await env.ASSETS.fetch(new Request(new URL("/", request.url), request));
   if (!base.ok) return base;
@@ -333,9 +319,12 @@ async function handleContentApi(env) {
   });
 }
 
-async function handleEventsApi(env) {
+// /api/events — мероприятия клуба для главной (без направления «Туризм»);
+// /api/events?section=turizm — только мероприятия «Туризма» для его страницы.
+async function handleEventsApi(env, section) {
   if (!env.DB) return json([]);
-  const events = await listUpcomingEvents(env.DB);
+  const turizm = section === "turizm";
+  const events = (await listUpcomingEvents(env.DB)).filter((e) => isTurizmEvent(e) === turizm);
   return new Response(JSON.stringify(events), {
     headers: { "content-type": "application/json", "cache-control": "public, max-age=60" }
   });
@@ -420,7 +409,8 @@ function eventRegisterLink(e) {
 }
 
 async function handleCalendarFeed(env) {
-  const events = env.DB ? await listUpcomingEvents(env.DB) : [];
+  // общий календарь клуба — как и список на главной, без мероприятий «Туризма»
+  const events = env.DB ? (await listUpcomingEvents(env.DB)).filter((e) => !isTurizmEvent(e)) : [];
 
   const props = [
     "BEGIN:VCALENDAR",

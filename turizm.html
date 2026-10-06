@@ -291,33 +291,8 @@
       <div class="section-head">
         <h2>Куда прийти в первую очередь</h2>
       </div>
-      <div class="tevent-grid">
-        <div class="tevent-card" id="event-sezd">
-          <span class="tevent-date">20 октября</span>
-          <h3>Первый съезд сообщества</h3>
-          <p class="tevent-meta">Глэмп-парк «Илеть» · Республика Марий Эл, Волжский район, Сотнурское сельское поселение</p>
-          <p>Выезд на объект участника: разбор объекта, экспертный блок, питание, съёмка, интерактив от собственника.</p>
-          <div class="tevent-actions">
-            <button class="btn btn--green btn--sm js-turizm-event" type="button" data-event-title="Первый съезд сообщества — 20 октября, глэмп-парк «Илеть»">Записаться</button>
-            <button class="tevent-share js-turizm-share" type="button" data-slug="sezd">
-              <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M8.5 11.5 13 7M8.7 6.3 10 5a3 3 0 1 1 4.2 4.2l-1.3 1.3M11.3 13.7 10 15a3 3 0 1 1-4.2-4.2l1.3-1.3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-              <span class="tevent-share-label">Скопировать ссылку</span>
-            </button>
-          </div>
-        </div>
-        <div class="tevent-card" id="event-nominaciya">
-          <span class="tevent-date">27 ноября</span>
-          <h3>Номинация «Туристический объект года»</h3>
-          <p>На ежегодной премии клуба «Код Роста».</p>
-          <div class="tevent-actions">
-            <button class="btn btn--green btn--sm js-turizm-event" type="button" data-event-title="Номинация «Туристический объект года» — 27 ноября">Записаться</button>
-            <button class="tevent-share js-turizm-share" type="button" data-slug="nominaciya">
-              <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M8.5 11.5 13 7M8.7 6.3 10 5a3 3 0 1 1 4.2 4.2l-1.3 1.3M11.3 13.7 10 15a3 3 0 1 1-4.2-4.2l1.3-1.3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-              <span class="tevent-share-label">Скопировать ссылку</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      <!-- Мероприятия направления — из бота (D1, категория «Туризм»), см. скрипт внизу -->
+      <div class="tevent-grid js-turizm-events"></div>
     </div>
   </section>
 
@@ -424,6 +399,7 @@
     <form class="js-form" data-form-type="event" novalidate>
       <input type="text" name="website" class="form-hp" tabindex="-1" autocomplete="off">
       <input type="hidden" name="event" class="js-event-title" value="">
+      <input type="hidden" name="eventId" class="js-event-id" value="">
       <div class="form-field">
         <label for="turizm-event-name">Имя</label>
         <input id="turizm-event-name" name="name" type="text" required autocomplete="name" placeholder="Как к вам обращаться">
@@ -448,63 +424,106 @@
 
 <script type="module" src="/js/main.js"></script>
 <script>
-// Кнопки «Записаться» в блоке «Ближайшие события» этой страницы — события
-// пока не заведены в общий календарь клуба (D1/events-store.js), поэтому
-// открываем ту же модалку записи напрямую, минуя список из /api/events.
-document.querySelectorAll('.js-turizm-event').forEach(function (btn) {
-  btn.addEventListener('click', function () {
-    var overlay = document.getElementById('modal-event');
-    if (!overlay) return;
-    var title = btn.getAttribute('data-event-title');
-    overlay.querySelector('.js-modal-event-sub').textContent = title;
-    overlay.querySelector('.js-event-title').value = title;
-    overlay.classList.add('is-open');
-    document.body.style.overflow = 'hidden';
-    var form = overlay.querySelector('form');
-    if (form) form.dataset.openedAt = String(Date.now());
-    var firstInput = overlay.querySelector('input:not([type=hidden])');
-    if (firstInput) setTimeout(function () { firstInput.focus(); }, 100);
-  });
-});
+// «Ближайшие события» — мероприятия направления «Туризм» из бота
+// (/api/events?section=turizm: опубликованы с категорией «Туризм», на главной
+// клуба их нет). «Записаться» открывает общую форму записи из js/main.js —
+// заявка попадает в бота, в «Список записавшихся» этого мероприятия.
+// Ждём DOMContentLoaded: js/main.js — модуль и выполняется позже этого скрипта.
+document.addEventListener('DOMContentLoaded', function () {
+  var grid = document.querySelector('.js-turizm-events');
+  if (!grid) return;
+  var MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+  var SHARE_ICON = '<svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M8.5 11.5 13 7M8.7 6.3 10 5a3 3 0 1 1 4.2 4.2l-1.3 1.3M11.3 13.7 10 15a3 3 0 1 1-4.2-4.2l1.3-1.3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
 
-// «Скопировать ссылку» на карточке мероприятия — отдельная ссылка вида
-// /turizm/<slug>, Worker (src/index.js) отдаёт по ней ту же страницу
-// с подменённым og:title/description под конкретное событие для соцсетей.
-document.querySelectorAll('.js-turizm-share').forEach(function (btn) {
-  btn.addEventListener('click', function () {
-    var slug = btn.getAttribute('data-slug');
-    var link = location.origin + '/turizm/' + slug;
-    var label = btn.querySelector('.tevent-share-label');
-    var done = function () {
-      var original = label.textContent;
-      btn.classList.add('is-copied');
-      label.textContent = 'Скопировано';
-      setTimeout(function () {
-        btn.classList.remove('is-copied');
-        label.textContent = original;
-      }, 1800);
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(link).then(done).catch(function () { prompt('Скопируйте ссылку:', link); });
-    } else {
-      prompt('Скопируйте ссылку:', link);
-    }
-  });
-});
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text) node.textContent = text;
+    return node;
+  }
 
-// Пришли по прямой ссылке на конкретное мероприятие (/turizm/<slug>,
-// data-share-event на <body> — см. handleTurizmEventPage в src/index.js) —
-// докручиваем и подсвечиваем нужную карточку.
-(function () {
-  var slug = document.body.getAttribute('data-share-event');
-  if (!slug) return;
-  var card = document.getElementById('event-' + slug);
-  if (!card) return;
-  setTimeout(function () {
-    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    card.classList.add('is-shared');
-  }, 300);
-})();
+  function renderCard(ev) {
+    var d = new Date(ev.start);
+    var card = el('div', 'tevent-card');
+    card.id = 'event-' + ev.id;
+    card.appendChild(el('span', 'tevent-date', d.getDate() + ' ' + MONTHS[d.getMonth()]));
+    card.appendChild(el('h3', '', ev.title));
+    if (ev.place) card.appendChild(el('p', 'tevent-meta', ev.place));
+    card.appendChild(el('p', '', ev.description || ''));
+
+    var actions = el('div', 'tevent-actions');
+    var signup = el('button', 'btn btn--green btn--sm', 'Записаться');
+    signup.type = 'button';
+    signup.addEventListener('click', function () { openForm(ev); });
+    actions.appendChild(signup);
+
+    // «Скопировать ссылку» — codrosta.club/turizm/<id>: Worker (src/index.js)
+    // отдаёт по ней эту же страницу с превью мероприятия и сразу открытой формой.
+    var share = el('button', 'tevent-share');
+    share.type = 'button';
+    share.innerHTML = SHARE_ICON;
+    var label = el('span', 'tevent-share-label', 'Скопировать ссылку');
+    share.appendChild(label);
+    share.addEventListener('click', function () {
+      var link = location.origin + '/turizm/' + encodeURIComponent(ev.id);
+      var done = function () {
+        share.classList.add('is-copied');
+        label.textContent = 'Скопировано';
+        setTimeout(function () {
+          share.classList.remove('is-copied');
+          label.textContent = 'Скопировать ссылку';
+        }, 1800);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(done).catch(function () { prompt('Скопируйте ссылку:', link); });
+      } else {
+        prompt('Скопируйте ссылку:', link);
+      }
+    });
+    actions.appendChild(share);
+    card.appendChild(actions);
+    return card;
+  }
+
+  function openForm(ev) {
+    if (window.kodrostaOpenEventModal) window.kodrostaOpenEventModal(ev);
+  }
+
+  fetch('/api/events?section=turizm')
+    .then(function (res) { return res.ok ? res.json() : []; })
+    .catch(function () { return []; })
+    .then(function (events) {
+      events = Array.isArray(events) ? events : [];
+      if (!events.length) {
+        var empty = el('p', '', 'Новые события скоро появятся — следите за ');
+        empty.style.color = 'var(--gray-500)';
+        var a = el('a', '', 'Telegram-каналом');
+        a.href = 'https://t.me/codrosta';
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.style.color = 'var(--green-dark)';
+        empty.appendChild(a);
+        empty.appendChild(document.createTextNode('.'));
+        grid.parentNode.replaceChild(empty, grid);
+        return;
+      }
+      events.forEach(function (ev) { grid.appendChild(renderCard(ev)); });
+
+      // Пришли по ссылке на мероприятие (/turizm/<id>, data-share-event на <body> —
+      // см. handleTurizmEventPage в src/index.js): подсвечиваем карточку и сразу
+      // открываем форму записи.
+      var sharedId = document.body.getAttribute('data-share-event');
+      var shared = sharedId && events.filter(function (ev) { return ev.id === sharedId; })[0];
+      if (shared) {
+        var card = document.getElementById('event-' + shared.id);
+        if (card) {
+          card.scrollIntoView({ block: 'center' });
+          card.classList.add('is-shared');
+        }
+        openForm(shared);
+      }
+    });
+});
 </script>
 </body>
 </html>

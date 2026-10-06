@@ -251,6 +251,13 @@ export function renderEventTemplate(event) {
   ].join("\n");
 }
 
+// Мероприятия направления «Туризм» — опубликованы через бота с категорией
+// «Туризм». Показываются только на странице codrosta.club/turizm, не на главной
+// и не в общем календаре клуба; ссылка на них — /turizm/<id>, а не /e/<id>.
+export function isTurizmEvent(event) {
+  return String((event && event.tag) || "").trim().toLowerCase().indexOf("туризм") === 0;
+}
+
 export async function listUpcomingEvents(db) {
   var nowIso = new Date().toISOString().slice(0, 19);
   var { results } = await db.prepare("SELECT * FROM events WHERE start >= ? ORDER BY start ASC").bind(nowIso).all();

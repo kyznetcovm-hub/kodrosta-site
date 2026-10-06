@@ -9,7 +9,7 @@
 
 import {
   parseEventMessage, insertEvent, updateEvent, getEventById, deleteEvent,
-  listUpcomingEvents, renderEventTemplate, setEventSignupChatId,
+  listUpcomingEvents, renderEventTemplate, setEventSignupChatId, isTurizmEvent,
 } from "./events-store.js";
 import {
   SECTIONS, SECTION_ORDER, renderSectionTemplate, parseSectionReply,
@@ -404,7 +404,9 @@ async function handleNewEventCommand(msg, env, text) {
   const id = await insertEvent(env.DB, result.event, msg.from.username);
   const e = result.event;
   const preview = [
-    `✅ Опубликовано на сайте (id: ${id})`,
+    isTurizmEvent(e)
+      ? `✅ Опубликовано на странице «Туризм» (id: ${id}) — на главной клуба его не будет`
+      : `✅ Опубликовано на сайте (id: ${id})`,
     "",
     `<b>${escapeHtml(e.title)}</b>`,
     `${escapeHtml(e.tag)}`,
@@ -414,7 +416,7 @@ async function handleNewEventCommand(msg, env, text) {
     escapeHtml(e.description),
     "",
     "🔗 Ссылка для поста (Telegram, Instagram) — по ней человек сразу попадает в форму записи, заявка придёт в бота:",
-    eventShareLink(id),
+    eventShareLink(id, e),
     "",
     `Удалить: /delevent ${id}`,
   ].join("\n");
@@ -437,8 +439,9 @@ async function handleListEventsCommand(msg, env) {
   if (!events.length) {
     return sendMessage(env, msg.from.id, "Актуальных мероприятий нет.", { inline_keyboard: [backButtonRow()] });
   }
+  // 🌲 — мероприятия направления «Туризм» (на сайте они только на странице /turizm)
   const buttons = events.map((e) => [
-    { text: `${formatRuDateTime(e.start)} — ${e.title}`.slice(0, 60), callback_data: `ev:${e.id}` },
+    { text: `${isTurizmEvent(e) ? "🌲 " : ""}${formatRuDateTime(e.start)} — ${e.title}`.slice(0, 60), callback_data: `ev:${e.id}` },
   ]);
   buttons.push(backButtonRow());
   return sendMessage(env, msg.from.id, "Мероприятия клуба — нажмите, чтобы посмотреть и изменить:", { inline_keyboard: buttons });
@@ -608,7 +611,7 @@ async function handleEventSignupsDetail(msg, env, id) {
     lines.push("Участники группы дублей с записями по @нику не дают; те, у кого ника нет, могут пересекаться с другими списками.");
   }
   lines.push("");
-  lines.push("🔗 Ссылка для поста: " + eventShareLink(id));
+  lines.push("🔗 Ссылка для поста: " + eventShareLink(id, e));
 
   const keyboard = [];
   keyboard.push([{ text: "📨 Пригласить на мероприятие", callback_data: `srl:${id}` }]);
@@ -670,7 +673,7 @@ async function handleEventDetail(msg, env, id) {
     escapeHtml(e.description),
     "",
     "🔗 Ссылка для поста:",
-    eventShareLink(id),
+    eventShareLink(id, e),
   ].join("\n");
   const keyboard = {
     inline_keyboard: [
@@ -691,7 +694,7 @@ async function handleEventRegLink(msg, env, id) {
   const e = await getEventById(env.DB, id);
   if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
   const botLink = `https://t.me/${BOT_USERNAME}?start=e_${id}`;
-  const siteLink = eventShareLink(id);
+  const siteLink = eventShareLink(id, e);
   const text = [
     `Приглашаем вас на «<b>${escapeHtml(e.title)}</b>»`,
     `${escapeHtml(formatRuDateTime(e.start))}${e.place ? " · " + escapeHtml(e.place) : ""}`,
@@ -799,9 +802,10 @@ async function handleEventEditReply(msg, env, text, id) {
 
 // Ссылка на мероприятие для постов и приглашений: страница сайта с превью
 // именно этого мероприятия и сразу открытой формой записи (см. handleEventSharePage
-// в src/index.js). Заявка с неё попадает в «Список участников» этого мероприятия.
-function eventShareLink(id) {
-  return `${SITE_URL}/e/${id}`;
+// и handleTurizmEventPage в src/index.js). Мероприятия «Туризма» — на его странице.
+// Заявка с неё попадает в «Список участников» этого мероприятия.
+function eventShareLink(id, event) {
+  return isTurizmEvent(event) ? `${SITE_URL}/turizm/${id}` : `${SITE_URL}/e/${id}`;
 }
 
 function escapeHtml(s) {
