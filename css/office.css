@@ -114,5 +114,40 @@ html, body { margin: 0; padding: 0; background: #f6f7fb; }
 #kr-office .kr-error{font-size:12px;color:#b9182b;margin-top:10px}
 #kr-office .kr-saved{font-size:11px;line-height:1.4;margin:12px 0;color:var(--kr-muted)}
 #kr-office .kr-empty-note{background:#fff;border-radius:18px;padding:22px 17px;font-size:13px;color:var(--kr-muted);text-align:center}
+/* ---- Деньги: выбор месяца, ввод продаж, журнал, план (экранов нет в макете —
+   собраны из его же элементов: карточки 18px, синий, Inter/Jost, серые) ---- */
+#kr-office .kr-visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#kr-office .kr-month-pick{position:relative;display:inline-flex;align-items:center;gap:2px;color:var(--kr-blue);font-size:12px;font-weight:500}
+#kr-office .kr-month-pick select{appearance:none;-webkit-appearance:none;border:0;background:none;color:inherit;font:inherit;padding:8px 18px 8px 8px;margin:-8px -18px -8px 0;cursor:pointer;text-align:right}
+#kr-office .kr-month-pick .kr-icon{width:14px;height:14px;pointer-events:none}
+#kr-office .kr-save .kr-icon,#kr-office .kr-link .kr-icon{width:16px;height:16px}
+#kr-office .kr-save{display:flex;align-items:center;justify-content:center;gap:6px}
+#kr-office .kr-primary-action{margin-top:14px}
+#kr-office .kr-notice{margin:10px 4px 0}
+#kr-office .kr-sale{display:grid;grid-template-columns:35px 1fr auto;gap:12px;align-items:start;padding:14px 17px;background:#fff}
+#kr-office .kr-sale+.kr-sale{border-top:1px solid var(--kr-line)}
+#kr-office .kr-sale-main{min-width:0;overflow-wrap:anywhere}
+#kr-office .kr-sale-amount{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:2px}
+#kr-office .kr-voided .kr-sale-amount,#kr-office .kr-voided .kr-event-name{text-decoration:line-through;color:var(--kr-muted)}
+#kr-office .kr-void{padding:4px 0 0;min-height:30px;font-size:11px}
+#kr-office .kr-form{display:flex;flex-direction:column;gap:16px}
+#kr-office .kr-form-gap{margin-top:14px}
+#kr-office .kr-field{display:block}
+#kr-office .kr-field .kr-label{margin-bottom:7px}
+#kr-office .kr-input{width:100%;height:44px;border:1px solid #cbd0e0;border-radius:10px;padding:0 12px;font-size:16px;color:var(--kr-ink);background:#fff;font-variant-numeric:tabular-nums}
+#kr-office select.kr-input{appearance:none;-webkit-appearance:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7080' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center/16px;padding-right:36px}
+#kr-office input[type=date].kr-input{-webkit-appearance:none;appearance:none;display:flex;align-items:center}
+#kr-office .kr-input-big{height:56px;font-size:28px;font-weight:600;letter-spacing:-.8px}
+#kr-office .kr-input:focus{outline:none;border-color:var(--kr-blue)}
+#kr-office .kr-chips{display:flex;flex-wrap:wrap;gap:8px}
+#kr-office .kr-chip{border:0;background:var(--kr-bg);border-radius:10px;padding:10px 12px;font-size:13px;min-height:40px}
+#kr-office .kr-chip.kr-on{background:var(--kr-blue);color:#fff;font-weight:600}
+#kr-office .kr-plan-row{display:grid;grid-template-columns:1fr 140px;align-items:center;gap:12px;font-size:13px}
+#kr-office .kr-plan-row .kr-input{text-align:right}
+#kr-office .kr-plan-total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--kr-line);padding-top:14px;font-size:13px}
+#kr-office .kr-plan-total strong{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+#kr-office .kr-form .kr-save{margin-top:2px}
+#kr-office .kr-form .kr-error,#kr-office .kr-form .kr-caption{margin:0}
+@media(max-width:380px){#kr-office .kr-plan-row{grid-template-columns:1fr 120px}#kr-office .kr-sale{padding:12px 14px}}
 @media(max-width:380px){#kr-office .kr-top{padding:18px}#kr-office .kr-content{padding:16px 12px calc(110px + env(safe-area-inset-bottom))}#kr-office .kr-panel{padding:17px}#kr-office .kr-fact{font-size:28px}#kr-office .kr-plan{font-size:20px}#kr-office .kr-moneyline{gap:10px}#kr-office .kr-week{gap:7px}#kr-office .kr-event{padding:14px}#kr-office .kr-budget{padding:0 14px}#kr-office .kr-budget table{font-size:11px}}
 @media(prefers-reduced-motion:reduce){#kr-office .kr-bar>span{transition:none}}

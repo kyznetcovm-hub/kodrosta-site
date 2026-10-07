@@ -17,14 +17,18 @@
 //   GET  /api/office/data       — данные экранов: события текущего месяца по Москве
 //                                 (прошедшие) и все будущие, с регистрациями и планом
 //   POST /api/office/event-plan — { eventId, plan } — план участников (null — снять)
+//   GET  /api/office/money?month=YYYY-MM — деньги месяца (см. office-money.js)
+//   POST /api/office/sales      — { clientId, date, amountKop, source, eventId?, comment? }
+//   POST /api/office/sales/void — { id } — отменить запись (не удаляется)
+//   POST /api/office/plans      — { month, sources: { new, renewal, events, ads }, weeks: [..] }
 //
 // Регистрации = записи на событие (бот, сайт, вручную, старые заявки с сайта)
 // без повторов — та же функция, что «Список участников» в боте. Участники
 // группы мероприятия не считаются: это состав чата, а не записи.
-// Деньги пока не отдаются — их ввод появится на следующем этапе.
 
 import { normalizeUsername, collectEventRegistrations } from "./engagement.js";
 import { listEventsFrom, getEventById, setEventPlan, isTurizmEvent } from "./events-store.js";
+import { getMonthMoney, addSale, voidSale, savePlans, isValidMonth } from "./office-money.js";
 
 // initData живёт, пока открыт Mini App; сутки — с запасом на «открыл утром,
 // смотрит вечером», и всё ещё не позволяет пользоваться утёкшей строкой вечно.
@@ -145,16 +149,25 @@ async function handleData(env, user) {
       plan: e.plan,
     });
   }
-  return json({ ok: true, now: now.toISOString(), month, user: officeUser(user), events: out });
+  const money = await getMonthMoney(env.DB, month);
+  return json({ ok: true, now: now.toISOString(), month, user: officeUser(user), events: out, money });
+}
+
+async function readJson(request) {
+  try {
+    return await request.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+function result(r) {
+  return r.ok ? json(r) : json(r, r.error === "not_found" ? 404 : 400);
 }
 
 async function handleEventPlan(request, env) {
-  let body;
-  try {
-    body = await request.json();
-  } catch (e) {
-    return json({ ok: false, error: "bad_json" }, 400);
-  }
+  const body = await readJson(request);
+  if (!body) return json({ ok: false, error: "bad_json" }, 400);
   const eventId = body && typeof body.eventId === "string" ? body.eventId : "";
   const plan = body ? body.plan : undefined;
   if (!eventId) return json({ ok: false, error: "no_event" }, 400);
@@ -182,6 +195,30 @@ export async function handleOfficeApi(request, env, path) {
 
   if (path === "/api/office/event-plan" && request.method === "POST") {
     return handleEventPlan(request, env);
+  }
+
+  if (path === "/api/office/money" && request.method === "GET") {
+    const month = new URL(request.url).searchParams.get("month");
+    if (!isValidMonth(month)) return json({ ok: false, error: "bad_month" }, 400);
+    return json({ ok: true, money: await getMonthMoney(env.DB, month) });
+  }
+
+  if (path === "/api/office/sales" && request.method === "POST") {
+    const body = await readJson(request);
+    if (!body) return json({ ok: false, error: "bad_json" }, 400);
+    return result(await addSale(env.DB, body, user));
+  }
+
+  if (path === "/api/office/sales/void" && request.method === "POST") {
+    const body = await readJson(request);
+    if (!body) return json({ ok: false, error: "bad_json" }, 400);
+    return result(await voidSale(env.DB, body.id, user));
+  }
+
+  if (path === "/api/office/plans" && request.method === "POST") {
+    const body = await readJson(request);
+    if (!body) return json({ ok: false, error: "bad_json" }, 400);
+    return result(await savePlans(env.DB, body.month, body, user));
   }
 
   return json({ ok: false, error: "not_found" }, 404);

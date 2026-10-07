@@ -133,7 +133,7 @@ function eventsEnv(t) {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec(`CREATE TABLE residents (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT, phone TEXT,
     telegram_username TEXT, chat_id INTEGER UNIQUE, active INTEGER DEFAULT 1);
-    INSERT INTO residents (full_name, telegram_username, chat_id) VALUES ('Михаил', 'mytolstoy', 111), ('Иван', 'ivan', NULL);
+    INSERT INTO residents (full_name, telegram_username, chat_id) VALUES ('Михаил', 'mytolstoy', 111), ('Код Роста', 'kodrosta', 222), ('Иван', 'ivan', NULL);
     CREATE TABLE touches (id INTEGER PRIMARY KEY AUTOINCREMENT, resident_id INTEGER, kind TEXT, note TEXT,
       person_name TEXT, person_username TEXT, created_at TEXT);`);
   // схема events — до плана участников, как в рабочей базе сейчас
@@ -266,4 +266,104 @@ test('бот «Список участников» после выноса по�
   assert.match(text, /С сайта: 2/);
   assert.match(text, /Добавлены вручную: 1/);
   assert.match(text, /✅ Иван/);
+});
+
+// ---- Этап 4: деньги -------------------------------------------------------------
+import { monthWeeks, moscowDay } from '../src/office-money.js';
+
+function moneyEnv(t) {
+  const { sqlite, env } = eventsEnv(t);
+  // D1 batch — одной транзакцией
+  env.DB.batch = async (stmts) => {
+    sqlite.exec('BEGIN');
+    try { const out = []; for (const s of stmts) out.push(await s.run()); sqlite.exec('COMMIT'); return out; }
+    catch (e) { sqlite.exec('ROLLBACK'); throw e; }
+  };
+  return { sqlite, env };
+}
+
+function call(env, path, body, who = { id: 111, first_name: 'Михаил', username: 'mytolstoy' }) {
+  const headers = { authorization: 'tma ' + initDataFor(who) };
+  const init = body === undefined ? { headers } : { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(body) };
+  return worker.fetch(new Request('https://codrosta.club' + path, init), env, {});
+}
+
+test('недели октября 2026: 1–4, 5–11, 12–18, 19–25, 26–31', () => {
+  assert.deepEqual(monthWeeks('2026-10').map((w) => w.from.slice(8) + '–' + w.to.slice(8)), ['01–04', '05–11', '12–18', '19–25', '26–31']);
+  assert.equal(monthWeeks('2026-02').at(-1).to, '2026-02-28');
+});
+
+test('продажи: итоги месяца = сумма недель = сумма статей; отмена и повтор', async (t) => {
+  const { env } = moneyEnv(t);
+  const kodrosta = { id: 222, first_name: 'Код Роста', username: 'Kodrosta' };
+  const add = (clientId, date, rub, source, extra = {}) => call(env, '/api/office/sales', { clientId, date, amountKop: rub * 100, source, ...extra }, kodrosta);
+
+  assert.equal((await add('a1', '2026-09-01', 50000, 'new')).status, 200);
+  assert.equal((await add('a2', '2026-09-04', 25000, 'renewal')).status, 200);
+  assert.equal((await add('a3', '2026-09-07', 15000, 'events', { eventId: 'x', comment: 'Иванов, бизнес-баня' })).status, 200);
+  assert.equal((await add('a4', '2026-09-30', 7000, 'ads')).status, 200);
+  assert.equal((await add('a5', '2026-10-01', 999, 'ads')).status, 200); // октябрь — в сентябрь не входит
+  // двойное нажатие / повтор после потери сети — та же форма, дубля нет
+  const again = await (await add('a1', '2026-09-01', 50000, 'new')).json();
+  assert.equal(again.duplicate, true);
+  // ошибочная запись — отменяем
+  const wrong = await (await add('a6', '2026-09-02', 100000, 'new')).json();
+  assert.equal((await call(env, '/api/office/sales/void', { id: wrong.id })).status, 200);
+
+  const m = (await (await call(env, '/api/office/money?month=2026-09')).json()).money;
+  assert.equal(m.factKop, 97000 * 100);
+  assert.equal(m.weeks.reduce((a, w) => a + w.factKop, 0), m.factKop);
+  assert.equal(m.sources.reduce((a, s) => a + s.factKop, 0), m.factKop);
+  assert.deepEqual(m.weeks.map((w) => w.factKop / 100), [75000, 15000, 0, 0, 7000]);
+  assert.deepEqual(m.weeks[0].bySource.map((v) => v / 100), [50000, 25000, 0, 0]);
+  assert.deepEqual(m.sources.map((s) => s.factKop / 100), [50000, 25000, 15000, 7000]);
+  assert.equal(m.planKop, null); // план не задан — не ноль
+  assert.equal(m.sales.length, 5);
+  const voided = m.sales.find((s) => s.id === wrong.id);
+  assert.equal(voided.voided, true);
+  assert.equal(voided.voidedBy, 'mytolstoy');
+  assert.equal(m.sales.find((s) => s.source === 'new' && !s.voided).createdBy, 'kodrosta');
+});
+
+test('продажи: неверные данные отклоняются', async (t) => {
+  const { env } = moneyEnv(t);
+  const bad = async (body) => (await call(env, '/api/office/sales', { clientId: 'c' + Math.random(), date: '2026-10-01', amountKop: 100, source: 'new', ...body })).status;
+  assert.equal(await bad({ amountKop: 0 }), 400);
+  assert.equal(await bad({ amountKop: -500 }), 400);
+  assert.equal(await bad({ amountKop: 10.5 }), 400);
+  assert.equal(await bad({ source: 'other' }), 400);
+  assert.equal(await bad({ date: '2026-02-30' }), 400);
+  assert.equal(await bad({ date: '2999-01-01' }), 400); // будущее — денег ещё нет
+  assert.equal(await bad({ clientId: '' }), 400);
+  const stranger = await call(env, '/api/office/sales', { clientId: 'z', date: '2026-10-01', amountKop: 100, source: 'new' }, { id: 999, username: 'x' });
+  assert.equal(stranger.status, 403);
+});
+
+test('планы: месяц = сумма статей, недели отдельно, снятие плана', async (t) => {
+  const { env } = moneyEnv(t);
+  const save = (body) => call(env, '/api/office/plans', { month: '2026-10', ...body });
+  assert.equal((await save({ sources: { new: 200000_00, renewal: 150000_00, events: 100000_00, ads: null }, weeks: [90000_00, 110000_00, 100000_00, 90000_00, 60000_00] })).status, 200);
+  let m = (await (await call(env, '/api/office/money?month=2026-10')).json()).money;
+  assert.equal(m.planKop, 450000_00);
+  assert.deepEqual(m.sources.map((s) => s.planKop), [200000_00, 150000_00, 100000_00, null]);
+  assert.deepEqual(m.weeks.map((w) => w.planKop / 100), [90000, 110000, 100000, 90000, 60000]);
+  // снять план недели и статьи
+  assert.equal((await save({ sources: { new: 200000_00, renewal: null, events: null, ads: null }, weeks: [null, 1000_00] })).status, 200);
+  m = (await (await call(env, '/api/office/money?month=2026-10')).json()).money;
+  assert.equal(m.planKop, 200000_00);
+  assert.deepEqual(m.weeks.map((w) => w.planKop), [null, 1000_00, null, null, null]);
+  assert.equal((await save({ sources: { new: -1 } })).status, 400);
+  assert.equal((await save({ weeks: [1, 2, 3, 4, 5, 6] })).status, 400); // в октябре 5 недель
+  assert.equal((await call(env, '/api/office/plans', { month: '2026-13', sources: {} })).status, 400);
+  // ноябрь отдельно
+  m = (await (await call(env, '/api/office/money?month=2026-11')).json()).money;
+  assert.equal(m.planKop, null);
+});
+
+test('/api/office/data отдаёт деньги текущего месяца по Москве', async (t) => {
+  const { env } = moneyEnv(t);
+  await call(env, '/api/office/sales', { clientId: 'today', date: moscowDay(new Date()), amountKop: 123456, source: 'ads' });
+  const d = await (await call(env, '/api/office/data')).json();
+  assert.equal(d.money.month, d.month);
+  assert.equal(d.money.factKop, 123456);
 });
