@@ -8,9 +8,11 @@
 // запросе. Сервер пускает только админов бота; иначе — экран «нет доступа».
 // На localhost без Telegram показываются демо-данные — для проверки дизайна.
 //
-// Пока цифры — демо-данные из макета (demoData ниже). Дальше loadData() будет
-// брать данные с сервера в том же формате:
-//   { demo, now, user: { firstName }, month: "YYYY-MM",
+// События и регистрации — настоящие, с сервера (GET /api/office/data); план
+// участников сохраняется там же (POST /api/office/event-plan). Деньги пока
+// условные — из макета (demoMoney), ввод продаж будет следующим этапом.
+// Формат данных экранов:
+//   { demo, moneyDemo, now, loadedAt, user: { firstName }, month: "YYYY-MM",
 //     money: { factRub, planRub, sources: [{ key, label, factRub, planRub }],
 //              weeks: [{ factRub, planRub, bySource: [..] }], note },
 //     events: [{ id, title, format, start, end, registered, plan }],
@@ -46,7 +48,22 @@
       now: "2026-10-07T12:00:00+03:00",
       user: { firstName: "Михаил" },
       month: "2026-10",
-      money: {
+      money: demoMoney(),
+      events: [
+        { id: "profiling", title: "Профайлинг", format: "Практикум", start: "2026-10-07T19:00:00+03:00", end: "2026-10-07T21:00:00+03:00", registered: 10, plan: 15 },
+        { id: "biznes-banya", title: "Бизнес-баня", format: "Встреча", start: "2026-10-08T18:00:00+03:00", end: "2026-10-08T22:00:00+03:00", registered: 8, plan: 12 },
+        { id: "vyhod-iz-krizisa", title: "Выход из кризиса: 4 шага", format: "Мастер-класс", start: "2026-10-14T19:00:00+03:00", end: "2026-10-14T21:00:00+03:00", registered: 12, plan: 20 },
+        { id: "rubezh", title: "РУБЕЖ", format: "Событие клуба", start: "2026-10-24T11:00:00+03:00", end: "2026-10-24T20:00:00+03:00", registered: 15, plan: 15 },
+        { id: "kod-dostupa", title: "Код Доступа", format: "День открытых дверей", start: "2026-10-28T18:00:00+03:00", end: "2026-10-28T21:00:00+03:00", registered: 18, plan: 40 },
+        { id: "kalorimetr-3", title: "Калориметр 3.0", format: "Марафон", start: "2026-10-01T10:00:00+03:00", end: "2026-10-01T12:00:00+03:00", registered: 24, plan: 30 }
+      ],
+      registrationsNote: null
+    };
+  }
+
+  // Деньги из макета — условные, в базу не попадают.
+  function demoMoney() {
+    return {
         factRub: 120000,
         planRub: 450000,
         sources: [
@@ -61,23 +78,21 @@
           { factRub: null, planRub: 90000 },
           { factRub: null, planRub: 60000 }
         ],
-        note: "В этом макете факт — полученные оплаты. Расходы и прибыль пока не включены."
-      },
-      events: [
-        { id: "profiling", title: "Профайлинг", format: "Практикум", start: "2026-10-07T19:00:00+03:00", end: "2026-10-07T21:00:00+03:00", registered: 10, plan: 15 },
-        { id: "biznes-banya", title: "Бизнес-баня", format: "Встреча", start: "2026-10-08T18:00:00+03:00", end: "2026-10-08T22:00:00+03:00", registered: 8, plan: 12 },
-        { id: "vyhod-iz-krizisa", title: "Выход из кризиса: 4 шага", format: "Мастер-класс", start: "2026-10-14T19:00:00+03:00", end: "2026-10-14T21:00:00+03:00", registered: 12, plan: 20 },
-        { id: "rubezh", title: "РУБЕЖ", format: "Событие клуба", start: "2026-10-24T11:00:00+03:00", end: "2026-10-24T20:00:00+03:00", registered: 15, plan: 15 },
-        { id: "kod-dostupa", title: "Код Доступа", format: "День открытых дверей", start: "2026-10-28T18:00:00+03:00", end: "2026-10-28T21:00:00+03:00", registered: 18, plan: 40 },
-        { id: "kalorimetr-3", title: "Калориметр 3.0", format: "Марафон", start: "2026-10-01T10:00:00+03:00", end: "2026-10-01T12:00:00+03:00", registered: 24, plan: 30 }
-      ],
-      registrationsNote: null
+        note: "Суммы условные, из макета: ввод продаж появится на следующем этапе."
     };
   }
 
+  var REGISTRATIONS_NOTE = "Учтены записи через бота, с сайта и добавленные в боте вручную; прежние ручные записи, которых нет в боте, не учтены.";
+
   // Запрос к /api/office/* с подписью Telegram. Ошибка доступа — err.denied.
-  function api(path) {
-    return fetch(path, { headers: { authorization: "tma " + initData } }).then(function (resp) {
+  function api(path, body) {
+    var opts = { headers: { authorization: "tma " + initData } };
+    if (body !== undefined) {
+      opts.method = "POST";
+      opts.headers["content-type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    return fetch(path, opts).then(function (resp) {
       if (resp.status === 401 || resp.status === 403) {
         var err = new Error("denied");
         err.denied = resp.status === 403 ? "forbidden" : "expired";
@@ -95,10 +110,18 @@
       err.denied = "outside";
       return Promise.reject(err);
     }
-    return api("/api/office/me").then(function (me) {
-      var d = demoData();
-      d.user = me.user;
-      return d;
+    return api("/api/office/data").then(function (d) {
+      return {
+        demo: false,
+        moneyDemo: true,
+        now: d.now,
+        loadedAt: new Date().toISOString(),
+        user: d.user,
+        month: d.month,
+        money: demoMoney(),
+        events: d.events,
+        registrationsNote: REGISTRATIONS_NOTE
+      };
     });
   }
 
@@ -207,9 +230,12 @@
     return "";
   }
 
+  // формат (категория) · сегодня/завтра; категорию, совпадающую с названием
+  // («Бизнес-баня» / «Бизнес-баня»), не повторяем
   function eventType(e) {
     var label = isPast(e) ? "" : dayLabel(e);
-    return esc(e.format || "Событие") + (label ? " · " + label : "");
+    var format = e.format && e.format.trim().toLowerCase() !== String(e.title).trim().toLowerCase() ? e.format : "";
+    return esc([format, label].filter(Boolean).join(" · ") || "Событие");
   }
 
   // красным — недобор у события, которое уже сегодня или завтра
@@ -322,9 +348,10 @@
 
   function renderEvents() {
     var up = upcomingEvents(), past = pastEvents();
-    var html = '<div class="kr-section-head"><h2>Предстоящие · ' + up.length + '</h2><span class="kr-month">' + capitalize(monthName()) + "</span></div>" +
+    // предстоящие — все будущие, в том числе следующих месяцев; прошедшие — этого месяца
+    var html = '<div class="kr-section-head"><h2>Предстоящие · ' + up.length + "</h2></div>" +
       eventList(up, "Предстоящих событий нет");
-    if (past.length) html += '<div class="kr-section-head"><h2>Прошедшие · ' + past.length + "</h2></div>" + eventList(past, "");
+    if (past.length) html += '<div class="kr-section-head"><h2>Прошедшие · ' + past.length + '</h2><span class="kr-month">' + capitalize(monthName()) + "</span></div>" + eventList(past, "");
     html += '<p class="kr-caption">В числителе — регистрации, в знаменателе — план участников.' +
       (data.registrationsNote ? " " + esc(data.registrationsNote) : "") + "</p>";
     return html;
@@ -397,7 +424,8 @@
       '<p class="kr-caption">Целевое число участников для этого события.</p>' +
       '<button class="kr-save" data-action="save-plan">Сохранить план</button><div id="kr-validation" role="status"></div></div></section>';
     if (data.demo) html += '<p class="kr-caption">Демо-режим: план меняется только на этом экране и не сохраняется.</p>';
-    else if (data.registrationsNote) html += '<p class="kr-caption">' + esc(data.registrationsNote) + "</p>";
+    else html += '<p class="kr-caption">План виден обоим аккаунтам офиса. Это цель, а не лимит: запись после него не закрывается.' +
+      (data.registrationsNote ? " " + esc(data.registrationsNote) : "") + "</p>";
     return html;
   }
 
@@ -436,9 +464,10 @@
     document.getElementById("kr-date").innerHTML = t.d + " " + MONTHS_GEN[t.m - 1] + "<br>" + t.y;
     document.getElementById("kr-title").textContent = state.selected !== null ? "Событие" : TITLES[state.page];
     document.getElementById("kr-subtitle").textContent = subtitle();
-    var demo = document.getElementById("kr-demo");
-    demo.hidden = !data.demo;
-    document.getElementById("kr-demo-text").textContent = "Демо-данные · суммы и регистрации условные";
+    var badge = data.demo ? "Демо-данные · суммы и регистрации условные"
+      : "Обновлено в " + timeHM(data.loadedAt) + (data.moneyDemo ? " · деньги пока условные" : "");
+    document.getElementById("kr-demo").hidden = false;
+    document.getElementById("kr-demo-text").textContent = badge;
     content.innerHTML = state.selected !== null ? renderDetail()
       : state.page === "home" ? renderHome()
       : state.page === "events" ? renderEvents()
@@ -447,7 +476,14 @@
     if (details) details.addEventListener("toggle", function () { state.budget = details.open; });
   }
 
+  function timeHM(iso) {
+    return new Intl.DateTimeFormat("ru-RU", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+  }
+
+  var savingPlan = false;
+
   function savePlan() {
+    if (savingPlan) return; // двойное нажатие не шлёт второй запрос
     var e = findEvent(state.selected);
     var input = document.getElementById("kr-slot-input");
     var out = document.getElementById("kr-validation");
@@ -456,9 +492,30 @@
       out.innerHTML = '<p class="kr-error" role="alert">Введите целое число больше нуля.</p>';
       return;
     }
-    e.plan = n;
-    render();
-    document.getElementById("kr-validation").innerHTML = '<p class="kr-saved">План обновлён.</p>';
+    if (data.demo) {
+      e.plan = n;
+      render();
+      document.getElementById("kr-validation").innerHTML = '<p class="kr-saved">План обновлён.</p>';
+      return;
+    }
+    var button = root.querySelector("[data-action=save-plan]");
+    savingPlan = true;
+    button.disabled = true;
+    button.textContent = "Сохраняем…";
+    out.innerHTML = "";
+    api("/api/office/event-plan", { eventId: e.id, plan: n }).then(function (res) {
+      savingPlan = false;
+      e.plan = res.plan;
+      render();
+      document.getElementById("kr-validation").innerHTML = '<p class="kr-saved">План сохранён.</p>';
+    }, function (err) {
+      savingPlan = false;
+      // введённое число остаётся в поле — можно нажать ещё раз
+      button.disabled = false;
+      button.textContent = "Сохранить план";
+      out.innerHTML = '<p class="kr-error" role="alert">' +
+        (err && err.denied ? DENIED_TEXT[err.denied] : "Не удалось сохранить — проверьте связь и нажмите ещё раз.") + "</p>";
+    });
   }
 
   // ---- Telegram: кнопка «Назад» в шапке, цвета оболочки ---------------------
@@ -548,6 +605,18 @@
       render();
     });
   }
+
+  // Вернулись в офис (свернули Telegram и открыли снова) — тихо обновляем данные,
+  // не сбрасывая открытый экран. При ошибке остаются прежние данные, не нули.
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState !== "visible" || !data || data.demo || state.loading || state.denied) return;
+    if (Date.now() - new Date(data.loadedAt).getTime() < 60000) return;
+    loadData().then(function (d) {
+      data = d;
+      if (state.selected !== null && !findEvent(state.selected)) state.selected = null;
+      render();
+    }, function () {});
+  });
 
   start();
 })();

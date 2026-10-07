@@ -124,3 +124,146 @@ test('кнопка «Офис» у поля ввода: ставится адм�
   await handleTelegramUpdate(msg(7001, 'someresident', 'привет'), env);
   assert.equal(calls.filter((c) => c.method.endsWith('ChatMenuButton')).length, 0);
 });
+
+// ---- Этап 3: события, регистрации, план участников --------------------------
+import { readFileSync } from 'node:fs';
+import { parseEventMessage, renderEventTemplate, insertEvent, updateEvent, getEventById } from '../src/events-store.js';
+
+function eventsEnv(t) {
+  const sqlite = new DatabaseSync(':memory:');
+  sqlite.exec(`CREATE TABLE residents (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT, phone TEXT,
+    telegram_username TEXT, chat_id INTEGER UNIQUE, active INTEGER DEFAULT 1);
+    INSERT INTO residents (full_name, telegram_username, chat_id) VALUES ('Михаил', 'mytolstoy', 111), ('Иван', 'ivan', NULL);
+    CREATE TABLE touches (id INTEGER PRIMARY KEY AUTOINCREMENT, resident_id INTEGER, kind TEXT, note TEXT,
+      person_name TEXT, person_username TEXT, created_at TEXT);`);
+  // схема events — до плана участников, как в рабочей базе сейчас
+  sqlite.exec(readFileSync(new URL('../migrations/0002_events.sql', import.meta.url), 'utf8'));
+  sqlite.exec(readFileSync(new URL('../migrations/0006_event_signups.sql', import.meta.url), 'utf8'));
+  t.after(() => sqlite.close());
+  const DB = { prepare(sql) { const st = sqlite.prepare(sql); let v = []; return {
+    bind(...a) { v = a; return this; },
+    async first() { return st.get(...v) ?? null; },
+    async all() { return { results: st.all(...v) }; },
+    async run() { return { meta: { changes: Number(st.run(...v).changes) } }; },
+  }; } };
+  return { sqlite, env: { DB, BOT_TOKEN, ADMIN_USERNAMES: 'mytolstoy,Kodrosta' } };
+}
+
+function addEvent(sqlite, id, title, start, tag = 'Обучение') {
+  sqlite.prepare(`INSERT INTO events (id, title, tag, start, end, place, description, created_at)
+    VALUES (?, ?, ?, ?, ?, 'Место', 'Описание', '2026-01-01')`).run(id, title, tag, start, start.slice(0, 11) + '23:00:00');
+}
+
+function moscowNow(offsetDays) {
+  const d = new Date(Date.now() + offsetDays * 86400000 + 3 * 3600000);
+  return d.toISOString().slice(0, 11) + '12:00:00';
+}
+
+const auth = () => ({ authorization: 'tma ' + initDataFor({ id: 111, first_name: 'Михаил', username: 'mytolstoy' }) });
+
+test('офис: регистрации без повторов, план, будущие события и Туризм', async (t) => {
+  const { sqlite, env } = eventsEnv(t);
+  addEvent(sqlite, 'future', 'Будущее', moscowNow(5));
+  addEvent(sqlite, 'turizm-trip', 'Поездка', moscowNow(10), 'Туризм');
+  addEvent(sqlite, 'old', 'Давнее', '2020-01-10T10:00:00');
+  const ins = sqlite.prepare("INSERT INTO event_signups (event_id, source, tg_user_id, username, person_name, phone, created_at) VALUES (?, ?, ?, ?, ?, ?, '2026')");
+  ins.run('future', 'bot', 1, 'ivan', 'Иван', null);
+  ins.run('future', 'site', null, 'ivan', 'Иван', '79990000000'); // тот же человек — не дубль
+  ins.run('future', 'site', null, null, 'Пётр', '79991111111');
+  ins.run('future', 'manual', null, 'olga', 'Ольга', null);
+  sqlite.prepare("INSERT INTO touches (kind, note, person_name, person_username) VALUES ('event_signup', 'Будущее', 'Анна', 'anna')").run();
+
+  const resp = await worker.fetch(new Request('https://codrosta.club/api/office/data', { headers: auth() }), env, {});
+  assert.equal(resp.status, 200);
+  const body = await resp.json();
+  const ids = body.events.map((e) => e.id);
+  assert.deepEqual(ids, ['future', 'turizm-trip']); // давнее (не этого месяца) не приходит
+  const future = body.events[0];
+  assert.equal(future.registered, 4); // Иван, Пётр, Ольга, Анна
+  assert.equal(future.plan, null);
+  assert.match(future.start, /\+03:00$/);
+  assert.equal(body.events[1].turizm, true);
+  assert.equal(body.user.firstName, 'Михаил');
+});
+
+test('офис: план сохраняется (колонка добавляется сама), неверный — 400, чужой — 403', async (t) => {
+  const { sqlite, env } = eventsEnv(t);
+  addEvent(sqlite, 'future', 'Будущее', moscowNow(5));
+  const post = (body, headers = auth()) => worker.fetch(new Request('https://codrosta.club/api/office/event-plan', {
+    method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(body) }), env, {});
+
+  assert.equal((await post({ eventId: 'future', plan: 0 })).status, 400);
+  assert.equal((await post({ eventId: 'future', plan: 2.5 })).status, 400);
+  assert.equal((await post({ eventId: 'nope', plan: 10 })).status, 404);
+  assert.equal((await post({ eventId: 'future', plan: 10 }, { authorization: 'tma ' + initDataFor({ id: 999, username: 'x' }) })).status, 403);
+  const ok = await post({ eventId: 'future', plan: 15 });
+  assert.equal(ok.status, 200);
+  assert.equal((await getEventById(env.DB, 'future')).plan, 15);
+
+  const data = await (await worker.fetch(new Request('https://codrosta.club/api/office/data', { headers: auth() }), env, {})).json();
+  assert.equal(data.events[0].plan, 15);
+  assert.equal((await post({ eventId: 'future', plan: null })).status, 200);
+  assert.equal((await getEventById(env.DB, 'future')).plan, null);
+});
+
+const TEMPLATE = (plan) => `Дата: 20 декабря
+Время: 18:00 — 20:00
+Место проведения (название): Офис
+Адрес: ул. Ленина, 1
+Название мероприятия: Тестовая встреча
+Категория: Нетворкинг
+${plan === undefined ? '' : 'План участников (сколько человек хотим собрать, числом): ' + plan + '\n'}Описание: Короткое описание.
+
+Регистрация:`;
+
+test('шаблон: «План участников» разбирается и не попадает в описание', () => {
+  const r = parseEventMessage(TEMPLATE(25));
+  assert.equal(r.ok, true);
+  assert.equal(r.event.plan, 25);
+  assert.equal(r.event.description, 'Короткое описание.');
+  assert.equal(parseEventMessage(TEMPLATE('')).event.plan, null);
+  assert.equal(parseEventMessage(TEMPLATE(undefined)).event.plan, undefined);
+  const bad = parseEventMessage(TEMPLATE('двадцать'));
+  assert.equal(bad.ok, false);
+  assert.ok(bad.missing.some((m) => m.startsWith('План участников')));
+});
+
+test('шаблон: план сохраняется при создании, показывается при редактировании и не стирается старым текстом', async (t) => {
+  const { env } = eventsEnv(t);
+  const id = await insertEvent(env.DB, parseEventMessage(TEMPLATE(25)).event, 'mytolstoy');
+  let e = await getEventById(env.DB, id);
+  assert.equal(e.plan, 25);
+  assert.match(renderEventTemplate(e), /^План участников: 25$/m);
+  // правка текстом без строки плана — план остаётся
+  await updateEvent(env.DB, id, parseEventMessage(TEMPLATE(undefined)).event);
+  assert.equal((await getEventById(env.DB, id)).plan, 25);
+  // отредактировали «как сейчас» с новым числом
+  await updateEvent(env.DB, id, parseEventMessage(renderEventTemplate(e).replace('План участников: 25', 'План участников: 30')).event);
+  e = await getEventById(env.DB, id);
+  assert.equal(e.plan, 30);
+});
+
+test('бот «Список участников» после выноса подсчёта: те же 4 записи, что в офисе', async (t) => {
+  const { handleTelegramUpdate } = await import('../src/engagement.js');
+  const { sqlite, env } = eventsEnv(t);
+  sqlite.exec(`CREATE TABLE pending_edits (telegram_user_id INTEGER PRIMARY KEY, section TEXT, created_at TEXT);`);
+  addEvent(sqlite, 'future', 'Будущее', moscowNow(5));
+  const ins = sqlite.prepare("INSERT INTO event_signups (event_id, source, tg_user_id, username, person_name, phone, created_at) VALUES (?, ?, ?, ?, ?, ?, '2026')");
+  ins.run('future', 'bot', 1, 'ivan', 'Иван', null);
+  ins.run('future', 'site', null, 'ivan', 'Иван', '79990000000');
+  ins.run('future', 'site', null, null, 'Пётр', '79991111111');
+  ins.run('future', 'manual', null, 'olga', 'Ольга', null);
+  sqlite.prepare("INSERT INTO touches (kind, note, person_name, person_username) VALUES ('event_signup', 'Будущее', 'Анна', 'anna')").run();
+  const sent = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (String(url).endsWith('/sendMessage')) sent.push(JSON.parse(options.body).text);
+    return Response.json({ ok: true, result: { type: 'web_app', web_app: { url: 'https://codrosta.club/office' } } });
+  });
+  await handleTelegramUpdate({ callback_query: { id: 'q', from: { id: 111, username: 'mytolstoy' }, data: 'es:future' } }, env);
+  const text = sent.join('\n');
+  assert.match(text, /ИТОГО участников: 4/);
+  assert.match(text, /Через бота \(ссылка\): 1/);
+  assert.match(text, /С сайта: 2/);
+  assert.match(text, /Добавлены вручную: 1/);
+  assert.match(text, /✅ Иван/);
+});

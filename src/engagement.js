@@ -302,6 +302,7 @@ function eventTemplateText(direction) {
     "Адрес: ",
     "Название мероприятия: ",
     ...(turizm ? [] : ["Категория (Обучение / Нетворкинг / Диалог с властью / Экспертиза резидентов / Семейный формат / другое): "]),
+    "План участников (сколько человек хотим собрать, числом): ",
     "Описание: ",
     "",
     "Регистрация: (обычно оставьте пустым — ссылку на событие для поста я пришлю сам после публикации; сюда — только если у мероприятия есть Telegram-чат, человек увидит его после записи)",
@@ -555,28 +556,14 @@ function formatPerson(name, username) {
   return null;
 }
 
-async function handleEventSignupsDetail(msg, env, id) {
-  if (!env.DB) return;
-  const e = await getEventById(env.DB, id);
-  if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
-
-  // Резиденты клуба — чтобы пометить их в списке ✅ и посчитать «резиденты / гости».
-  // Опознаём по привязке записи к резиденту, а если её нет — по @нику.
-  const { results: residentRows } = await env.DB.prepare(
-    "SELECT id, telegram_username FROM residents WHERE active = 1"
-  ).all();
-  const residentIds = new Set((residentRows || []).map((r) => r.id));
-  const residentUsernames = new Set(
-    (residentRows || []).map((r) => normalizeUsername(r.telegram_username)).filter(Boolean)
-  );
-  let residentCount = 0;
-  function mark(display, residentId, username) {
-    const isResident = (residentId != null && residentIds.has(residentId)) ||
-      (!!username && residentUsernames.has(normalizeUsername(username)));
-    if (isResident) residentCount++;
-    return (isResident ? "✅ " : "") + display;
-  }
-
+// Записи на мероприятие из всех источников, без повторов одного человека:
+// бот (ссылка) → сайт → вручную → старые заявки с сайта (touches, по названию).
+// Возвращает списки имён для показа. Участники привязанной группы сюда НЕ входят —
+// это состав чата, а не записи. Общая для «Списка участников» в боте и для
+// счётчика регистраций в Mini App «Офис в кармане» (src/office.js), чтобы числа
+// совпадали. mark(display, residentId, username) — оформление строки (✅ резидента).
+export async function collectEventRegistrations(env, e, mark) {
+  mark = mark || function (display) { return display; };
   // username-и и телефоны, уже учтённые более надёжными источниками —
   // чтобы не считать одного человека дважды.
   const takenUsernames = new Set();
@@ -594,7 +581,7 @@ async function handleEventSignupsDetail(msg, env, id) {
   }
 
   // Источник 1 — записи через бота (ссылка-диплинк), с сайта и добавленные вручную.
-  const signupRows = await listEventSignups(env, id);
+  const signupRows = await listEventSignups(env, e.id);
   const botNames = [];
   const siteNames = [];
   const manualNames = [];
@@ -639,6 +626,32 @@ async function handleEventSignupsDetail(msg, env, id) {
   botNames.sort(byNameRu);
   siteNames.sort(byNameRu);
   manualNames.sort(byNameRu);
+  return { botNames, siteNames, manualNames };
+}
+
+async function handleEventSignupsDetail(msg, env, id) {
+  if (!env.DB) return;
+  const e = await getEventById(env.DB, id);
+  if (!e) return sendMessage(env, msg.from.id, `Не нашёл мероприятие с id ${id}`, { inline_keyboard: [backButtonRow()] });
+
+  // Резиденты клуба — чтобы пометить их в списке ✅ и посчитать «резиденты / гости».
+  // Опознаём по привязке записи к резиденту, а если её нет — по @нику.
+  const { results: residentRows } = await env.DB.prepare(
+    "SELECT id, telegram_username FROM residents WHERE active = 1"
+  ).all();
+  const residentIds = new Set((residentRows || []).map((r) => r.id));
+  const residentUsernames = new Set(
+    (residentRows || []).map((r) => normalizeUsername(r.telegram_username)).filter(Boolean)
+  );
+  let residentCount = 0;
+  function mark(display, residentId, username) {
+    const isResident = (residentId != null && residentIds.has(residentId)) ||
+      (!!username && residentUsernames.has(normalizeUsername(username)));
+    if (isResident) residentCount++;
+    return (isResident ? "✅ " : "") + display;
+  }
+
+  const { botNames, siteNames, manualNames } = await collectEventRegistrations(env, e, mark);
 
   // Источник 2 — участники привязанной Telegram-группы (если привязана)
   let groupNames = null;

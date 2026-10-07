@@ -52,7 +52,7 @@ function extractField(text, labels) {
 
 var ALL_LABELS = [
   "Дата", "Время", "Место проведения \\(название\\)", "Место проведения", "Место",
-  "Адрес", "Название мероприятия", "Название", "Категория[^:]*", "Описание", "Регистрация",
+  "Адрес", "Название мероприятия", "Название", "Категория[^:]*", "План участников[^:]*", "Описание", "Регистрация",
 ];
 
 function extractDescription(text) {
@@ -136,6 +136,7 @@ export function parseEventMessage(text, now) {
   var tagField = extractField(text, ["Категория[^:]*"]);
   var descriptionRaw = extractDescription(text);
   var registerField = extractField(text, ["Регистрация"]);
+  var planField = extractField(text, ["План участников[^:]*"]);
 
   var missing = [];
   if (!dateField || !dateField.value.trim()) missing.push("Дата");
@@ -148,6 +149,15 @@ export function parseEventMessage(text, now) {
   if (dateField && !parsedDate) missing.push("Дата (не смог разобрать — формат «26 августа»)");
   var parsedTime = timeField ? parseTimeRange(timeField.value) : null;
   if (timeField && !parsedTime) missing.push("Время (не смог разобрать — формат «16:00 — 18:00»)");
+  // План участников — необязателен. Нет строки — plan не трогаем (undefined),
+  // строка пустая — плана нет (null), иначе — целое число больше нуля.
+  var plan;
+  if (planField) {
+    var planRaw = planField.value.trim();
+    if (!planRaw) plan = null;
+    else if (/^\d+$/.test(planRaw) && parseInt(planRaw, 10) > 0) plan = parseInt(planRaw, 10);
+    else missing.push("План участников (целое число, например «20», или оставьте пустым)");
+  }
 
   if (missing.length) return { ok: false, missing: missing };
 
@@ -176,6 +186,7 @@ export function parseEventMessage(text, now) {
       description: shortened.short,
       fullDescription: fullDescription,
       registerUrl: registerUrl,
+      plan: plan,
     },
   };
 }
@@ -183,6 +194,33 @@ export function parseEventMessage(text, now) {
 function toIsoLocal(d) {
   function pad(n) { return String(n).padStart(2, "0"); }
   return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":00";
+}
+
+// План участников (events.plan_participants) — целевое число людей для
+// Mini App «Офис в кармане». Это НЕ лимит записи: регистрацию он не закрывает.
+// Колонку добавляем сами, если её ещё нет (как ensureSignupTables) — так не
+// нужно отдельно запускать миграцию; migrations/0010 — для истории схемы.
+var planColumnReady = new WeakSet(); // по объекту базы: проверяем раз на экземпляр Worker'а
+
+export async function ensureEventPlanColumn(db) {
+  if (planColumnReady.has(db)) return;
+  var { results } = await db.prepare("PRAGMA table_info(events)").all();
+  var has = (results || []).some(function (c) { return c.name === "plan_participants"; });
+  if (!has) {
+    try {
+      await db.prepare("ALTER TABLE events ADD COLUMN plan_participants INTEGER").run();
+    } catch (e) {
+      // параллельный запрос мог добавить её раньше — это не ошибка
+      if (!/duplicate column/i.test(String(e && e.message))) throw e;
+    }
+  }
+  planColumnReady.add(db);
+}
+
+export async function setEventPlan(db, id, plan) {
+  await ensureEventPlanColumn(db);
+  var res = await db.prepare("UPDATE events SET plan_participants = ? WHERE id = ?").bind(plan, id).run();
+  return res.meta && res.meta.changes > 0;
 }
 
 export async function insertEvent(db, event, createdBy) {
@@ -196,6 +234,7 @@ export async function insertEvent(db, event, createdBy) {
     event.fullDescription ? JSON.stringify(event.fullDescription) : null,
     event.registerUrl, new Date().toISOString(), createdBy || null
   ).run();
+  if (event.plan) await setEventPlan(db, id, event.plan);
   return id;
 }
 
@@ -207,6 +246,8 @@ export async function updateEvent(db, id, event) {
     event.fullDescription ? JSON.stringify(event.fullDescription) : null,
     event.registerUrl, id
   ).run();
+  // строки «План участников» в тексте не было — план не трогаем
+  if (event.plan !== undefined) await setEventPlan(db, id, event.plan);
 }
 
 export async function getEventById(db, id) {
@@ -245,6 +286,7 @@ export function renderEventTemplate(event) {
     "Адрес: " + address,
     "Название мероприятия: " + event.title,
     "Категория: " + event.tag,
+    "План участников: " + (event.plan || ""),
     "Описание: " + description,
     "",
     "Регистрация: " + (event.registerUrl || ""),
@@ -261,6 +303,13 @@ export function isTurizmEvent(event) {
 export async function listUpcomingEvents(db) {
   var nowIso = new Date().toISOString().slice(0, 19);
   var { results } = await db.prepare("SELECT * FROM events WHERE start >= ? ORDER BY start ASC").bind(nowIso).all();
+  return (results || []).map(rowToEvent);
+}
+
+// Для «Офиса в кармане»: всё, что начинается не раньше fromIso (начало месяца
+// по Москве) — прошедшие этого месяца и все будущие.
+export async function listEventsFrom(db, fromIso) {
+  var { results } = await db.prepare("SELECT * FROM events WHERE start >= ? ORDER BY start ASC").bind(fromIso).all();
   return (results || []).map(rowToEvent);
 }
 
@@ -282,5 +331,6 @@ function rowToEvent(row) {
     registerUrl: row.register_url || undefined,
     signupChatId: row.signup_chat_id || null,
     createdAt: row.created_at || null,
+    plan: row.plan_participants || null,
   };
 }

@@ -13,9 +13,18 @@
 // username недостаточно: ник можно сменить, и его может занять другой человек.
 //
 // Эндпоинты:
-//   GET /api/office/me — кто вошёл ({ ok, user: { id, username, firstName } })
+//   GET  /api/office/me         — кто вошёл ({ ok, user: { id, username, firstName } })
+//   GET  /api/office/data       — данные экранов: события текущего месяца по Москве
+//                                 (прошедшие) и все будущие, с регистрациями и планом
+//   POST /api/office/event-plan — { eventId, plan } — план участников (null — снять)
+//
+// Регистрации = записи на событие (бот, сайт, вручную, старые заявки с сайта)
+// без повторов — та же функция, что «Список участников» в боте. Участники
+// группы мероприятия не считаются: это состав чата, а не записи.
+// Деньги пока не отдаются — их ввод появится на следующем этапе.
 
-import { normalizeUsername } from "./engagement.js";
+import { normalizeUsername, collectEventRegistrations } from "./engagement.js";
+import { listEventsFrom, getEventById, setEventPlan, isTurizmEvent } from "./events-store.js";
 
 // initData живёт, пока открыт Mini App; сутки — с запасом на «открыл утром,
 // смотрит вечером», и всё ещё не позволяет пользоваться утёкшей строкой вечно.
@@ -99,21 +108,80 @@ async function authenticate(request, env) {
   return { user };
 }
 
+function officeUser(user) {
+  const username = normalizeUsername(user.username) || null;
+  return { id: user.id, username, firstName: SHARED_ACCOUNTS.includes(username) ? null : user.first_name || null };
+}
+
+// Даты мероприятий в базе — московское время без пояса ("2026-10-08T18:00:00");
+// в Москве нет перехода на летнее время, поэтому пояс всегда +03:00.
+function withMoscowOffset(local) {
+  if (!local) return null;
+  if (/[zZ]|[+-]\d\d:\d\d$/.test(local)) return local;
+  return (local.length === 16 ? local + ":00" : local) + "+03:00";
+}
+
+function moscowMonth(date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Moscow", year: "numeric", month: "2-digit" }).format(date).slice(0, 7);
+}
+
+const PLAN_MAX = 100000; // защита от опечатки, не бизнес-правило
+
+async function handleData(env, user) {
+  const now = new Date();
+  const month = moscowMonth(now);
+  const events = await listEventsFrom(env.DB, month + "-01T00:00:00");
+  const out = [];
+  for (const e of events) {
+    const r = await collectEventRegistrations(env, e);
+    out.push({
+      id: e.id,
+      title: e.title,
+      format: e.tag || null,
+      turizm: isTurizmEvent(e),
+      start: withMoscowOffset(e.start),
+      end: withMoscowOffset(e.end),
+      registered: r.botNames.length + r.siteNames.length + r.manualNames.length,
+      plan: e.plan,
+    });
+  }
+  return json({ ok: true, now: now.toISOString(), month, user: officeUser(user), events: out });
+}
+
+async function handleEventPlan(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return json({ ok: false, error: "bad_json" }, 400);
+  }
+  const eventId = body && typeof body.eventId === "string" ? body.eventId : "";
+  const plan = body ? body.plan : undefined;
+  if (!eventId) return json({ ok: false, error: "no_event" }, 400);
+  if (plan !== null && !(Number.isInteger(plan) && plan > 0 && plan <= PLAN_MAX)) {
+    return json({ ok: false, error: "bad_plan" }, 400);
+  }
+  const event = await getEventById(env.DB, eventId);
+  if (!event) return json({ ok: false, error: "not_found" }, 404);
+  await setEventPlan(env.DB, eventId, plan);
+  return json({ ok: true, eventId, plan });
+}
+
 export async function handleOfficeApi(request, env, path) {
   const auth = await authenticate(request, env);
   if (auth.response) return auth.response;
   const user = auth.user;
 
   if (path === "/api/office/me" && request.method === "GET") {
-    const username = normalizeUsername(user.username) || null;
-    return json({
-      ok: true,
-      user: {
-        id: user.id,
-        username,
-        firstName: SHARED_ACCOUNTS.includes(username) ? null : user.first_name || null,
-      },
-    });
+    return json({ ok: true, user: officeUser(user) });
+  }
+
+  if (path === "/api/office/data" && request.method === "GET") {
+    return handleData(env, user);
+  }
+
+  if (path === "/api/office/event-plan" && request.method === "POST") {
+    return handleEventPlan(request, env);
   }
 
   return json({ ok: false, error: "not_found" }, 404);
