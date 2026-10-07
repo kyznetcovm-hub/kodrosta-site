@@ -13,6 +13,7 @@ import { syncResidentsFromSheet } from "./sheets-sync.js";
 import { buildMonthlySubscriptionReport } from "./subscriptions.js";
 import { runSubscriptionNotifications } from "./subscription-notifications.js";
 import { buildMetrikaDigest, fetchBlogViews } from "./metrika.js";
+import { handleOfficeApi } from "./office.js";
 
 const SITE_URL = "https://codrosta.club";
 
@@ -42,6 +43,11 @@ export default {
 
     if (url.pathname === "/api/views" && request.method === "GET") {
       return handleBlogViews(url, env, ctx);
+    }
+
+    // Mini App «Офис в кармане» — только для админов бота, см. src/office.js
+    if (url.pathname.startsWith("/api/office/")) {
+      return handleOfficeApi(request, env, url.pathname);
     }
 
     if (url.pathname === "/calendar.ics" && (request.method === "GET" || request.method === "HEAD")) {

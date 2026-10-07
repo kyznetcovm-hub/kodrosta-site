@@ -13,6 +13,7 @@ html, body { margin: 0; padding: 0; background: #f6f7fb; }
 
 #kr-office{--kr-blue:#296ef7;--kr-red:#eb344a;--kr-ink:#0b0b0c;--kr-muted:#6b7080;--kr-bg:#f6f7fb;--kr-line:#eceef5;color-scheme:light;font-family:Inter,sans-serif;line-height:1.4;-webkit-text-size-adjust:100%}
 #kr-office *{box-sizing:border-box}
+#kr-office [hidden]{display:none!important}
 #kr-office .kr-phone{max-width:430px;margin:auto;background:var(--kr-bg);color:var(--kr-ink);min-height:100vh;min-height:100dvh}
 #kr-office button,#kr-office input,#kr-office select{font:inherit}
 #kr-office button{color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}

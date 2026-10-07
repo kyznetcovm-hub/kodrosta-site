@@ -3,8 +3,13 @@
 // Экраны «Обзор», «События», карточка события и «Деньги» перенесены из
 // утверждённого макета (Obsidian: 02 Клуб/Дашборд клуба/). ТЗ — там же.
 //
-// Этап 1: только демо-данные из макета (demoData ниже), сервер не вызывается.
-// Дальше loadData() будет брать данные с сервера в том же формате:
+// Вход: открыть можно только из бота @KodrostaAssistant_bot — Telegram передаёт
+// подписанную строку initData, она уходит на сервер (src/office.js) в каждом
+// запросе. Сервер пускает только админов бота; иначе — экран «нет доступа».
+// На localhost без Telegram показываются демо-данные — для проверки дизайна.
+//
+// Пока цифры — демо-данные из макета (demoData ниже). Дальше loadData() будет
+// брать данные с сервера в том же формате:
 //   { demo, now, user: { firstName }, month: "YYYY-MM",
 //     money: { factRub, planRub, sources: [{ key, label, factRub, planRub }],
 //              weeks: [{ factRub, planRub, bySource: [..] }], note },
@@ -22,11 +27,15 @@
   var MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
   var MONTHS_NOM = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var initData = tg && tg.initData ? tg.initData : "";
+  var isLocalPreview = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+
   var root = document.getElementById("kr-office");
   var content = document.getElementById("kr-content");
 
   var data = null;
-  var state = { page: "home", selected: null, week: null, budget: false, loading: true, error: null };
+  var state = { page: "home", selected: null, week: null, budget: false, loading: true, error: null, denied: null };
 
   // ---- Демо-данные: числа и события ровно как в утверждённом макете ---------
   // «Сегодня» зафиксировано на 7 октября 2026, чтобы экран можно было сверить
@@ -66,9 +75,38 @@
     };
   }
 
-  function loadData() {
-    return Promise.resolve(demoData());
+  // Запрос к /api/office/* с подписью Telegram. Ошибка доступа — err.denied.
+  function api(path) {
+    return fetch(path, { headers: { authorization: "tma " + initData } }).then(function (resp) {
+      if (resp.status === 401 || resp.status === 403) {
+        var err = new Error("denied");
+        err.denied = resp.status === 403 ? "forbidden" : "expired";
+        throw err;
+      }
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      return resp.json();
+    });
   }
+
+  function loadData() {
+    if (!initData) {
+      if (isLocalPreview) return Promise.resolve(demoData());
+      var err = new Error("outside");
+      err.denied = "outside";
+      return Promise.reject(err);
+    }
+    return api("/api/office/me").then(function (me) {
+      var d = demoData();
+      d.user = me.user;
+      return d;
+    });
+  }
+
+  var DENIED_TEXT = {
+    outside: "Офис открывается только из Telegram — в боте @KodrostaAssistant_bot.",
+    forbidden: "У этого аккаунта нет доступа к офису клуба.",
+    expired: "Не удалось подтвердить вход. Закройте офис и откройте его заново из бота."
+  };
 
   // ---- Даты по Москве -------------------------------------------------------
   var mskFmt = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
@@ -373,6 +411,15 @@
   }
 
   function render() {
+    syncTelegramBackButton();
+    root.querySelector(".kr-footer").hidden = !!state.denied;
+    if (state.denied) {
+      document.getElementById("kr-date").innerHTML = "";
+      document.getElementById("kr-title").textContent = "Офис в кармане";
+      document.getElementById("kr-subtitle").textContent = "";
+      content.innerHTML = '<div class="kr-empty-note">' + DENIED_TEXT[state.denied] + "</div>";
+      return;
+    }
     root.querySelectorAll(".kr-nav").forEach(function (b) {
       if (b.dataset.page === state.page) b.setAttribute("aria-current", "page");
       else b.removeAttribute("aria-current");
@@ -412,6 +459,34 @@
     e.plan = n;
     render();
     document.getElementById("kr-validation").innerHTML = '<p class="kr-saved">План обновлён.</p>';
+  }
+
+  // ---- Telegram: кнопка «Назад» в шапке, цвета оболочки ---------------------
+  function goBack() {
+    if (state.selected !== null) {
+      state.selected = null;
+      state.page = "events";
+    } else {
+      state.page = "home";
+    }
+    render();
+    window.scrollTo(0, 0);
+  }
+
+  function syncTelegramBackButton() {
+    if (!tg || !tg.BackButton) return;
+    if (!state.denied && !state.loading && (state.selected !== null || state.page !== "home")) tg.BackButton.show();
+    else tg.BackButton.hide();
+  }
+
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    if (tg.setHeaderColor) tg.setHeaderColor("#ffffff");
+    if (tg.setBackgroundColor) tg.setBackgroundColor("#f6f7fb");
+    // чтобы прокрутка списка вниз не сворачивала приложение
+    if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+    if (tg.BackButton) tg.BackButton.onClick(goBack);
   }
 
   root.addEventListener("click", function (ev) {
@@ -460,6 +535,7 @@
   function start() {
     state.loading = true;
     state.error = null;
+    state.denied = null;
     render();
     loadData().then(function (d) {
       data = d;
@@ -467,7 +543,8 @@
       render();
     }, function (err) {
       state.loading = false;
-      state.error = err;
+      if (err && err.denied) state.denied = err.denied;
+      else state.error = err;
       render();
     });
   }

@@ -189,6 +189,7 @@ export async function handleTelegramUpdate(update, env) {
   if (text.startsWith("/delevent")) return handleDeleteEventCommand(msg, env, text);
   if (/^Дата\s*[:：]/im.test(text)) return handleNewEventCommand(msg, env, text);
   if (text.startsWith("/menu")) return handleMenu(msg, env);
+  if (text.startsWith("/office")) return handleOfficeCommand(msg, env);
   if (text.startsWith("/start")) return handleStart(msg, env);
 
   // Личка, ничего не распознали — подсказываем ID на будущее (не групповой чат)
@@ -204,6 +205,8 @@ export async function handleTelegramUpdate(update, env) {
 function adminMenuKeyboard() {
   return {
     inline_keyboard: [
+      [{ text: "📱 Офис в кармане", web_app: { url: OFFICE_URL } }],
+
       [{ text: "🟦 РЕДАКТИРОВАТЬ САЙТ 🟦", callback_data: "noop" }],
       [{ text: "01 · О клубе", callback_data: "content:about" }, { text: "02 · Цифры клуба", callback_data: "content:numbers" }],
       [{ text: "03 · Зачем вступать", callback_data: "content:why" }, { text: "04 · Как вступить", callback_data: "content:how" }],
@@ -226,6 +229,29 @@ function adminMenuKeyboard() {
       [{ text: "📊 Отчёт за прошлый период", callback_data: "menu:subsreport" }],
     ],
   };
+}
+
+// ---- Mini App «Офис в кармане» (office.html, src/office.js) ----------------
+
+const OFFICE_URL = SITE_URL + "/office";
+
+// /office — ставит кнопку «Офис» слева от поля ввода в личке с ботом. Только
+// для этого чата (setChatMenuButton с chat_id): у резидентов меню не меняется.
+// Доступ к данным всё равно проверяет сервер (src/office.js), кнопка — лишь вход.
+async function handleOfficeCommand(msg, env) {
+  if (!isAdmin(msg.from.username, env)) return;
+  const res = await tgApi(env, "setChatMenuButton", {
+    chat_id: msg.from.id,
+    menu_button: { type: "web_app", text: "Офис", web_app: { url: OFFICE_URL } },
+  });
+  return sendMessage(
+    env, msg.from.id,
+    (res && res.ok
+      ? "Кнопка «Офис» добавлена слева от поля ввода."
+      : "Кнопку меню поставить не удалось — откройте офис кнопкой ниже.") +
+      "\n\nОфис в кармане — деньги и события клуба.",
+    { inline_keyboard: [[{ text: "📱 Открыть офис", web_app: { url: OFFICE_URL } }]] }
+  );
 }
 
 function backButtonRow() {
