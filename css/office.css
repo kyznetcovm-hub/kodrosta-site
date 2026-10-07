@@ -1,0 +1,117 @@
+/* ============================================================================
+   «Офис в кармане» — Telegram Mini App клуба (office.html).
+   Стили перенесены из утверждённого макета (Obsidian: 02 Клуб/Дашборд клуба/
+   «Дашборд — утверждённый макет.html») почти дословно. Отличия от макета:
+   - нет рамки телефона, точечного фона и нарисованной шапки Telegram —
+     в приложении Telegram своя оболочка;
+   - нижняя навигация закреплена у нижнего края экрана (в макете она стояла
+     в конце «телефона»), с отступом под системную полосу iPhone;
+   - убран переключатель подачи «По одному» — он был только в среде Codex.
+   ============================================================================ */
+
+html, body { margin: 0; padding: 0; background: #f6f7fb; }
+
+#kr-office{--kr-blue:#296ef7;--kr-red:#eb344a;--kr-ink:#0b0b0c;--kr-muted:#6b7080;--kr-bg:#f6f7fb;--kr-line:#eceef5;color-scheme:light;font-family:Inter,sans-serif;line-height:1.4;-webkit-text-size-adjust:100%}
+#kr-office *{box-sizing:border-box}
+#kr-office .kr-phone{max-width:430px;margin:auto;background:var(--kr-bg);color:var(--kr-ink);min-height:100vh;min-height:100dvh}
+#kr-office button,#kr-office input,#kr-office select{font:inherit}
+#kr-office button{color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#kr-office button:focus-visible,#kr-office summary:focus-visible,#kr-office input:focus-visible{outline:3px solid var(--kr-blue);outline-offset:3px}
+#kr-office button:disabled{opacity:.4}
+#kr-office button:hover:not(:disabled){filter:brightness(.97)}
+#kr-office ::selection{background:#296ef7;color:#fff}
+#kr-office .kr-brand{display:flex;align-items:center;gap:9px;font-family:Jost,sans-serif;font-size:24px;font-weight:600;letter-spacing:-.7px}
+#kr-office .kr-logo{width:35px;height:32px;flex-shrink:0}
+#kr-office .kr-top{background:#fff;padding:16px 22px}
+#kr-office .kr-topline{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#kr-office .kr-date{font-size:12px;color:var(--kr-muted);text-align:right;line-height:1.5}
+#kr-office h1{font:500 27px/1.1 Jost,sans-serif;letter-spacing:-.6px;margin:16px 0 7px}
+#kr-office .kr-subtitle{font-size:13px;color:var(--kr-muted);margin:0}
+#kr-office .kr-demo{display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7080;padding:10px 22px 0}
+#kr-office .kr-demo-dot{height:5px;width:5px;border-radius:50%;background:var(--kr-muted);flex-shrink:0}
+/* снизу — место под закреплённую навигацию */
+#kr-office .kr-content{padding:15px 18px calc(110px + env(safe-area-inset-bottom));min-height:510px}
+#kr-office .kr-content h2{font:500 22px/1.2 Jost,sans-serif;letter-spacing:-.3px;margin:0}
+#kr-office .kr-panel{background:#fff;border-radius:18px;padding:17px}
+#kr-office .kr-between{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#kr-office .kr-month{color:var(--kr-muted);font-size:12px}
+#kr-office .kr-moneyline{display:grid;grid-template-columns:1.3fr 1fr;gap:14px;margin:17px 0 15px;align-items:end}
+#kr-office .kr-label{font-size:12px;color:var(--kr-muted);margin-bottom:6px;display:block;line-height:1.45}
+#kr-office .kr-fact{font-size:32px;font-weight:600;letter-spacing:-1.3px;font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.1}
+#kr-office .kr-plan{font-size:22px;font-weight:500;letter-spacing:-.6px;white-space:nowrap;line-height:1.2;font-variant-numeric:tabular-nums}
+#kr-office .kr-plan.kr-empty{font-size:15px;font-weight:400;letter-spacing:0;color:var(--kr-muted)}
+#kr-office .kr-currency{font-weight:400;font-size:.72em;letter-spacing:0}
+#kr-office .kr-bar{height:7px;background:var(--kr-line);border-radius:3px;overflow:hidden}
+#kr-office .kr-bar>span{display:block;height:100%;background:var(--kr-blue);border-radius:3px;transition:width .25s ease-out}
+#kr-office .kr-bartext{display:flex;justify-content:space-between;gap:10px;margin-top:9px;font-size:11px;color:var(--kr-muted)}
+#kr-office .kr-bartext b{color:var(--kr-ink);font-weight:500}
+#kr-office .kr-link{background:none;border:0;color:var(--kr-blue);font-size:12px;padding:8px 0;min-height:36px;display:inline-flex;align-items:center;gap:5px;font-weight:500}
+#kr-office .kr-moneylinks{border-top:1px solid var(--kr-line);margin-top:17px;padding-top:5px}
+#kr-office .kr-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:25px 2px 12px}
+#kr-office .kr-section-head .kr-link{padding:0;min-height:32px;white-space:nowrap}
+#kr-office .kr-event-list{background:#fff;border-radius:18px;overflow:hidden}
+#kr-office .kr-event{display:block;width:100%;padding:16px 17px;border:0;background:#fff;text-align:left}
+#kr-office .kr-event+.kr-event{border-top:1px solid var(--kr-line)}
+#kr-office .kr-event-top{display:grid;grid-template-columns:35px 1fr auto;gap:12px;align-items:start}
+#kr-office .kr-event-date{font-family:Jost,sans-serif;font-size:25px;font-weight:500;line-height:1.1;text-align:center;font-variant-numeric:tabular-nums}
+#kr-office .kr-event-date small{font-family:Inter,sans-serif;display:block;font-size:11px;font-weight:400;color:var(--kr-muted);line-height:1.6}
+#kr-office .kr-event-name{font-size:14px;font-weight:600;line-height:1.4;margin:0}
+#kr-office .kr-event-type{font-size:11px;line-height:1.5;color:var(--kr-muted);margin:3px 0 0}
+#kr-office .kr-event-arrow{color:var(--kr-muted);padding-top:4px}
+#kr-office .kr-event-progress{margin:12px 0 0 47px}
+#kr-office .kr-event-progress .kr-bar{height:5px;margin-top:8px}
+#kr-office .kr-event-progress .kr-between{font-size:12px}
+#kr-office .kr-event-progress strong{font-weight:600}
+#kr-office .kr-event-progress em{font-style:normal;color:var(--kr-muted);font-size:11px}
+#kr-office .kr-event-progress em.kr-alert{color:#b9182b}
+#kr-office .kr-footer{position:fixed;left:0;right:0;bottom:0;z-index:10;max-width:430px;margin:auto;border-top:1px solid var(--kr-line);background:#fff;display:grid;grid-template-columns:repeat(3,1fr);padding:9px 8px calc(14px + env(safe-area-inset-bottom));gap:6px}
+#kr-office .kr-nav{display:flex;flex-direction:column;align-items:center;gap:6px;border:0;background:none;color:var(--kr-muted);font-size:11px;padding:8px 4px;border-radius:12px;min-height:55px}
+#kr-office .kr-nav[aria-current=page]{color:var(--kr-blue);background:#f6f7fb;font-weight:600}
+#kr-office .kr-icon{width:18px;height:18px;stroke-width:1.7;flex-shrink:0;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+#kr-office .kr-week-preview{margin-top:12px;padding-top:11px;border-top:1px solid var(--kr-line);font-size:11px;line-height:1.6}
+#kr-office .kr-week-preview strong{font-weight:500}
+#kr-office .kr-caption{font-size:11px;color:var(--kr-muted);line-height:1.55;margin:12px 2px 0}
+#kr-office .kr-weeks{margin-top:22px}
+#kr-office .kr-weeks h2{margin-bottom:8px}
+#kr-office .kr-week{width:100%;display:grid;grid-template-columns:1fr 1.25fr 75px;align-items:center;gap:12px;border:0;border-bottom:1px solid var(--kr-line);padding:15px 2px;background:none;text-align:left;min-height:61px}
+#kr-office .kr-week.kr-current{background:#fff;padding:15px 12px;border-radius:12px;border:0;margin:4px 0}
+#kr-office .kr-week-date{font-size:12px;white-space:nowrap}
+#kr-office .kr-week-date small{display:block;font-size:11px;color:var(--kr-muted);margin-top:3px}
+#kr-office .kr-week-values{text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
+#kr-office .kr-week-values small{display:block;font-size:11px;color:var(--kr-muted);margin-top:3px}
+#kr-office .kr-week .kr-bar{height:5px}
+#kr-office .kr-weekdetail{font-size:12px;background:#fff;border-radius:12px;padding:14px 16px;margin:7px 0;line-height:1.6}
+#kr-office .kr-budget{background:#fff;border-radius:18px;margin-top:22px;padding:0 18px}
+#kr-office .kr-budget summary{display:flex;align-items:center;justify-content:space-between;padding:18px 0;list-style:none;font-family:Jost,sans-serif;font-size:21px;cursor:pointer}
+#kr-office .kr-budget summary::-webkit-details-marker{display:none}
+#kr-office .kr-budget[open] summary .kr-icon{transform:rotate(180deg)}
+#kr-office .kr-budget table{border-collapse:collapse;width:100%;font-size:12px;line-height:1.45;margin-bottom:10px}
+#kr-office .kr-budget th{font-size:11px;color:var(--kr-muted);font-weight:400;text-align:right;padding:5px 0 10px}
+#kr-office .kr-budget th:first-child{text-align:left}
+#kr-office .kr-budget td{padding:12px 0;border-top:1px solid var(--kr-line);text-align:right;font-variant-numeric:tabular-nums}
+#kr-office .kr-budget td:first-child{text-align:left;width:47%;padding-right:9px}
+#kr-office .kr-budget tr:last-child td{font-weight:600}
+#kr-office .kr-budget .kr-caption{padding:0 0 15px;margin:0}
+#kr-office .kr-back{border:0;background:none;padding:0;display:flex;align-items:center;gap:5px;color:var(--kr-blue);font-size:12px;min-height:38px;margin-bottom:10px}
+#kr-office .kr-detail-title{font:500 28px/1.15 Jost,sans-serif;letter-spacing:-.5px;margin:10px 0}
+#kr-office .kr-detail-date{font-size:12px;color:var(--kr-muted)}
+#kr-office .kr-detail-stats{display:grid;grid-template-columns:1fr 1fr;margin:24px 0 18px;gap:15px}
+#kr-office .kr-detail-stats strong{font-size:40px;font-weight:500;font-variant-numeric:tabular-nums;letter-spacing:-1px}
+#kr-office .kr-detail-stats strong.kr-empty{font-size:17px;font-weight:400;letter-spacing:0;color:var(--kr-muted);display:block;padding-top:14px}
+#kr-office .kr-detail-stats small{font-size:12px;display:block;color:var(--kr-muted);margin-top:3px}
+#kr-office .kr-slot-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:5px;margin:20px 0 14px}
+#kr-office .kr-slot{height:22px;border-radius:4px;background:var(--kr-line)}
+#kr-office .kr-slot.kr-filled{background:var(--kr-blue)}
+#kr-office .kr-edit{margin-top:23px;padding-top:17px;border-top:1px solid var(--kr-line)}
+#kr-office .kr-edit label{font-size:13px;font-weight:500}
+#kr-office .kr-stepper{display:flex;align-items:center;gap:8px;margin-top:11px}
+#kr-office .kr-stepper button{width:42px;height:42px;display:grid;place-items:center;border:0;background:var(--kr-bg);border-radius:10px}
+#kr-office .kr-stepper input{width:75px;height:42px;border:1px solid #cbd0e0;border-radius:10px;text-align:center;font-size:16px;color:var(--kr-ink);background:#fff;appearance:textfield;-moz-appearance:textfield}
+#kr-office input::-webkit-inner-spin-button,#kr-office input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+#kr-office .kr-stepper-note{font-size:11px;color:var(--kr-muted);margin-left:4px;line-height:1.4}
+#kr-office .kr-save{background:var(--kr-blue);color:#fff;width:100%;border:0;border-radius:999px;min-height:44px;font-size:13px;font-weight:600;margin-top:18px}
+#kr-office .kr-error{font-size:12px;color:#b9182b;margin-top:10px}
+#kr-office .kr-saved{font-size:11px;line-height:1.4;margin:12px 0;color:var(--kr-muted)}
+#kr-office .kr-empty-note{background:#fff;border-radius:18px;padding:22px 17px;font-size:13px;color:var(--kr-muted);text-align:center}
+@media(max-width:380px){#kr-office .kr-top{padding:18px}#kr-office .kr-content{padding:16px 12px calc(110px + env(safe-area-inset-bottom))}#kr-office .kr-panel{padding:17px}#kr-office .kr-fact{font-size:28px}#kr-office .kr-plan{font-size:20px}#kr-office .kr-moneyline{gap:10px}#kr-office .kr-week{gap:7px}#kr-office .kr-event{padding:14px}#kr-office .kr-budget{padding:0 14px}#kr-office .kr-budget table{font-size:11px}}
+@media(prefers-reduced-motion:reduce){#kr-office .kr-bar>span{transition:none}}
