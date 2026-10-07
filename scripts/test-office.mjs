@@ -86,3 +86,41 @@ test('без подписи и с мусором — 401, данных нет', 
   const resp = await worker.fetch(new Request('https://codrosta.club/api/office/me?user=111'), env, {});
   assert.equal(resp.status, 401);
 });
+
+test('кнопка «Офис» у поля ввода: ставится админу сама и один раз, резиденту — нет', async (t) => {
+  const { handleTelegramUpdate } = await import('../src/engagement.js');
+  const sqlite = new DatabaseSync(':memory:');
+  sqlite.exec(`CREATE TABLE residents (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT, phone TEXT,
+    telegram_username TEXT, chat_id INTEGER UNIQUE, active INTEGER DEFAULT 1);
+    CREATE TABLE pending_edits (telegram_user_id INTEGER PRIMARY KEY, section TEXT, created_at TEXT);`);
+  t.after(() => sqlite.close());
+  const DB = { prepare(sql) { const st = sqlite.prepare(sql); let v = []; return {
+    bind(...a) { v = a; return this; },
+    async first() { return st.get(...v) ?? null; },
+    async all() { return { results: st.all(...v) }; },
+    async run() { return { meta: { changes: Number(st.run(...v).changes) } }; },
+  }; } };
+  const calls = [];
+  let menuButton = { type: 'commands' };
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    const method = String(url).split('/').pop();
+    const body = JSON.parse(options.body || '{}');
+    calls.push({ method, body });
+    if (method === 'getChatMenuButton') return Response.json({ ok: true, result: menuButton });
+    if (method === 'setChatMenuButton') { menuButton = body.menu_button; return Response.json({ ok: true, result: true }); }
+    return Response.json({ ok: true, result: {} });
+  });
+  const env = { DB, BOT_TOKEN, ADMIN_USERNAMES: 'mytolstoy,Kodrosta' };
+  const msg = (id, username, text) => ({ message: { from: { id, username, first_name: 'X' }, chat: { id, type: 'private' }, text } });
+
+  await handleTelegramUpdate(msg(5001, 'mytolstoy', 'привет'), env);
+  await handleTelegramUpdate(msg(5001, 'mytolstoy', 'ещё'), env);
+  const sets = calls.filter((c) => c.method === 'setChatMenuButton');
+  assert.equal(sets.length, 1);
+  assert.equal(sets[0].body.chat_id, 5001);
+  assert.equal(sets[0].body.menu_button.web_app.url, 'https://codrosta.club/office');
+
+  calls.length = 0;
+  await handleTelegramUpdate(msg(7001, 'someresident', 'привет'), env);
+  assert.equal(calls.filter((c) => c.method.endsWith('ChatMenuButton')).length, 0);
+});

@@ -130,6 +130,7 @@ export async function handleTelegramUpdate(update, env) {
   const updateFrom = (update.callback_query && update.callback_query.from) || (update.message && update.message.from) || null;
   if (env.DB && updateFrom && !updateFrom.is_bot && isAdmin(updateFrom.username, env)) {
     await ensureAdminRegistered(env, updateFrom);
+    await ensureOfficeMenuButton(env, updateFrom.id);
   }
 
   if (update.callback_query) return handleCallbackQuery(update.callback_query, env);
@@ -235,15 +236,33 @@ function adminMenuKeyboard() {
 
 const OFFICE_URL = SITE_URL + "/office";
 
-// /office — ставит кнопку «Офис» слева от поля ввода в личке с ботом. Только
-// для этого чата (setChatMenuButton с chat_id): у резидентов меню не меняется.
-// Доступ к данным всё равно проверяет сервер (src/office.js), кнопка — лишь вход.
-async function handleOfficeCommand(msg, env) {
-  if (!isAdmin(msg.from.username, env)) return;
-  const res = await tgApi(env, "setChatMenuButton", {
-    chat_id: msg.from.id,
+// Кнопка «Офис» слева от поля ввода (как «Рейтинг» у Калориметра) — только
+// в личке админа с ботом (setChatMenuButton с chat_id): у резидентов меню не
+// меняется. Доступ к данным всё равно проверяет сервер (src/office.js).
+function setOfficeMenuButton(env, chatId) {
+  return tgApi(env, "setChatMenuButton", {
+    chat_id: chatId,
     menu_button: { type: "web_app", text: "Офис", web_app: { url: OFFICE_URL } },
   });
+}
+
+// Ставится сама при первом обращении админа к боту: раз на экземпляр Worker'а
+// спрашиваем у Telegram текущую кнопку и ставим, только если её ещё нет.
+const officeMenuChecked = new Set();
+async function ensureOfficeMenuButton(env, chatId) {
+  if (officeMenuChecked.has(chatId)) return;
+  officeMenuChecked.add(chatId);
+  const cur = await tgApi(env, "getChatMenuButton", { chat_id: chatId });
+  const btn = cur && cur.ok ? cur.result : null;
+  if (btn && btn.type === "web_app" && btn.web_app && btn.web_app.url === OFFICE_URL) return;
+  if (cur && cur.ok) await setOfficeMenuButton(env, chatId);
+  else officeMenuChecked.delete(chatId); // Telegram не ответил — попробуем при следующем сообщении
+}
+
+// /office — то же вручную (если кнопка пропала) + кнопка открыть офис сразу.
+async function handleOfficeCommand(msg, env) {
+  if (!isAdmin(msg.from.username, env)) return;
+  const res = await setOfficeMenuButton(env, msg.from.id);
   return sendMessage(
     env, msg.from.id,
     (res && res.ok
