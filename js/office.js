@@ -478,52 +478,44 @@
   }
 
   // ---- Бюджет месяца (раскрывается кнопкой «Развернуть бюджет») -------------
-  // Порядок по просьбе Михаила (9 октября): круговая диаграмма «куда идут
-  // деньги» → поступления по статьям (план/факт, из чего сложен план) →
+  // Порядок по просьбе Михаила (9 октября): круговая диаграмма дохода по
+  // статьям → поступления по статьям (план/факт, из чего сложен план) →
   // расходы → в самом конце, приглушённо, недели.
 
-  // Цвета секторов проверены валидатором палитры (различимы и при дальтонизме):
-  // остаток — фирменный синий, себестоимость — фирменный красный, комиссия — янтарный.
-  var DONUT_COLORS = { rest: "#296EF7", event_cost: "#EB344A", commission: "#EDA100" };
-
-  function donutSegments() {
-    var m = data.money, ex = m.expenses;
-    var cost = 0, comm = 0;
-    ex.categories.forEach(function (c) { if (c.key === "event_cost") cost = c.factRub; else if (c.key === "commission") comm = c.factRub; });
-    var rest = m.factRub - cost - comm;
-    var segs = [
-      { key: "rest", label: "Остаётся клубу", value: Math.max(rest, 0) },
-      { key: "event_cost", label: "Себестоимость мероприятий", value: cost },
-      { key: "commission", label: "Комиссия менеджерам", value: comm }
-    ];
-    return { segs: segs, rest: rest, base: Math.max(m.factRub, cost + comm) };
-  }
+  // Диаграмма — из чего доход месяца: сектора по статьям поступлений.
+  // Пока поступлений нет, показываем структуру плана, чтобы круг не был пустым.
+  // Цвета проверены валидатором палитры: в порядке по кругу синий → красный →
+  // янтарный → бирюзовый соседние сектора различимы и при дальтонизме.
+  var DONUT_COLORS = { "new": "#296EF7", renewal: "#EB344A", events: "#EDA100", ads: "#1BAF7A" };
 
   function renderDonut() {
-    var d = donutSegments();
+    var m = data.money;
+    var byPlan = !(m.factRub > 0) && m.planRub > 0;
+    var segs = m.sources.map(function (s) {
+      return { key: s.key, label: s.label, value: (byPlan ? s.planRub : s.factRub) || 0 };
+    });
+    var total = segs.reduce(function (a, s) { return a + s.value; }, 0);
     var R = 62, C = 2 * Math.PI * R, GAP = 2; // 2px — зазор между секторами
-    var total = d.segs.reduce(function (a, s) { return a + s.value; }, 0);
     var arcs = "", offset = 0;
-    if (total > 0) {
-      d.segs.forEach(function (s) {
-        if (s.value <= 0) return;
-        var len = s.value / total * C;
-        var visible = Math.max(len - (len > GAP * 2 ? GAP : 0), 0.5);
-        arcs += '<circle class="kr-donut-seg" cx="80" cy="80" r="' + R + '" stroke="' + DONUT_COLORS[s.key] + '" stroke-dasharray="' + visible.toFixed(2) + " " + (C - visible).toFixed(2) +
-          '" stroke-dashoffset="' + (-offset).toFixed(2) + '"><title>' + esc(s.label) + ": " + fmtRub(s.value) + " ₽</title></circle>";
-        offset += len;
-      });
-    }
-    var center = '<text x="80" y="76" class="kr-donut-label">поступило</text><text x="80" y="96" class="kr-donut-value">' + fmtK(data.money.factRub) + " тыс. ₽</text>";
-    var legend = d.segs.map(function (s) {
-      var pct = data.money.factRub > 0 ? Math.round(s.value / data.money.factRub * 100) + "%" : "—";
-      return '<li><span class="kr-swatch" style="background:' + DONUT_COLORS[s.key] + '"></span><span class="kr-legend-name">' + esc(s.label) +
-        '</span><span class="kr-legend-val">' + fmtRub(s.value) + " ₽</span><span class=\"kr-legend-pct\">" + pct + "</span></li>";
+    segs.forEach(function (s) {
+      if (s.value <= 0) return;
+      var len = s.value / total * C;
+      var visible = Math.max(len - (len > GAP * 2 ? GAP : 0), 0.5);
+      arcs += '<circle class="kr-donut-seg" cx="80" cy="80" r="' + R + '" stroke="' + (DONUT_COLORS[s.key] || "#6b7080") + '" stroke-dasharray="' + visible.toFixed(2) + " " + (C - visible).toFixed(2) +
+        '" stroke-dashoffset="' + (-offset).toFixed(2) + '"><title>' + esc(s.label) + ": " + fmtRub(s.value) + " ₽</title></circle>";
+      offset += len;
+    });
+    var center = '<text x="80" y="76" class="kr-donut-label">' + (byPlan ? "план месяца" : "поступило") + '</text><text x="80" y="96" class="kr-donut-value">' +
+      fmtK(byPlan ? m.planRub : m.factRub) + " тыс. ₽</text>";
+    var legend = segs.map(function (s) {
+      var pct = total > 0 ? Math.round(s.value / total * 100) + "%" : "—";
+      return '<li><span class="kr-swatch" style="background:' + (DONUT_COLORS[s.key] || "#6b7080") + '"></span><span class="kr-legend-name">' + esc(s.label) +
+        '</span><span class="kr-legend-val">' + fmtRub(s.value) + ' ₽</span><span class="kr-legend-pct">' + pct + "</span></li>";
     }).join("");
-    var note = total === 0 ? '<p class="kr-caption">В этом месяце пока нет поступлений и расходов.</p>'
-      : d.rest < 0 ? '<p class="kr-caption kr-warn">Расходы больше поступлений на ' + fmtRub(-d.rest) + " ₽.</p>" : "";
-    return '<div class="kr-budget-block"><h3 class="kr-budget-h">Куда идут деньги</h3>' +
-      '<div class="kr-donut-wrap"><svg class="kr-donut" viewBox="0 0 160 160" role="img" aria-label="Поступления месяца: остаётся клубу, себестоимость, комиссия">' +
+    var note = total === 0 ? '<p class="kr-caption">В этом месяце пока нет ни поступлений, ни плана.</p>'
+      : byPlan ? '<p class="kr-caption">Поступлений пока нет — показана структура плана.</p>' : "";
+    return '<div class="kr-budget-block"><h3 class="kr-budget-h">' + (byPlan ? "Из чего план дохода" : "Из чего доход") + "</h3>" +
+      '<div class="kr-donut-wrap"><svg class="kr-donut" viewBox="0 0 160 160" role="img" aria-label="Доход месяца по статьям">' +
       '<circle cx="80" cy="80" r="' + R + '" class="kr-donut-track"></circle><g transform="rotate(-90 80 80)">' + arcs + "</g>" + center + "</svg>" +
       '<ul class="kr-legend">' + legend + "</ul></div>" + note + "</div>";
   }
