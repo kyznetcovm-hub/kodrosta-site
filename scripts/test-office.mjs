@@ -367,3 +367,62 @@ test('/api/office/data отдаёт деньги текущего месяца �
   assert.equal(d.money.month, d.month);
   assert.equal(d.money.factKop, 123456);
 });
+
+// ---- 9 октября: строки плана и расходы ---------------------------------------
+
+test('план из строк «сколько × почём»: статья = сумма строк, прежняя сумма снимается', async (t) => {
+  const { sqlite, env } = moneyEnv(t);
+  addEvent(sqlite, 'banya', 'Бизнес-баня', '2026-10-08T18:00:00');
+  // старый план одной суммой
+  await call(env, '/api/office/plans', { month: '2026-10', sources: { new: 250000_00, renewal: 150000_00, events: 340000_00, ads: null } });
+  let m = (await (await call(env, '/api/office/money?month=2026-10')).json()).money;
+  assert.equal(m.planKop, 740000_00);
+  assert.deepEqual(m.sources[2].items, []);
+
+  const resp = await call(env, '/api/office/plans', { month: '2026-10', weeks: [100000_00], items: {
+    new: [{ title: 'Новые резиденты', qty: 10, priceKop: 25000_00 }],
+    renewal: [{ title: 'Продления', qty: 10, priceKop: 15000_00 }],
+    events: [
+      { eventId: 'banya', title: 'Бизнес-баня', qty: 8, priceKop: 15000_00 },
+      { title: 'Рубеж', qty: 10, priceKop: 12000_00 },
+      { title: 'Калориметр', qty: 20, priceKop: 5000_00 },
+    ],
+  } });
+  assert.equal(resp.status, 200);
+  m = (await (await call(env, '/api/office/money?month=2026-10')).json()).money;
+  const ev = m.sources.find((x) => x.key === 'events');
+  assert.equal(ev.planKop, (8 * 15000 + 10 * 12000 + 20 * 5000) * 100); // 340 000
+  assert.equal(ev.items[0].eventTitle, 'Бизнес-баня');
+  assert.equal(ev.items[0].totalKop, 120000_00);
+  assert.equal(m.sources.find((x) => x.key === 'ads').planKop, null); // ни строк, ни суммы
+  assert.equal(m.planKop, (250000 + 150000 + 340000) * 100);
+  assert.equal(m.weeks[0].planKop, 100000_00);
+  // неверные строки
+  assert.equal((await call(env, '/api/office/plans', { month: '2026-10', items: { new: [{ qty: 0, priceKop: 100 }] } })).status, 400);
+  assert.equal((await call(env, '/api/office/plans', { month: '2026-10', items: { new: [{ qty: 2, priceKop: -1 }] } })).status, 400);
+  // повторное сохранение заменяет строки, а не дописывает
+  await call(env, '/api/office/plans', { month: '2026-10', items: { new: [{ qty: 1, priceKop: 100 }] } });
+  m = (await (await call(env, '/api/office/money?month=2026-10')).json()).money;
+  assert.equal(m.planKop, 100);
+});
+
+test('расходы: комиссия и себестоимость по мероприятиям, отмена, повтор, обязательное мероприятие', async (t) => {
+  const { sqlite, env } = moneyEnv(t);
+  addEvent(sqlite, 'banya', 'Бизнес-баня', '2026-09-20T18:00:00');
+  const exp = (body) => call(env, '/api/office/expenses', { date: '2026-09-15', ...body });
+  assert.equal((await exp({ clientId: 'e1', amountKop: 30000_00, category: 'event_cost', eventId: 'banya' })).status, 200);
+  assert.equal((await exp({ clientId: 'e2', amountKop: 9000_00, category: 'commission', comment: 'Анна, 10%' })).status, 200);
+  assert.equal((await (await exp({ clientId: 'e2', amountKop: 9000_00, category: 'commission' })).json()).duplicate, true);
+  assert.equal((await exp({ clientId: 'e3', amountKop: 100, category: 'event_cost' })).status, 400); // без мероприятия
+  assert.equal((await exp({ clientId: 'e4', amountKop: 100, category: 'rent' })).status, 400);
+  const wrong = await (await exp({ clientId: 'e5', amountKop: 777_00, category: 'commission' })).json();
+  assert.equal((await call(env, '/api/office/expenses/void', { id: wrong.id })).status, 200);
+
+  const m = (await (await call(env, '/api/office/money?month=2026-09')).json()).money;
+  assert.equal(m.expenses.totalKop, 39000_00);
+  assert.deepEqual(m.expenses.categories.map((c) => c.factKop), [9000_00, 30000_00]);
+  assert.deepEqual(m.expenses.byEvent, [{ eventId: 'banya', eventTitle: 'Бизнес-баня', factKop: 30000_00 }]);
+  assert.equal(m.expenses.list.length, 3);
+  assert.equal(m.expenses.list.find((x) => x.id === wrong.id).voided, true);
+  assert.equal(m.factKop, 0); // расходы не путаются с поступлениями
+});

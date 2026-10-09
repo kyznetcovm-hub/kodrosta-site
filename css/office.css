@@ -148,6 +148,56 @@ html, body { margin: 0; padding: 0; background: #f6f7fb; }
 #kr-office .kr-plan-total strong{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
 #kr-office .kr-form .kr-save{margin-top:2px}
 #kr-office .kr-form .kr-error,#kr-office .kr-form .kr-caption{margin:0}
+/* ---- Бюджет месяца: диаграмма, поступления, расходы, недели (9 октября) ---- */
+#kr-office .kr-budget-block{padding:4px 0 18px}
+#kr-office .kr-budget-block+.kr-budget-block{border-top:1px solid var(--kr-line);padding-top:16px}
+#kr-office .kr-budget-h{font:500 17px/1.2 Jost,sans-serif;margin:0 0 12px;letter-spacing:-.2px}
+#kr-office .kr-donut-wrap{display:flex;align-items:center;gap:16px}
+#kr-office .kr-donut{width:140px;height:140px;flex-shrink:0}
+#kr-office .kr-donut-track{fill:none;stroke:var(--kr-line);stroke-width:18}
+#kr-office .kr-donut-seg{fill:none;stroke-width:18}
+#kr-office .kr-donut-label{font-size:10px;fill:var(--kr-muted);text-anchor:middle}
+#kr-office .kr-donut-value{font-size:15px;font-weight:600;fill:var(--kr-ink);text-anchor:middle;font-variant-numeric:tabular-nums}
+#kr-office .kr-legend{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px;min-width:0;flex:1}
+#kr-office .kr-legend li{display:grid;grid-template-columns:10px 1fr auto;column-gap:7px;align-items:baseline;font-size:11px;line-height:1.35}
+#kr-office .kr-swatch{width:10px;height:10px;border-radius:3px;align-self:center}
+#kr-office .kr-legend-name{color:var(--kr-ink)}
+#kr-office .kr-legend-val{grid-column:2;font-weight:600;font-variant-numeric:tabular-nums}
+#kr-office .kr-legend-pct{grid-row:1;grid-column:3;color:var(--kr-muted);font-variant-numeric:tabular-nums}
+#kr-office .kr-warn{color:#b9182b}
+#kr-office .kr-budget .kr-subrow td{border-top:0;padding:0 0 10px;text-align:left;font-size:11px;color:var(--kr-muted);line-height:1.6;width:auto}
+#kr-office .kr-budget tr:last-child td{font-weight:400}
+#kr-office .kr-budget tr.kr-total td{font-weight:600}
+#kr-office .kr-table-2 td:first-child{width:auto}
+/* недели — приглушённо: главное план месяца */
+#kr-office .kr-budget .kr-weeks{margin-top:0}
+#kr-office .kr-budget .kr-weeks .kr-week{min-height:48px;padding:10px 2px;opacity:.75}
+#kr-office .kr-budget .kr-weeks .kr-week.kr-current{opacity:1;background:var(--kr-bg)}
+#kr-office .kr-budget .kr-weeks .kr-bar>span{background:#8fb0f5}
+#kr-office .kr-budget .kr-weeks .kr-week:last-of-type{border-bottom:0}
+#kr-office .kr-budget .kr-weekdetail{background:var(--kr-bg)}
+/* действия на экране «Деньги» */
+#kr-office .kr-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+#kr-office .kr-actions .kr-save{margin-top:0}
+#kr-office .kr-secondary{background:#fff;color:var(--kr-blue);box-shadow:inset 0 0 0 1.5px var(--kr-blue)}
+#kr-office .kr-expense .kr-sale-amount{color:var(--kr-muted)}
+/* план: строки «что · сколько × почём» */
+#kr-office .kr-plan-src+.kr-plan-src,#kr-office .kr-plan-sum{margin-top:12px}
+#kr-office .kr-src-total{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+#kr-office .kr-item{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--kr-line)}
+#kr-office .kr-item-top{display:grid;grid-template-columns:1fr 36px;gap:6px}
+#kr-office .kr-item-del{border:0;background:none;color:var(--kr-muted);font-size:22px;line-height:1;height:44px}
+#kr-office .kr-item-calc{display:grid;grid-template-columns:70px 12px 1fr;gap:6px;align-items:center}
+#kr-office .kr-item-calc .kr-input{text-align:right}
+#kr-office .kr-times{color:var(--kr-muted);text-align:center}
+#kr-office .kr-item-total{grid-column:1/-1;text-align:right;font-size:12px;color:var(--kr-muted);font-variant-numeric:tabular-nums}
+#kr-office .kr-plan-src .kr-link{align-self:flex-start;padding:0}
+#kr-office .kr-plan-sum .kr-plan-total{border-top:0;padding-top:0}
+#kr-office .kr-plan-weeks{margin-top:12px}
+#kr-office .kr-plan-weeks summary{font-size:16px;color:var(--kr-muted)}
+#kr-office .kr-plan-weeks .kr-form{padding-bottom:16px}
+#kr-office .kr-plan-save{margin-top:16px}
+@media(max-width:380px){#kr-office .kr-donut{width:116px;height:116px}#kr-office .kr-donut-wrap{gap:10px}}
 @media(max-width:380px){#kr-office .kr-plan-row{grid-template-columns:1fr 120px}#kr-office .kr-sale{padding:12px 14px}}
 @media(max-width:380px){#kr-office .kr-top{padding:18px}#kr-office .kr-content{padding:16px 12px calc(110px + env(safe-area-inset-bottom))}#kr-office .kr-panel{padding:17px}#kr-office .kr-fact{font-size:28px}#kr-office .kr-plan{font-size:20px}#kr-office .kr-moneyline{gap:10px}#kr-office .kr-week{gap:7px}#kr-office .kr-event{padding:14px}#kr-office .kr-budget{padding:0 14px}#kr-office .kr-budget table{font-size:11px}}
 @media(prefers-reduced-motion:reduce){#kr-office .kr-bar>span{transition:none}}

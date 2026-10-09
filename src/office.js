@@ -20,7 +20,9 @@
 //   GET  /api/office/money?month=YYYY-MM — деньги месяца (см. office-money.js)
 //   POST /api/office/sales      — { clientId, date, amountKop, source, eventId?, comment? }
 //   POST /api/office/sales/void — { id } — отменить запись (не удаляется)
-//   POST /api/office/plans      — { month, sources: { new, renewal, events, ads }, weeks: [..] }
+//   POST /api/office/plans      — { month, items: { new: [{ title, eventId, qty, priceKop }], .. }, weeks: [..] }
+//   POST /api/office/expenses      — { clientId, date, amountKop, category, eventId?, comment? }
+//   POST /api/office/expenses/void — { id }
 //
 // Регистрации = записи на событие (бот, сайт, вручную, старые заявки с сайта)
 // без повторов — та же функция, что «Список участников» в боте. Участники
@@ -28,7 +30,7 @@
 
 import { normalizeUsername, collectEventRegistrations } from "./engagement.js";
 import { listEventsFrom, getEventById, setEventPlan, isTurizmEvent } from "./events-store.js";
-import { getMonthMoney, addSale, voidSale, savePlans, isValidMonth } from "./office-money.js";
+import { getMonthMoney, addSale, voidSale, addExpense, voidExpense, savePlans, isValidMonth } from "./office-money.js";
 
 // initData живёт, пока открыт Mini App; сутки — с запасом на «открыл утром,
 // смотрит вечером», и всё ещё не позволяет пользоваться утёкшей строкой вечно.
@@ -213,6 +215,18 @@ export async function handleOfficeApi(request, env, path) {
     const body = await readJson(request);
     if (!body) return json({ ok: false, error: "bad_json" }, 400);
     return result(await voidSale(env.DB, body.id, user));
+  }
+
+  if (path === "/api/office/expenses" && request.method === "POST") {
+    const body = await readJson(request);
+    if (!body) return json({ ok: false, error: "bad_json" }, 400);
+    return result(await addExpense(env.DB, body, user));
+  }
+
+  if (path === "/api/office/expenses/void" && request.method === "POST") {
+    const body = await readJson(request);
+    if (!body) return json({ ok: false, error: "bad_json" }, 400);
+    return result(await voidExpense(env.DB, body.id, user));
   }
 
   if (path === "/api/office/plans" && request.method === "POST") {

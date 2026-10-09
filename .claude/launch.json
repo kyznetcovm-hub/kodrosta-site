@@ -4,8 +4,20 @@
     {
       "name": "static",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8080"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8080"
+      ],
       "port": 8080
+    },
+    {
+      "name": "office-dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/office-dev-server.mjs"
+      ],
+      "port": 8091
     }
   ]
 }
