@@ -407,7 +407,9 @@
         }).join("") + "</select>" + icon("chevron-down") + "</label>";
     var html = '<section class="kr-panel" aria-label="Продажи клуба за ' + moneyMonthName() + '">' +
       '<div class="kr-between"><h2>Деньги клуба</h2>' + monthCtl + "</div>" +
-      '<div class="kr-moneyline"><div><span class="kr-label">Факт продаж</span><div class="kr-fact">' + fmtRub(m.factRub) + ' <span class="kr-currency">₽</span></div></div>' +
+      // доход — главная цифра; длинная сумма чуть мельче, чтобы влезала в строку
+      '<div class="kr-moneyline"><div><span class="kr-label">Факт продаж</span><div class="kr-fact' + (fmtRub(m.factRub).length > 9 ? " kr-fact-long" : "") + '">' +
+      fmtRub(m.factRub) + ' <span class="kr-currency">₽</span></div></div>' +
       '<div><span class="kr-label">План месяца</span>' +
       (planSet ? '<div class="kr-plan">' + fmtRub(m.planRub) + ' <span class="kr-currency">₽</span></div>' : '<div class="kr-plan kr-empty">План не задан</div>') +
       "</div></div>";
@@ -418,6 +420,11 @@
         (rest > 0 ? "Осталось " + fmtRub(rest) + " ₽" : rest === 0 ? "План выполнен" : "Сверх плана: " + fmtRub(-rest) + " ₽") +
         "</span></div>";
     }
+    // прибыль = доход − расходы месяца; строкой, не выделяя — главное доход
+    var expRub = m.expenses ? m.expenses.totalRub || 0 : 0;
+    var profit = m.factRub - expRub;
+    html += '<div class="kr-profit"><span>Прибыль<small>доход − расходы ' + fmtRub(expRub) + " ₽</small></span><strong>" +
+      (profit < 0 ? "−" : "") + fmtRub(Math.abs(profit)) + " ₽</strong></div>";
     if (!home && !data.demo) {
       html += '<div class="kr-between kr-moneylinks"><button class="kr-link" data-action="open-plan">' + icon("pencil") +
         (planSet ? "Изменить план" : "Задать план") + "</button></div>";
@@ -1007,7 +1014,7 @@
     if (state.page === "money" && (state.form === "sale" || state.form === "expense")) return ENTRY[state.form].subtitle;
     if (state.page === "money" && state.form === "plan") return monthLabel(data.money.month);
     if (state.page === "money") return "Продажи и поступления · " + moneyMonthName() + " " + data.money.month.slice(0, 4);
-    return (data.user && data.user.firstName ? data.user.firstName + ", вот" : "Вот") + " что происходит в клубе.";
+    return ""; // на «Обзоре» подзаголовка нет — Михаил попросил убрать приветствие
   }
 
   function render() {
@@ -1036,7 +1043,9 @@
     document.getElementById("kr-date").innerHTML = t.d + " " + MONTHS_GEN[t.m - 1] + "<br>" + t.y;
     document.getElementById("kr-title").textContent = state.selected !== null ? "Событие"
       : state.form === "sale" || state.form === "expense" ? ENTRY[state.form].title : state.form === "plan" ? "План продаж" : TITLES[state.page];
-    document.getElementById("kr-subtitle").textContent = subtitle();
+    var sub = subtitle();
+    document.getElementById("kr-subtitle").textContent = sub;
+    document.getElementById("kr-subtitle").hidden = !sub;
     var badge = data.demo ? "Демо-данные · суммы и регистрации условные"
       : "Обновлено в " + timeHM(data.loadedAt);
     document.getElementById("kr-demo").hidden = false;

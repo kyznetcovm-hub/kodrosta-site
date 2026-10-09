@@ -36,10 +36,12 @@ html, body { margin: 0; padding: 0; background: #f6f7fb; }
 #kr-office .kr-panel{background:#fff;border-radius:18px;padding:17px}
 #kr-office .kr-between{display:flex;align-items:center;justify-content:space-between;gap:10px}
 #kr-office .kr-month{color:var(--kr-muted);font-size:12px}
-#kr-office .kr-moneyline{display:grid;grid-template-columns:1.3fr 1fr;gap:14px;margin:17px 0 15px;align-items:end}
+/* доход крупнее, план мельче (просьба Михаила 9 октября): главное — доход */
+#kr-office .kr-moneyline{display:grid;grid-template-columns:1.75fr 1fr;gap:14px;margin:17px 0 15px;align-items:end}
 #kr-office .kr-label{font-size:12px;color:var(--kr-muted);margin-bottom:6px;display:block;line-height:1.45}
-#kr-office .kr-fact{font-size:32px;font-weight:600;letter-spacing:-1.3px;font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.1}
-#kr-office .kr-plan{font-size:22px;font-weight:500;letter-spacing:-.6px;white-space:nowrap;line-height:1.2;font-variant-numeric:tabular-nums}
+#kr-office .kr-fact{font-size:38px;font-weight:600;letter-spacing:-1.5px;font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.1}
+#kr-office .kr-fact-long{font-size:31px;letter-spacing:-1.2px}
+#kr-office .kr-plan{font-size:17px;font-weight:500;letter-spacing:-.3px;white-space:nowrap;line-height:1.2;font-variant-numeric:tabular-nums}
 #kr-office .kr-plan.kr-empty{font-size:15px;font-weight:400;letter-spacing:0;color:var(--kr-muted)}
 #kr-office .kr-currency{font-weight:400;font-size:.72em;letter-spacing:0}
 #kr-office .kr-bar{height:7px;background:var(--kr-line);border-radius:3px;overflow:hidden}
@@ -69,6 +71,9 @@ html, body { margin: 0; padding: 0; background: #f6f7fb; }
 #kr-office .kr-nav{display:flex;flex-direction:column;align-items:center;gap:6px;border:0;background:none;color:var(--kr-muted);font-size:11px;padding:8px 4px;border-radius:12px;min-height:55px}
 #kr-office .kr-nav[aria-current=page]{color:var(--kr-blue);background:#f6f7fb;font-weight:600}
 #kr-office .kr-icon{width:18px;height:18px;stroke-width:1.7;flex-shrink:0;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+#kr-office .kr-profit{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:12px;padding-top:11px;border-top:1px solid var(--kr-line);font-size:12px}
+#kr-office .kr-profit small{display:block;font-size:11px;color:var(--kr-muted);margin-top:2px}
+#kr-office .kr-profit strong{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
 #kr-office .kr-week-preview{margin-top:12px;padding-top:11px;border-top:1px solid var(--kr-line);font-size:11px;line-height:1.6}
 #kr-office .kr-week-preview strong{font-weight:500}
 #kr-office .kr-caption{font-size:11px;color:var(--kr-muted);line-height:1.55;margin:12px 2px 0}
@@ -199,5 +204,5 @@ html, body { margin: 0; padding: 0; background: #f6f7fb; }
 #kr-office .kr-plan-save{margin-top:16px}
 @media(max-width:380px){#kr-office .kr-donut{width:116px;height:116px}#kr-office .kr-donut-wrap{gap:10px}}
 @media(max-width:380px){#kr-office .kr-plan-row{grid-template-columns:1fr 120px}#kr-office .kr-sale{padding:12px 14px}}
-@media(max-width:380px){#kr-office .kr-top{padding:18px}#kr-office .kr-content{padding:16px 12px calc(110px + env(safe-area-inset-bottom))}#kr-office .kr-panel{padding:17px}#kr-office .kr-fact{font-size:28px}#kr-office .kr-plan{font-size:20px}#kr-office .kr-moneyline{gap:10px}#kr-office .kr-week{gap:7px}#kr-office .kr-event{padding:14px}#kr-office .kr-budget{padding:0 14px}#kr-office .kr-budget table{font-size:11px}}
+@media(max-width:380px){#kr-office .kr-top{padding:18px}#kr-office .kr-content{padding:16px 12px calc(110px + env(safe-area-inset-bottom))}#kr-office .kr-panel{padding:17px}#kr-office .kr-fact{font-size:33px}#kr-office .kr-fact-long{font-size:26px}#kr-office .kr-plan{font-size:15px}#kr-office .kr-moneyline{gap:10px}#kr-office .kr-week{gap:7px}#kr-office .kr-event{padding:14px}#kr-office .kr-budget{padding:0 14px}#kr-office .kr-budget table{font-size:11px}}
 @media(prefers-reduced-motion:reduce){#kr-office .kr-bar>span{transition:none}}
