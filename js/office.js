@@ -420,10 +420,11 @@
         (rest > 0 ? "Осталось " + fmtRub(rest) + " ₽" : rest === 0 ? "План выполнен" : "Сверх плана: " + fmtRub(-rest) + " ₽") +
         "</span></div>";
     }
-    // прибыль = доход − расходы месяца; строкой, не выделяя — главное доход
+    // прибыль = доход − расходы месяца: компактная синяя плашка — заметно,
+    // но не крупнее дохода (просьба Михаила 9 октября: только цифра, без пояснений)
     var expRub = m.expenses ? m.expenses.totalRub || 0 : 0;
     var profit = m.factRub - expRub;
-    html += '<div class="kr-profit"><span>Прибыль<small>доход − расходы ' + fmtRub(expRub) + " ₽</small></span><strong>" +
+    html += '<div class="kr-profit' + (profit < 0 ? " kr-loss" : "") + '"><span>Прибыль</span><strong>' +
       (profit < 0 ? "−" : "") + fmtRub(Math.abs(profit)) + " ₽</strong></div>";
     if (!home && !data.demo) {
       html += '<div class="kr-between kr-moneylinks"><button class="kr-link" data-action="open-plan">' + icon("pencil") +
@@ -435,8 +436,8 @@
         html += '<div class="kr-week-preview"><div class="kr-between"><span>Эта неделя · ' + weekLabel(cur, true) + "</span><strong>" +
           (cur.factRub == null ? "—" : fmtK(cur.factRub)) + " / " + (cur.planRub == null ? "—" : fmtK(cur.planRub)) + " тыс. ₽</strong></div></div>";
       }
-      html += '<div class="kr-between kr-moneylinks"><button class="kr-link" data-action="weeks">По неделям ' + icon("arrow-up-right") +
-        '</button><button class="kr-link" data-action="budget">Развернуть бюджет ' + icon("chevron-right") + "</button></div>";
+      html += '<div class="kr-hero-actions"><button class="kr-soft-btn" data-action="weeks">По неделям ' + icon("arrow-up-right") +
+        '</button><button class="kr-soft-btn" data-action="budget">Развернуть бюджет ' + icon("chevron-right") + "</button></div>";
     }
     return html + "</section>";
   }

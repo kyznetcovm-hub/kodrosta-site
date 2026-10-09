@@ -71,9 +71,14 @@ html, body { margin: 0; padding: 0; background: #f6f7fb; }
 #kr-office .kr-nav{display:flex;flex-direction:column;align-items:center;gap:6px;border:0;background:none;color:var(--kr-muted);font-size:11px;padding:8px 4px;border-radius:12px;min-height:55px}
 #kr-office .kr-nav[aria-current=page]{color:var(--kr-blue);background:#f6f7fb;font-weight:600}
 #kr-office .kr-icon{width:18px;height:18px;stroke-width:1.7;flex-shrink:0;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
-#kr-office .kr-profit{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:12px;padding-top:11px;border-top:1px solid var(--kr-line);font-size:12px}
-#kr-office .kr-profit small{display:block;font-size:11px;color:var(--kr-muted);margin-top:2px}
-#kr-office .kr-profit strong{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* прибыль — компактная синяя плашка: выделена цветом, но не размером */
+#kr-office .kr-profit{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;padding:10px 14px;border-radius:12px;background:var(--kr-blue);color:#fff;font-size:12px;font-weight:500}
+#kr-office .kr-profit strong{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+#kr-office .kr-profit.kr-loss{background:var(--kr-red)}
+/* «По неделям» и «Развернуть бюджет» — аккуратные кнопки */
+#kr-office .kr-hero-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+#kr-office .kr-soft-btn{display:flex;align-items:center;justify-content:center;gap:5px;min-height:40px;padding:0 10px;border:0;border-radius:10px;background:#eef3fe;color:var(--kr-blue);font-size:12px;font-weight:600;white-space:nowrap}
+#kr-office .kr-soft-btn .kr-icon{width:15px;height:15px}
 #kr-office .kr-week-preview{margin-top:12px;padding-top:11px;border-top:1px solid var(--kr-line);font-size:11px;line-height:1.6}
 #kr-office .kr-week-preview strong{font-weight:500}
 #kr-office .kr-caption{font-size:11px;color:var(--kr-muted);line-height:1.55;margin:12px 2px 0}
