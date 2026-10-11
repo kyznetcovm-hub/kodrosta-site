@@ -270,6 +270,11 @@
     if (idField) idField.value = event.id;
     var oldChat = overlay.querySelector(".js-event-chat");
     if (oldChat) oldChat.remove();
+    // после прошлой записи форма была скрыта, а статус «Готово» остался — сбрасываем
+    var evForm = overlay.querySelector("form");
+    if (evForm) evForm.style.display = "";
+    var evStatus = overlay.querySelector(".js-form-status");
+    if (evStatus) { evStatus.textContent = ""; evStatus.className = "form-status js-form-status"; }
     openModal("modal-event");
   }
 
@@ -298,11 +303,11 @@
     }
     if (currentEvent.registerUrl && /^https?:\/\//.test(currentEvent.registerUrl)) {
       var isChat = /^https?:\/\/t\.me\//i.test(currentEvent.registerUrl);
-      addLink(currentEvent.registerUrl, isChat ? "Вступить в чат мероприятия →" : "Перейти по ссылке мероприятия →");
+      addLink(currentEvent.registerUrl, isChat ? "Вступить в чат мероприятия →" : "Получить ссылку на созвон →");
     }
     // Бот не может первым написать человеку — подтверждение с описанием и ссылкой
     // придёт после «Старт» в боте; кнопка нужна всем.
-    addLink(BOT_LINK + "?start=e_" + encodeURIComponent(currentEvent.id), "Получить подтверждение в Telegram →");
+    addLink(BOT_LINK + "?start=e_" + encodeURIComponent(currentEvent.id), "Перейти в бота и получить напоминание →");
   }
 
   document.querySelectorAll(".js-modal-close").forEach(function (btn) {
@@ -468,7 +473,11 @@
           showStatus(form, "ok", type === "event"
             ? "Готово, вы записаны! Менеджер свяжется с вами перед мероприятием."
             : "Спасибо! Заявка отправлена, менеджер скоро свяжется с вами.");
-          if (type === "event") showEventChatLink(form);
+          if (type === "event") {
+            showEventChatLink(form);
+            // поля уже не нужны — иначе кажется, что форму надо заполнить ещё раз
+            form.style.display = "none";
+          }
           form.reset();
           if (typeof ym === "function") ym(111842641, "reachGoal", "form_submit", { type: type });
           if (window.kodrostaAnalytics) window.kodrostaAnalytics.track(
