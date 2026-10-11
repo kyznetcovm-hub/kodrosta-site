@@ -162,3 +162,17 @@ test('cron */15 запускает напоминания, а не синхро�
   assert.equal(to(f, 777).length, 1);
   assert.equal(f.sqlite.prepare('SELECT job FROM cron_runs').get().job, 'event_reminders');
 });
+
+test('в заявках для группы username всегда с @ (кликабельный), даже если человек ввёл без неё', async t => {
+  const f = fixture(t);
+  const cases = [['mytolstoy', 'Telegram: @mytolstoy'], ['@Guest1', 'Telegram: @Guest1'], ['https://t.me/some_user', 'Telegram: @some_user'], ['t.me/other1', 'Telegram: @other1'], ['+79990001122', 'Telegram: +79990001122']];
+  for (const [input] of cases) await submit(f.env, { name: 'Тест', phone: '+79990001122', telegram: input });
+  const texts = dms(f.sent, GROUP).map(m => m.text);
+  cases.forEach(([, expected], i) => assert.ok(texts[i].includes(expected + '\n'), texts[i]));
+  f.sent.length = 0;
+  await worker.fetch(new Request('https://codrosta.club/api/submit', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ type: 'apply', name: 'Тест', phone: '+79990001122', telegram: 'mytolstoy', company: 'ООО' }),
+  }), f.env, {});
+  assert.ok(dms(f.sent, GROUP)[0].text.includes('Telegram: @mytolstoy\n'));
+});

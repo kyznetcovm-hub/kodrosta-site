@@ -545,7 +545,7 @@ async function handleSubmit(request, env) {
       "📝 Заявка на вступление\n\n" +
       "Имя: " + name + "\n" +
       "Телефон: " + phone + "\n" +
-      "Telegram: " + telegram + "\n" +
+      "Telegram: " + telegramMention(telegram) + "\n" +
       (objectType ? "Тип объекта: " + objectType + "\n" : "") +
       (city ? "Город: " + city + "\n" : "") +
       "Компания/сфера: " + (company || "—") + "\n" +
@@ -561,7 +561,7 @@ async function handleSubmit(request, env) {
       "📅 Запись на мероприятие (" + (signupEvent && isTurizmEvent(signupEvent) ? "с сайта Туризм" : "с сайта") + ")\n\n" +
       "Мероприятие: " + (event || "—") + "\n" +
       "Имя: " + name + "\n" +
-      "Telegram: " + telegram + "\n" +
+      "Telegram: " + telegramMention(telegram) + "\n" +
       "Телефон: " + phone + "\n" +
       "Комментарий: " + (comment || "—") + promoLine;
     touchNote = event || promo || null;
@@ -581,7 +581,7 @@ async function handleSubmit(request, env) {
       "🎁 Заявка со скидкой (exit pop-up)\n\n" +
       "Имя: " + name + "\n" +
       "Телефон: " + phone + "\n" +
-      "Канал связи: " + channelLabel + (channel === "telegram" && telegram ? " (" + telegram + ")" : "") + "\n" +
+      "Канал связи: " + channelLabel + (channel === "telegram" && telegram ? " (" + telegramMention(telegram) + ")" : "") + "\n" +
       "Скидка: " + (offer ? offer + " ₽" : "—") + promoLine + "\n" +
       "Источник: " + (source || "—") + "\n" +
       "UTM: source=" + (utmSource || "—") + " medium=" + (utmMedium || "—") + " campaign=" + (utmCampaign || "—") +
@@ -639,6 +639,14 @@ async function handleSubmit(request, env) {
   }
 
   return json({ ok: true });
+}
+
+// В форме пишут и «nick», и «@nick», и «t.me/nick». В заявке для группы приводим
+// к «@nick» — Telegram делает такой текст ссылкой на аккаунт. Если введено что-то
+// другое (не похожее на username), оставляем как есть.
+function telegramMention(raw) {
+  const u = String(raw || "").trim().replace(/^(https?:\/\/)?t\.me\//i, "").replace(/^@/, "");
+  return /^[A-Za-z0-9_]{4,32}$/.test(u) ? "@" + u : String(raw || "").trim();
 }
 
 // Мероприятие, на которое пришла запись с сайта (по eventId из формы), или null.
