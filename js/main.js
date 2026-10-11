@@ -288,26 +288,26 @@
     if (!currentEvent) return;
     var status = form.parentElement.querySelector(".js-form-status");
     if (!status) return;
-    function addLink(href, text) {
-      var p = document.createElement("p");
-      p.className = "js-event-chat";
-      p.style.marginTop = "8px";
+    function addButton(href, text, kind) {
       var a = document.createElement("a");
+      a.className = "btn btn--" + kind + " btn--block js-event-chat";
       a.href = href;
       a.target = "_blank";
       a.rel = "noopener";
       a.textContent = text;
-      a.style.fontWeight = "600";
-      p.appendChild(a);
-      status.appendChild(p);
+      // длинные подписи должны переноситься, а не вылезать за окно на телефоне
+      a.style.whiteSpace = "normal";
+      a.style.textAlign = "center";
+      a.style.marginTop = "10px";
+      status.appendChild(a);
     }
     if (currentEvent.registerUrl && /^https?:\/\//.test(currentEvent.registerUrl)) {
       var isChat = /^https?:\/\/t\.me\//i.test(currentEvent.registerUrl);
-      addLink(currentEvent.registerUrl, isChat ? "Вступить в чат мероприятия →" : "Получить ссылку на созвон →");
+      addButton(currentEvent.registerUrl, isChat ? "Вступить в чат мероприятия" : "Получить ссылку на созвон", "primary");
     }
     // Бот не может первым написать человеку — подтверждение с описанием и ссылкой
     // придёт после «Старт» в боте; кнопка нужна всем.
-    addLink(BOT_LINK + "?start=e_" + encodeURIComponent(currentEvent.id), "Перейти в бота и получить напоминание →");
+    addButton(BOT_LINK + "?start=e_" + encodeURIComponent(currentEvent.id), "Перейти в бота и получить напоминание", "ghost");
   }
 
   document.querySelectorAll(".js-modal-close").forEach(function (btn) {
