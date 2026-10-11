@@ -470,8 +470,12 @@
         })
         .then(function (result) {
           if (!result.ok) throw new Error(result.error || "unknown");
+          // Если у мероприятия ссылка на созвон (не чат Telegram) — ссылка сразу на экране,
+          // менеджер не звонит и не пишет.
+          var hasCallLink = type === "event" && currentEvent && /^https?:\/\//.test(currentEvent.registerUrl || "") &&
+            !/^https?:\/\/t\.me\//i.test(currentEvent.registerUrl);
           showStatus(form, "ok", type === "event"
-            ? "Готово, вы записаны! Менеджер свяжется с вами перед мероприятием."
+            ? (hasCallLink ? "Готово, вы записаны!" : "Готово, вы записаны! Менеджер свяжется с вами перед мероприятием.")
             : "Спасибо! Заявка отправлена, менеджер скоро свяжется с вами.");
           if (type === "event") {
             showEventChatLink(form);
