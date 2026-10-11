@@ -1067,18 +1067,30 @@ async function handleEventRegConfirm(msg, env, eventId) {
     ].join("\n"));
   }
 
-  const head = created
-    ? `✅ Готово, вы записаны на «${escapeHtml(e.title)}».`
-    : `Вы уже в списке на «${escapeHtml(e.title)}».`;
+  const head = created ? "✅ Готово, вы записаны!" : "Вы уже в списке на это мероприятие.";
   await sendMessage(
     env, from.id,
-    head + "\n\nЕсли вы резидент клуба — по желанию поделитесь контактом, чтобы клуб учёл участие. Не обязательно.",
+    eventConfirmText(e, head) + "\n\nЕсли вы резидент клуба — по желанию поделитесь контактом, чтобы клуб учёл участие. Не обязательно.",
     {
       keyboard: [[{ text: "📞 Поделиться контактом", request_contact: true }]],
       resize_keyboard: true,
       one_time_keyboard: true,
-    }
+    },
+    { noPreview: true }
   );
+}
+
+// Подтверждение записи: название, время, место, описание и ссылка мероприятия
+// (поле «Регистрация» — чат или эфир), чтобы человек получил всё в Telegram.
+function eventConfirmText(e, head) {
+  const lines = [head, "", `<b>${escapeHtml(e.title)}</b>`, `📅 ${formatRuDateTime(e.start)}`];
+  if (e.place) lines.push(`📍 ${escapeHtml(e.place)}`);
+  if (e.description) lines.push("", escapeHtml(e.description));
+  if (e.registerUrl && /^https?:\/\//.test(e.registerUrl)) {
+    const isChat = /^https?:\/\/t\.me\//i.test(e.registerUrl);
+    lines.push("", `${isChat ? "💬 Чат мероприятия" : "🔗 Ссылка"}: ${escapeHtml(e.registerUrl)}`);
+  }
+  return lines.join("\n");
 }
 
 // Считает разбивку резидентов по свежести последнего касания. Общее для краткой

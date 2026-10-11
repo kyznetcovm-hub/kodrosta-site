@@ -14,6 +14,7 @@
 
   // ---- Настройки ------------------------------------------------------------
   var MANAGER_TELEGRAM = "https://t.me/Kodrosta";
+  var BOT_LINK = "https://t.me/KodrostaAssistant_bot";
 
   var MONTHS_SHORT = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
   var MONTHS_FULL = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
@@ -279,20 +280,29 @@
   // После записи: если у мероприятия есть чат (ссылка «Регистрация» в шаблоне) —
   // предлагаем вступить в него. Сама запись к этому моменту уже в боте.
   function showEventChatLink(form) {
-    if (!currentEvent || !currentEvent.registerUrl || !/^https?:\/\//.test(currentEvent.registerUrl)) return;
+    if (!currentEvent) return;
     var status = form.parentElement.querySelector(".js-form-status");
     if (!status) return;
-    var p = document.createElement("p");
-    p.className = "js-event-chat";
-    p.style.marginTop = "8px";
-    var a = document.createElement("a");
-    a.href = currentEvent.registerUrl;
-    a.target = "_blank";
-    a.rel = "noopener";
-    a.textContent = "Вступить в чат мероприятия →";
-    a.style.fontWeight = "600";
-    p.appendChild(a);
-    status.appendChild(p);
+    function addLink(href, text) {
+      var p = document.createElement("p");
+      p.className = "js-event-chat";
+      p.style.marginTop = "8px";
+      var a = document.createElement("a");
+      a.href = href;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = text;
+      a.style.fontWeight = "600";
+      p.appendChild(a);
+      status.appendChild(p);
+    }
+    if (currentEvent.registerUrl && /^https?:\/\//.test(currentEvent.registerUrl)) {
+      var isChat = /^https?:\/\/t\.me\//i.test(currentEvent.registerUrl);
+      addLink(currentEvent.registerUrl, isChat ? "Вступить в чат мероприятия →" : "Перейти по ссылке мероприятия →");
+    }
+    // Бот не может первым написать человеку — подтверждение с описанием и ссылкой
+    // придёт после «Старт» в боте; кнопка нужна всем.
+    addLink(BOT_LINK + "?start=e_" + encodeURIComponent(currentEvent.id), "Получить подтверждение в Telegram →");
   }
 
   document.querySelectorAll(".js-modal-close").forEach(function (btn) {
