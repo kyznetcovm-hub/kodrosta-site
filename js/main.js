@@ -237,6 +237,11 @@
   function openModal(id) {
     var el = overlays[id];
     if (!el) return;
+    // после прошлой отправки форма была скрыта, а «Готово» со ссылками остался — сбрасываем
+    var prevForm = el.querySelector("form");
+    if (prevForm) prevForm.style.display = "";
+    var prevStatus = el.querySelector(".js-form-status");
+    if (prevStatus) { prevStatus.textContent = ""; prevStatus.className = "form-status js-form-status"; }
     el.classList.add("is-open");
     document.body.style.overflow = "hidden";
     // фиксируем время открытия — анти-спам таймер
@@ -270,11 +275,6 @@
     if (idField) idField.value = event.id;
     var oldChat = overlay.querySelector(".js-event-chat");
     if (oldChat) oldChat.remove();
-    // после прошлой записи форма была скрыта, а статус «Готово» остался — сбрасываем
-    var evForm = overlay.querySelector("form");
-    if (evForm) evForm.style.display = "";
-    var evStatus = overlay.querySelector(".js-form-status");
-    if (evStatus) { evStatus.textContent = ""; evStatus.className = "form-status js-form-status"; }
     openModal("modal-event");
   }
 
@@ -282,32 +282,33 @@
   // ту же форму записи через эту функцию.
   window.kodrostaOpenEventModal = openEventModal;
 
-  // После записи: если у мероприятия есть чат (ссылка «Регистрация» в шаблоне) —
-  // предлагаем вступить в него. Сама запись к этому моменту уже в боте.
-  function showEventChatLink(form) {
-    if (!currentEvent) return;
+  // Кнопка-ссылка внутри блока «Готово» (под текстом статуса).
+  function addStatusButton(form, href, text, kind) {
     var status = form.parentElement.querySelector(".js-form-status");
     if (!status) return;
-    function addButton(href, text, kind) {
-      var a = document.createElement("a");
-      a.className = "btn btn--" + kind + " btn--block js-event-chat";
-      a.href = href;
-      a.target = "_blank";
-      a.rel = "noopener";
-      a.textContent = text;
-      // длинные подписи должны переноситься, а не вылезать за окно на телефоне
-      a.style.whiteSpace = "normal";
-      a.style.textAlign = "center";
-      a.style.marginTop = "10px";
-      status.appendChild(a);
-    }
+    var a = document.createElement("a");
+    a.className = "btn btn--" + kind + " btn--block js-event-chat";
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = text;
+    // длинные подписи должны переноситься, а не вылезать за окно на телефоне
+    a.style.whiteSpace = "normal";
+    a.style.textAlign = "center";
+    a.style.marginTop = "10px";
+    status.appendChild(a);
+  }
+
+  // После записи: ссылка мероприятия (чат или созвон), если есть, и кнопка на бота.
+  // Бот не может первым написать человеку — подтверждение с описанием и ссылкой
+  // придёт после «Старт» в боте; кнопка нужна всем.
+  function showEventChatLink(form) {
+    if (!currentEvent) return;
     if (currentEvent.registerUrl && /^https?:\/\//.test(currentEvent.registerUrl)) {
       var isChat = /^https?:\/\/t\.me\//i.test(currentEvent.registerUrl);
-      addButton(currentEvent.registerUrl, isChat ? "Вступить в чат мероприятия" : "Получить ссылку на созвон", "primary");
+      addStatusButton(form, currentEvent.registerUrl, isChat ? "Вступить в чат мероприятия" : "Получить ссылку на созвон", "primary");
     }
-    // Бот не может первым написать человеку — подтверждение с описанием и ссылкой
-    // придёт после «Старт» в боте; кнопка нужна всем.
-    addButton(BOT_LINK + "?start=e_" + encodeURIComponent(currentEvent.id), "Перейти в бота и получить напоминание", "ghost");
+    addStatusButton(form, BOT_LINK + "?start=e_" + encodeURIComponent(currentEvent.id), "Перейти в бота и получить напоминание", "ghost");
   }
 
   document.querySelectorAll(".js-modal-close").forEach(function (btn) {
@@ -432,6 +433,16 @@
     form.style.display = "none";
   }
 
+  // Экран «Спасибо» после заявки на вступление. Кнопка на бота — только на главном
+  // сайте клуба: у формы «Туризма» (поле objectType) свои мероприятия.
+  function showApplySuccess(form) {
+    showStatus(form, "ok", "Спасибо! Заявка отправлена, менеджер скоро свяжется с вами.");
+    if (!form.querySelector('[name="objectType"]')) {
+      addStatusButton(form, BOT_LINK + "?start=apply", "Перейти в бота и получать напоминания о мероприятиях Клуба", "ghost");
+    }
+    form.style.display = "none";
+  }
+
   document.querySelectorAll(".js-form").forEach(function (form) {
     form.addEventListener("submit", function (e) {
       e.preventDefault();
@@ -473,10 +484,11 @@
       var submitBtn = form.querySelector('[type="submit"]');
       if (submitBtn) submitBtn.disabled = true;
 
-      // Запись на мероприятие показываем сразу, не дожидаясь ответа сервера (он идёт
+      // Запись на мероприятие и заявку на вступление показываем сразу, не дожидаясь ответа сервера (он идёт
       // 2–3 секунды из-за Telegram) — человек не должен ждать и уходить. Заявка
       // сначала сохраняется на сервере; если отправка не удалась, вернём форму с ошибкой.
       if (type === "event") showEventSuccess(form);
+      else if (type === "apply") showApplySuccess(form);
 
       fetch("/api/submit", {
         method: "POST",
@@ -489,7 +501,6 @@
         })
         .then(function (result) {
           if (!result.ok) throw new Error(result.error || "unknown");
-          if (type !== "event") showStatus(form, "ok", "Спасибо! Заявка отправлена, менеджер скоро свяжется с вами.");
           form.reset();
           if (typeof ym === "function") ym(111842641, "reachGoal", "form_submit", { type: type });
           if (window.kodrostaAnalytics) window.kodrostaAnalytics.track(

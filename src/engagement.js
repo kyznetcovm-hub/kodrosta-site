@@ -992,6 +992,8 @@ async function handleStart(msg, env) {
   if (param.startsWith("e_")) {
     return handleEventRegPrompt(msg, env, param.slice(2));
   }
+  // Кнопка «Перейти в бота» после заявки на вступление на сайте.
+  if (param === "apply") return handleApplyStart(msg, env);
 
   if (isAdmin(msg.from.username, env)) return handleMenu(msg, env);
 
@@ -1006,6 +1008,20 @@ async function handleStart(msg, env) {
     "Привет! Чтобы клуб мог учитывать вашу активность и не терять тех, кто давно не появлялся — поделитесь, пожалуйста, контактом.",
     keyboard
   );
+}
+
+// Человек оставил заявку на вступление на сайте и перешёл в бота: коротко отвечаем
+// и показываем ближайшие мероприятия клуба (без «Туризма» — у него свои).
+async function handleApplyStart(msg, env) {
+  const events = env.DB ? (await listUpcomingEvents(env.DB)).filter((e) => !isTurizmEvent(e)) : [];
+  const lines = ["Здравствуйте! Это бот клуба «Код Роста». Заявку, оставленную на сайте, менеджер обработает и свяжется с вами."];
+  if (events.length) {
+    lines.push("", "Ближайшие мероприятия клуба — запись по ссылке:");
+    for (const e of events.slice(0, 5)) {
+      lines.push(`• ${formatRuDateTime(e.start)} — <a href="${eventShareLink(e.id, e)}">${escapeHtml(e.title)}</a>`);
+    }
+  }
+  return sendMessage(env, msg.from.id, lines.join("\n"), null, { noPreview: true });
 }
 
 // ---- Запись на мероприятие через ссылку-диплинк на бота ------------------

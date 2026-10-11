@@ -76,3 +76,20 @@ test('запись через бота: подтверждение содерж�
   const chat = await press('chat-ev', 888);
   assert.ok(chat.text.includes('💬 Чат мероприятия: https://t.me/+abc'));
 });
+
+test('/start apply (кнопка после заявки на вступление): приветствие и ближайшие мероприятия клуба без «Туризма»', async t => {
+  const f = fixture(t);
+  f.sqlite.exec(`INSERT INTO events (id, title, tag, start, end, place, description, created_at) VALUES
+    ('club-future', 'Будущая встреча клуба', 'Нетворкинг', '2030-01-10T18:00:00', '2030-01-10T20:00:00', 'Офис', 'Текст.', '2026-10-01T00:00:00Z'),
+    ('tur-future', 'Событие туризма', 'Туризм', '2030-01-11T18:00:00', '2030-01-11T20:00:00', 'Лес', 'Текст.', '2026-10-01T00:00:00Z');`);
+  const update = { message: { message_id: 1, from: { id: 999, username: 'prospect', first_name: 'Гость' }, chat: { id: 999, type: 'private' }, text: '/start apply' } };
+  await worker.fetch(new Request('https://codrosta.club/api/telegram-webhook', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(update),
+  }), f.env, {});
+  const [dm] = dms(f.sent, 999);
+  assert.ok(dm, 'бот не ответил');
+  assert.ok(dm.text.includes('Заявку, оставленную на сайте'));
+  assert.ok(dm.text.includes('https://codrosta.club/e/club-future'));
+  assert.ok(!dm.text.includes('tur-future') && !dm.text.includes('Событие туризма'));
+  assert.ok(!dm.text.includes('контакт'), 'не должен просить контакт для учёта активности');
+});
