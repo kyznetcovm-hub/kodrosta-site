@@ -95,3 +95,13 @@ test('Метрика в 10:00 МСК маршрутизируется незав
   assert.equal(f.sqlite.prepare('SELECT job FROM cron_runs').get().job, 'metrika_digest');
   assert.equal(f.sent.length, 0);
 });
+test('триггер */15 запускает расширенное продление в 05:00-05:30 UTC и не запускает вне этого окна', async t => {
+  const f = fixture(t, [header, row('Неделя тестовая', '01.01.2025', '30.09.2026')]);
+  const jobs = name => f.sqlite.prepare('SELECT COUNT(*) AS count FROM cron_runs WHERE job = ?').get(name).count;
+  await scheduled(f.env, '*/15 * * * *', '2026-09-23T05:15:00Z');
+  assert.equal(jobs('subscriptions'), 1);
+  assert.equal(f.sent.length, 1);
+  await scheduled(f.env, '*/15 * * * *', '2026-09-23T05:45:00Z');
+  await scheduled(f.env, '*/15 * * * *', '2026-09-23T12:00:00Z');
+  assert.equal(jobs('subscriptions'), 1);
+});

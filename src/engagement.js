@@ -18,7 +18,7 @@ import {
 import { syncResidentsFromSheet } from "./sheets-sync.js";
 import { listSubscriptionsDueThisMonth, listNewMembersThisMonth, listLeftMembersThisMonth, listReportMonths, buildSubscriptionReportForMonth, currentReportYear, FIRST_REPORT_YEAR } from "./subscriptions.js";
 import {
-  recordBotSignup, recordManualSignups, attachSignupPhone, listEventSignups,
+  recordBotSignup, recordManualSignups, attachSignupPhone, listEventSignups, ensureSignupTables,
 } from "./event-signups.js";
 
 const BOT_USERNAME = "KodrostaAssistant_bot";
@@ -1010,13 +1010,101 @@ async function handleStart(msg, env) {
   );
 }
 
+// ---- Напоминания о мероприятии: за сутки и за час до начала ---------------
+// Запускается по cron каждые 15 минут (см. wrangler.jsonc, src/index.js).
+// Получатели — записавшиеся, которым бот может написать: через бота (tg_user_id)
+// или резиденты с chat_id. Время мероприятий в базе — местное московское (UTC+3).
+const MSK_OFFSET_MS = 3 * 3600000;
+const HOUR_MS = 3600000;
+
+export function eventStartMs(iso) {
+  return Date.parse(String(iso).slice(0, 19) + "+03:00");
+}
+
+async function ensureReminderTable(env) {
+  await env.DB.prepare(
+    "CREATE TABLE IF NOT EXISTS event_reminders (" +
+    "event_id TEXT NOT NULL, kind TEXT NOT NULL, chat_id INTEGER NOT NULL, sent_at TEXT NOT NULL, " +
+    "PRIMARY KEY (event_id, kind, chat_id))"
+  ).run();
+}
+
+// Отправляет все напоминания, которые «созрели» к моменту nowMs.
+// Возвращает число отправленных сообщений.
+export async function sendEventReminders(env, nowMs = Date.now()) {
+  if (!env.DB || !env.BOT_TOKEN) return 0;
+  await ensureSignupTables(env);
+  await ensureReminderTable(env);
+  const nowMsk = new Date(nowMs + MSK_OFFSET_MS).toISOString().slice(0, 19);
+  const untilMsk = new Date(nowMs + MSK_OFFSET_MS + 25 * HOUR_MS).toISOString().slice(0, 19);
+  const { results: events } = await env.DB.prepare(
+    "SELECT * FROM events WHERE start > ? AND start <= ? ORDER BY start ASC"
+  ).bind(nowMsk, untilMsk).all();
+
+  let sent = 0;
+  for (const row of events || []) {
+    const startMs = eventStartMs(row.start);
+    const diff = startMs - nowMs;
+    // за сутки — только тем, кто записался заранее (иначе «завтра» неточно);
+    // окно до «за 2 часа» — чтобы пропущенный запуск cron не давал поздних «завтра»
+    const kinds = [];
+    if (diff > 2 * HOUR_MS && diff <= 24 * HOUR_MS) kinds.push("day");
+    if (diff > 0 && diff <= HOUR_MS) kinds.push("hour");
+    if (!kinds.length) continue;
+
+    const event = { title: row.title, start: row.start, place: row.place, registerUrl: row.register_url };
+    const { results: signups } = await env.DB.prepare(
+      "SELECT s.tg_user_id, s.created_at, r.chat_id AS resident_chat FROM event_signups s " +
+      "LEFT JOIN residents r ON r.id = s.resident_id WHERE s.event_id = ?"
+    ).bind(row.id).all();
+
+    for (const kind of kinds) {
+      const sameDay = String(row.start).slice(0, 10) === nowMsk.slice(0, 10);
+      const head = kind === "hour"
+        ? "⏰ Через час начинаем!"
+        : `⏰ Напоминание: ${sameDay ? "сегодня" : "завтра"} мероприятие клуба.`;
+      const text = eventConfirmText(event, head, false);
+      const chats = new Set();
+      for (const s of signups || []) {
+        if (kind === "day" && Date.parse(s.created_at) > startMs - 24 * HOUR_MS) continue;
+        const chatId = s.tg_user_id || s.resident_chat;
+        if (chatId) chats.add(chatId);
+      }
+      for (const chatId of chats) {
+        // сначала «занимаем» отправку — повторный запуск cron не продублирует сообщение
+        const claim = await env.DB.prepare(
+          "INSERT OR IGNORE INTO event_reminders (event_id, kind, chat_id, sent_at) VALUES (?, ?, ?, ?)"
+        ).bind(row.id, kind, chatId, new Date(nowMs).toISOString()).run();
+        if (!(claim.meta && claim.meta.changes > 0)) continue;
+        let retry = false;
+        try {
+          const resp = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true }),
+          });
+          if (resp.ok) sent++;
+          else if (resp.status >= 500 || resp.status === 429) retry = true; // 403 (бот заблокирован) — не повторяем
+        } catch (err) {
+          retry = true;
+        }
+        if (retry) {
+          await env.DB.prepare("DELETE FROM event_reminders WHERE event_id = ? AND kind = ? AND chat_id = ?")
+            .bind(row.id, kind, chatId).run();
+        }
+      }
+    }
+  }
+  return sent;
+}
+
 // Человек оставил заявку на вступление на сайте и перешёл в бота: коротко отвечаем
 // и показываем ближайшие мероприятия клуба (без «Туризма» — у него свои).
 async function handleApplyStart(msg, env) {
   const events = env.DB ? (await listUpcomingEvents(env.DB)).filter((e) => !isTurizmEvent(e)) : [];
   const lines = ["Здравствуйте! Это бот клуба «Код Роста». Заявку, оставленную на сайте, менеджер обработает и свяжется с вами."];
   if (events.length) {
-    lines.push("", "Ближайшие мероприятия клуба — запись по ссылке:");
+    lines.push("", "Ближайшие мероприятия клуба — запись по ссылке. На мероприятие, на которое вы записались, я напомню за день и за час до начала:");
     for (const e of events.slice(0, 5)) {
       lines.push(`• ${formatRuDateTime(e.start)} — <a href="${eventShareLink(e.id, e)}">${escapeHtml(e.title)}</a>`);
     }
@@ -1086,7 +1174,7 @@ async function handleEventRegConfirm(msg, env, eventId) {
   const head = created ? "✅ Готово, вы записаны!" : "Вы уже в списке на это мероприятие.";
   await sendMessage(
     env, from.id,
-    eventConfirmText(e, head) + "\n\nЕсли вы резидент клуба — по желанию поделитесь контактом, чтобы клуб учёл участие. Не обязательно.",
+    eventConfirmText(e, head) + "\n\n⏰ Напомню о мероприятии за день и за час до начала.\n\nЕсли вы резидент клуба — по желанию поделитесь контактом, чтобы клуб учёл участие. Не обязательно.",
     {
       keyboard: [[{ text: "📞 Поделиться контактом", request_contact: true }]],
       resize_keyboard: true,
@@ -1098,10 +1186,10 @@ async function handleEventRegConfirm(msg, env, eventId) {
 
 // Подтверждение записи: название, время, место, описание и ссылка мероприятия
 // (поле «Регистрация» — чат или эфир), чтобы человек получил всё в Telegram.
-function eventConfirmText(e, head) {
+function eventConfirmText(e, head, withDescription = true) {
   const lines = [head, "", `<b>${escapeHtml(e.title)}</b>`, `📅 ${formatRuDateTime(e.start)}`];
   if (e.place) lines.push(`📍 ${escapeHtml(e.place)}`);
-  if (e.description) lines.push("", escapeHtml(e.description));
+  if (withDescription && e.description) lines.push("", escapeHtml(e.description));
   if (e.registerUrl && /^https?:\/\//.test(e.registerUrl)) {
     const isChat = /^https?:\/\/t\.me\//i.test(e.registerUrl);
     lines.push("", `${isChat ? "💬 Чат мероприятия" : "🔗 Ссылка"}: ${escapeHtml(e.registerUrl)}`);

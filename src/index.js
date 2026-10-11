@@ -5,7 +5,7 @@
 // (см. events-store.js) — публикуются через Telegram-бота, см. engagement.js.
 // BOT_TOKEN и CHAT_ID заданы как секреты проекта в Cloudflare (см. README).
 
-import { handleTelegramUpdate, recordFormTouch, normalizePhone } from "./engagement.js";
+import { handleTelegramUpdate, recordFormTouch, normalizePhone, sendEventReminders } from "./engagement.js";
 import { listUpcomingEvents, getEventById, isTurizmEvent } from "./events-store.js";
 import { recordSiteSignup } from "./event-signups.js";
 import { getAllContent } from "./content-store.js";
@@ -76,7 +76,15 @@ export default {
   // 06:00 UTC 1-го числа — «Отчёт по абонементам» за прошедший месяц
   // (тоже только SUBSCRIPTION_ALERT_USERNAME).
   async scheduled(event, env, ctx) {
-    if (event.cron === "0 6 1 * *") {
+    if (event.cron === "*/15 * * * *") {
+      ctx.waitUntil(runScheduledEventReminders(env, event.cron, event.scheduledTime));
+      // Повторы регламента продления (05:00/05:15/05:30 UTC) идут с этого же триггера:
+      // отдельный cron для них убран, чтобы не превысить лимит триггеров аккаунта Cloudflare.
+      const at = new Date(event.scheduledTime);
+      if (at.getUTCHours() === 5 && at.getUTCMinutes() <= 30) {
+        ctx.waitUntil(runScheduledSubscriptionCheck(env, "0,15,30 5 * * *", at));
+      }
+    } else if (event.cron === "0 6 1 * *") {
       ctx.waitUntil(runScheduledMonthlySubscriptionReport(env, event.cron));
     } else if (event.cron === "0 5 * * *" || event.cron === "0,15,30 5 * * *") {
       ctx.waitUntil(runScheduledSubscriptionCheck(env, event.cron, new Date(event.scheduledTime)));
@@ -87,6 +95,18 @@ export default {
     }
   }
 };
+
+// Каждые 15 минут: напоминания о мероприятиях за сутки и за час. В cron_runs пишем
+// только запуски, где что-то отправлено, — иначе таблица копила бы 96 строк в день.
+async function runScheduledEventReminders(env, cron, scheduledTime) {
+  try {
+    const sent = await sendEventReminders(env, scheduledTime || Date.now());
+    if (sent > 0) await logCronRun(env, cron, "event_reminders", "отправлено: " + sent);
+  } catch (err) {
+    console.error("sendEventReminders failed", err);
+    await logCronRun(env, cron, "event_reminders", "ошибка: " + (err && err.message ? err.message : String(err)));
+  }
+}
 
 // Пишем в D1 факт срабатывания cron — иначе, если Cloudflare почему-то не
 // вызовет триггер (или вызовет не в то время), это невозможно будет
