@@ -418,6 +418,20 @@
     return null;
   }
 
+  // Экран «Готово, вы записаны!» со ссылками; поля формы скрываем — иначе кажется,
+  // что их нужно заполнить ещё раз.
+  function showEventSuccess(form) {
+    // Если у мероприятия ссылка на созвон (не чат Telegram) — она сразу на экране,
+    // менеджер не звонит и не пишет.
+    var hasCallLink = currentEvent && /^https?:\/\//.test(currentEvent.registerUrl || "") &&
+      !/^https?:\/\/t\.me\//i.test(currentEvent.registerUrl);
+    showStatus(form, "ok", hasCallLink
+      ? "Готово, вы записаны!"
+      : "Готово, вы записаны! Менеджер свяжется с вами перед мероприятием.");
+    showEventChatLink(form);
+    form.style.display = "none";
+  }
+
   document.querySelectorAll(".js-form").forEach(function (form) {
     form.addEventListener("submit", function (e) {
       e.preventDefault();
@@ -459,6 +473,11 @@
       var submitBtn = form.querySelector('[type="submit"]');
       if (submitBtn) submitBtn.disabled = true;
 
+      // Запись на мероприятие показываем сразу, не дожидаясь ответа сервера (он идёт
+      // 2–3 секунды из-за Telegram) — человек не должен ждать и уходить. Заявка
+      // сначала сохраняется на сервере; если отправка не удалась, вернём форму с ошибкой.
+      if (type === "event") showEventSuccess(form);
+
       fetch("/api/submit", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -470,18 +489,7 @@
         })
         .then(function (result) {
           if (!result.ok) throw new Error(result.error || "unknown");
-          // Если у мероприятия ссылка на созвон (не чат Telegram) — ссылка сразу на экране,
-          // менеджер не звонит и не пишет.
-          var hasCallLink = type === "event" && currentEvent && /^https?:\/\//.test(currentEvent.registerUrl || "") &&
-            !/^https?:\/\/t\.me\//i.test(currentEvent.registerUrl);
-          showStatus(form, "ok", type === "event"
-            ? (hasCallLink ? "Готово, вы записаны!" : "Готово, вы записаны! Менеджер свяжется с вами перед мероприятием.")
-            : "Спасибо! Заявка отправлена, менеджер скоро свяжется с вами.");
-          if (type === "event") {
-            showEventChatLink(form);
-            // поля уже не нужны — иначе кажется, что форму надо заполнить ещё раз
-            form.style.display = "none";
-          }
+          if (type !== "event") showStatus(form, "ok", "Спасибо! Заявка отправлена, менеджер скоро свяжется с вами.");
           form.reset();
           if (typeof ym === "function") ym(111842641, "reachGoal", "form_submit", { type: type });
           if (window.kodrostaAnalytics) window.kodrostaAnalytics.track(
@@ -497,6 +505,7 @@
           } catch (e) {}
         })
         .catch(function () {
+          form.style.display = "";
           showStatus(
             form,
             "err",
