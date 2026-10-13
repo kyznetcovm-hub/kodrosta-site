@@ -426,6 +426,43 @@ a { color: inherit; }
 .stat .stat-num .suffix { font-size: .5em; color: var(--blue); font-weight: 700; }
 .stat p { color: rgba(255,255,255,.6); font-size: 14px; margin: 0; }
 
+/* Отрасли резидентов — горизонтальная диаграмма */
+.industries { margin-top: 56px; position: relative; z-index: 1; }
+.industries-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--crimson);
+  margin: 0 0 28px;
+}
+.industries-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.industry { display: grid; grid-template-columns: minmax(180px, 320px) 1fr; align-items: center; column-gap: 24px; }
+.industry-name { text-align: right; color: rgba(255,255,255,.85); font-size: 16px; }
+.industry-track { display: block; }
+.industry-bar {
+  display: flex;
+  align-items: center;
+  width: 0;
+  min-width: 44px;
+  height: 28px;
+  padding-left: 12px;
+  border-radius: 0 6px 6px 0;
+  background: var(--blue);
+  transition: width 1s cubic-bezier(.2,.7,.2,1);
+}
+.industries.is-visible .industry-bar { width: var(--w); }
+.industry:nth-child(-n+2) .industry-bar { background: var(--crimson); }
+.industry-val { font-family: var(--font-display); font-size: 13px; font-weight: 500; color: var(--white); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .industry-bar { transition: none; } }
+@media (max-width: 720px) {
+  .industries { margin-top: 40px; }
+  .industry { grid-template-columns: 1fr; row-gap: 6px; }
+  .industry-name { text-align: left; font-size: 14px; }
+  .industry-bar { height: 24px; }
+}
+
 /* ---------- Why join ---------- */
 .why-grid {
   display: grid;

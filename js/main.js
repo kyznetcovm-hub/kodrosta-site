@@ -629,6 +629,20 @@
     observer.observe(flow);
   }
 
+  // ---- Появление диаграммы «Отрасли резидентов» ------------------------------------
+  function setupIndustries() {
+    var box = document.querySelector(".js-industries");
+    if (!box) return;
+    var observer = new IntersectionObserver(function (entries, obs) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        box.classList.add("is-visible");
+        obs.unobserve(box);
+      });
+    }, { threshold: 0.3 });
+    observer.observe(box);
+  }
+
   // ---- FAQ аккордеон -------------------------------------------------------------
   function setupFaq() {
     document.querySelectorAll(".js-faq-toggle").forEach(function (btn) {
@@ -649,6 +663,7 @@
   setupCookieBanner();
   setupFaq();
   setupStepsFlowReveal();
+  setupIndustries();
   var eventsListEl = document.querySelector(".js-events-list");
   if (eventsListEl) {
     setupEventsResizeRecalc(eventsListEl);
