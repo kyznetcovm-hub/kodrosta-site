@@ -30,6 +30,8 @@ export var SECTIONS = {
       { key: "numbers.stat4.label", label: "Показатель 4 — подпись" },
       { key: "numbers.stat5.number", label: "Показатель 5 — число" },
       { key: "numbers.stat5.label", label: "Показатель 5 — подпись" },
+      { key: "numbers.stat6.number", label: "Показатель 6 — число" },
+      { key: "numbers.stat6.label", label: "Показатель 6 — подпись" },
     ],
   },
   why: {

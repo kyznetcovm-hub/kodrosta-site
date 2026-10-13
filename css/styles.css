@@ -401,7 +401,7 @@ a { color: inherit; }
 .numbers .eyebrow { color: var(--crimson); }
 .numbers-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1px;
   background: rgba(255,255,255,.12);
   border-radius: var(--radius);
@@ -411,12 +411,12 @@ a { color: inherit; }
 }
 .stat {
   background: var(--black);
-  padding: 40px 22px;
+  padding: 40px 28px;
 }
 .stat .stat-num {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(30px, 3.2vw, 42px);
+  font-size: clamp(32px, 3.6vw, 44px);
   color: var(--white);
   display: flex;
   align-items: baseline;
@@ -976,7 +976,6 @@ a { color: inherit; }
   .about-lead { flex: 0 0 auto; }
   .about-grid { grid-template-columns: 1fr; }
   .numbers-grid { grid-template-columns: repeat(2, 1fr); }
-  .numbers-grid .stat:last-child { grid-column: 1 / -1; }
   .why-grid { grid-template-columns: 1fr; }
   .steps-flow { flex-wrap: wrap; row-gap: 40px; }
   .steps-flow::before { display: none; }
