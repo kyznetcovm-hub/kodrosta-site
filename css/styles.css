@@ -975,7 +975,7 @@ a { color: inherit; }
   .about-intro { flex-direction: column; }
   .about-lead { flex: 0 0 auto; }
   .about-grid { grid-template-columns: 1fr; }
-  .numbers-grid { grid-template-columns: repeat(2, 1fr); }
+  .numbers-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .why-grid { grid-template-columns: 1fr; }
   .steps-flow { flex-wrap: wrap; row-gap: 40px; }
   .steps-flow::before { display: none; }
@@ -1014,4 +1014,6 @@ a { color: inherit; }
 
 @media (max-width: 520px) {
   .step-flow { flex: 0 0 100%; }
+  .stat { padding: 28px 18px; }
+  .stat .stat-num { font-size: 28px; flex-wrap: wrap; }
 }
