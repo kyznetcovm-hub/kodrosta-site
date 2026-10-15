@@ -257,7 +257,7 @@ export async function syncResidentsFromSheet(env) {
   if (conflicts.length) {
     const uniqueConflicts = [...new Set(conflicts)];
     lines.push("", `⚠️ Один телефон на разных людей в таблице — поправьте вручную (${uniqueConflicts.length}):`);
-    lines.push(...uniqueConflicts.map((c) => "• " + c));
+    lines.push(...uniqueConflicts.map((c, i) => `${i + 1}. ${c}`));
   }
   return lines.join("\n");
 }

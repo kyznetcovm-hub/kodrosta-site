@@ -534,9 +534,15 @@ async function handleListEventsCommand(msg, env) {
 // старые заявки с сайта (touches, сверка по названию) и участники привязанной
 // Telegram-группы мероприятия. Подробности — в handleEventSignupsDetail.
 
-// Список людей нумеруем: «1. Имя», «2. Имя»… — так проще сверять с итогом.
+// Списки людей во всех отчётах бота нумеруем: «1. Имя», «2. Имя»… — так
+// проще сверять с итогом (просьба Михаила: везде номера, не маркеры «•»).
+// numbered — для сырых имён (экранирует), numberLines — для готовых строк.
 function numbered(names) {
-  return names.map((n, i) => `${i + 1}. ${escapeHtml(n)}`);
+  return numberLines(names.map(escapeHtml));
+}
+
+function numberLines(lines) {
+  return lines.map((line, i) => `${i + 1}. ${line}`);
 }
 
 function byNameRu(a, b) {
@@ -1220,11 +1226,11 @@ async function computeCoolingLists(env) {
       .bind(r.id)
       .first();
     if (!last) {
-      lists.nodata.push(`• ${name} — нет касаний`);
+      lists.nodata.push(`${name} — нет касаний`);
       continue;
     }
     const days = Math.floor((now - new Date(last.ts).getTime()) / 86400000);
-    const line = `• ${name} — ${days} дн. назад (${last.kind})`;
+    const line = `${name} — ${days} дн. назад (${last.kind})`;
     if (days >= critDays) lists.crit.push(line);
     else if (days >= warnDays) lists.warn.push(line);
     else lists.ok.push(line);
@@ -1287,7 +1293,7 @@ async function handleCoolingDetail(msg, env, category) {
   const report = [
     `<b>${cat.emoji} ${cat.label}${rangeLabel}</b> — ${items.length}`,
     "",
-    ...(items.length ? items : ["  —"]),
+    ...(items.length ? numberLines(items) : ["  —"]),
   ].join("\n");
 
   const backRow = [{ text: "⬅️ К сводке", callback_data: "menu:report" }];
@@ -1385,10 +1391,10 @@ async function reportResidentMatch(env, userId, handlesIn, phonesIn, headerLine)
     `Распознано аккаунтов: ${handles.length + phones.length}`,
     "",
     `✅ Уже резиденты: ${found.length}`,
-    ...(found.length ? found.map((s) => "• " + s) : ["  —"]),
+    ...(found.length ? numberLines(found) : ["  —"]),
     "",
     `✉️ Не в базе — на приглашение: ${invite.length}`,
-    ...(invite.length ? invite.map((s) => "• " + s) : ["  —"]),
+    ...(invite.length ? numberLines(invite) : ["  —"]),
   ];
   if (invite.length) {
     lines.push("", "Одной строкой для рассылки:", invite.join(" "));

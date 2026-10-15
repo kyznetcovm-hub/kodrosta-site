@@ -272,6 +272,29 @@ test('бот «Список участников» после выноса по�
   assert.doesNotMatch(text, /^• /m);
 });
 
+test('везде, где бот перечисляет людей, — номера 1. 2. 3., а не «•»', async (t) => {
+  const { handleTelegramUpdate } = await import('../src/engagement.js');
+  const { sqlite, env } = eventsEnv(t);
+  sqlite.exec('ALTER TABLE touches ADD COLUMN ts TEXT');
+  const sent = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (String(url).endsWith('/sendMessage')) sent.push(JSON.parse(options.body).text);
+    return Response.json({ ok: true, result: {} });
+  });
+  const admin = { id: 111, username: 'mytolstoy' };
+  // «Вовлечённость» → категория «Нет данных»: у всех трёх резидентов нет касаний
+  await handleTelegramUpdate({ callback_query: { id: 'q', from: admin, data: 'cool:nodata' } }, env);
+  let text = sent.join('\n');
+  assert.match(text, /\n1\. .+ — нет касаний\n2\. .+\n3\. /);
+  // «Сверка участников»: один резидент, двое не в базе
+  sent.length = 0;
+  await handleTelegramUpdate({ message: { message_id: 1, from: admin, chat: { id: 111, type: 'private' }, text: '/match @ivan @stranger1 @stranger2' } }, env);
+  text = sent.join('\n');
+  assert.match(text, /Уже резиденты: 1\n1\. @ivan/);
+  assert.match(text, /на приглашение: 2\n1\. @stranger1\n2\. @stranger2/);
+  assert.doesNotMatch(text, /^• /m);
+});
+
 // ---- Этап 4: деньги -------------------------------------------------------------
 import { monthWeeks, moscowDay } from '../src/office-money.js';
 
