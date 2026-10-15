@@ -534,6 +534,11 @@ async function handleListEventsCommand(msg, env) {
 // старые заявки с сайта (touches, сверка по названию) и участники привязанной
 // Telegram-группы мероприятия. Подробности — в handleEventSignupsDetail.
 
+// Список людей нумеруем: «1. Имя», «2. Имя»… — так проще сверять с итогом.
+function numbered(names) {
+  return names.map((n, i) => `${i + 1}. ${escapeHtml(n)}`);
+}
+
 function byNameRu(a, b) {
   // ✅ в начале не должен влиять на алфавитный порядок
   return a.replace(/^✅ /, "").localeCompare(b.replace(/^✅ /, ""), "ru");
@@ -684,22 +689,22 @@ async function handleEventSignupsDetail(msg, env, id) {
   ];
 
   lines.push(`<b>Через бота (ссылка): ${botNames.length}</b>`);
-  lines.push(...(botNames.length ? botNames.map((n) => "• " + escapeHtml(n)) : ["  —"]));
+  lines.push(...(botNames.length ? numbered(botNames) : ["  —"]));
   lines.push("");
 
   lines.push(`<b>С сайта: ${siteNames.length}</b>`);
-  lines.push(...(siteNames.length ? siteNames.map((n) => "• " + escapeHtml(n)) : ["  —"]));
+  lines.push(...(siteNames.length ? numbered(siteNames) : ["  —"]));
   lines.push("");
 
   lines.push(`<b>Добавлены вручную: ${manualNames.length}</b>`);
-  lines.push(...(manualNames.length ? manualNames.map((n) => "• " + escapeHtml(n)) : ["  —"]));
+  lines.push(...(manualNames.length ? numbered(manualNames) : ["  —"]));
   lines.push("");
 
   if (groupNames === null) {
     lines.push("Группа мероприятия не привязана — список участников группы не учтён.");
   } else {
     lines.push(`<b>Группа «${escapeHtml(groupTitle || String(e.signupChatId))}»: ${groupNames.length}</b>`);
-    lines.push(...(groupNames.length ? groupNames.map((n) => "• " + escapeHtml(n)) : ["  —"]));
+    lines.push(...(groupNames.length ? numbered(groupNames) : ["  —"]));
     lines.push("");
     lines.push("Участники группы дублей с записями по @нику не дают; те, у кого ника нет, могут пересекаться с другими списками.");
   }
