@@ -243,6 +243,7 @@ a { color: inherit; }
 .nav-dropdown .nav-only-menu a.menu-brand--kodrosta { color: #296EF7; }
 .nav-dropdown .nav-only-menu a.menu-brand--turizm { color: #2F6B4F; }
 .nav-dropdown .nav-only-menu a.menu-brand--kalorimetr { color: #E23145; }
+.nav-dropdown .nav-only-menu a.menu-brand--premiya { color: #001B7D; }
 .nav-dropdown li:not(.nav-only-menu) + .nav-only-menu { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--gray-100); }
 /* С бургером на десктопе шапке нужно больше места: на главной строку разделов
    прячем чуть раньше общего брейкпоинта (1040px) — все пункты есть в панели. */
