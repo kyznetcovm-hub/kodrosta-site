@@ -248,7 +248,7 @@
     var form = el.querySelector("form");
     if (form) form.dataset.openedAt = String(Date.now());
     if (window.kodrostaAnalytics) window.kodrostaAnalytics.track(
-      id === "modal-apply" ? "apply_form_open" : "event_form_open"
+      id === "modal-apply" ? "apply_form_open" : id === "modal-partner" ? "partner_form_open" : "event_form_open"
     );
     var firstInput = el.querySelector("input:not([type=hidden])");
     if (firstInput) setTimeout(function () { firstInput.focus(); }, 100);
@@ -261,6 +261,18 @@
 
   document.querySelectorAll(".js-open-apply").forEach(function (btn) {
     btn.addEventListener("click", function () { openModal("modal-apply"); });
+  });
+
+  // «Стать партнёром» (страница премии, codrosta.club/premiya): форма заявки партнёра.
+  // data-package на кнопке — заранее выбранный пакет.
+  document.querySelectorAll(".js-open-partner").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var overlay = overlays["modal-partner"];
+      if (!overlay) return;
+      var select = overlay.querySelector('[name="package"]');
+      if (select) select.value = btn.getAttribute("data-package") || "";
+      openModal("modal-partner");
+    });
   });
 
   var currentEvent = null; // мероприятие, открытое в форме записи
@@ -433,6 +445,12 @@
     form.style.display = "none";
   }
 
+  // Экран «Спасибо» после заявки партнёра.
+  function showPartnerSuccess(form) {
+    showStatus(form, "ok", "Спасибо! Заявка отправлена, менеджер скоро свяжется с вами по партнёрству.");
+    form.style.display = "none";
+  }
+
   // Экран «Спасибо» после заявки на вступление. Кнопка на бота — только на главном
   // сайте клуба: у формы «Туризма» (поле objectType) свои мероприятия.
   function showApplySuccess(form) {
@@ -471,6 +489,7 @@
         telegram: form.querySelector('[name="telegram"]').value.trim(),
         comment: form.querySelector('[name="comment"]') ? form.querySelector('[name="comment"]').value.trim() : "",
         company: form.querySelector('[name="company"]') ? form.querySelector('[name="company"]').value.trim() : "",
+        package: form.querySelector('[name="package"]') ? form.querySelector('[name="package"]').value : "",
         objectType: form.querySelector('[name="objectType"]') ? form.querySelector('[name="objectType"]').value.trim() : "",
         city: form.querySelector('[name="city"]') ? form.querySelector('[name="city"]').value.trim() : "",
         event: form.querySelector('[name="event"]') ? form.querySelector('[name="event"]').value : "",
@@ -489,6 +508,7 @@
       // сначала сохраняется на сервере; если отправка не удалась, вернём форму с ошибкой.
       if (type === "event") showEventSuccess(form);
       else if (type === "apply") showApplySuccess(form);
+      else if (type === "partner") showPartnerSuccess(form);
 
       fetch("/api/submit", {
         method: "POST",
@@ -504,7 +524,7 @@
           form.reset();
           if (typeof ym === "function") ym(111842641, "reachGoal", "form_submit", { type: type });
           if (window.kodrostaAnalytics) window.kodrostaAnalytics.track(
-            type === "apply" ? "apply_form_success" : "event_form_success"
+            type === "apply" ? "apply_form_success" : type === "partner" ? "partner_form_success" : "event_form_success"
           );
           // Флаг для exit-popup: цель уже достигнута — больше не показывать pop-up этому пользователю.
           try {

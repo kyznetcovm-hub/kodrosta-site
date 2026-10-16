@@ -514,7 +514,7 @@ async function handleSubmit(request, env) {
   const name = String(data.name || "").trim();
   const phone = String(data.phone || "").trim();
   const telegram = String(data.telegram || "").trim();
-  const type = data.type === "event" ? "event" : data.type === "exit_popup" ? "exit_popup" : "apply";
+  const type = data.type === "event" ? "event" : data.type === "partner" ? "partner" : data.type === "exit_popup" ? "exit_popup" : "apply";
 
   // exit_popup даёт выбор канала связи (Telegram/MAX/WhatsApp) — Telegram-username
   // обязателен, только если выбран сам Telegram; для MAX/WhatsApp достаточно телефона.
@@ -522,6 +522,10 @@ async function handleSubmit(request, env) {
   const channel = type === "exit_popup" && CHANNELS[data.channel] ? data.channel : "telegram";
 
   if (!name || !phone || (channel === "telegram" && !telegram)) {
+    return json({ ok: false, error: "validation" }, 400);
+  }
+  // заявка партнёра — компания обязательна (это и есть «предприятие» для заявки)
+  if (type === "partner" && !String(data.company || "").trim()) {
     return json({ ok: false, error: "validation" }, 400);
   }
 
@@ -551,6 +555,20 @@ async function handleSubmit(request, env) {
       "Компания/сфера: " + (company || "—") + "\n" +
       "Комментарий: " + (comment || "—") + promoLine;
     touchNote = promo || null;
+  } else if (type === "partner") {
+    // Заявка на партнёрство со страницы премии «Предприниматель года» (codrosta.club/premiya)
+    const company = String(data.company || "").trim().slice(0, 200);
+    const pack = String(data.package || "").trim().slice(0, 120);
+    const comment = String(data.comment || "").trim();
+    text =
+      "🤝 Заявка на партнёрство (премия «Предприниматель года», с сайта)\n\n" +
+      "Компания: " + company + "\n" +
+      "Имя: " + name + "\n" +
+      "Телефон: " + phone + "\n" +
+      "Telegram: " + telegramMention(telegram) + "\n" +
+      "Интересует: " + (pack || "—") + "\n" +
+      "Комментарий: " + (comment || "—");
+    touchNote = [company, pack].filter(Boolean).join("; ") || null;
   } else if (type === "event") {
     const event = String(data.event || "").trim();
     const comment = String(data.comment || "").trim();
@@ -613,7 +631,7 @@ async function handleSubmit(request, env) {
   const residentId = await recordFormTouch(env, {
     phone,
     telegramHandle: telegram,
-    kind: type === "apply" ? "apply" : type === "event" ? "event_signup" : "exit_popup",
+    kind: type === "apply" ? "apply" : type === "event" ? "event_signup" : type === "partner" ? "partner_request" : "exit_popup",
     note: touchNote,
     name,
   });

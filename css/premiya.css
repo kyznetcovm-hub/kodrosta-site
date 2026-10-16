@@ -193,10 +193,11 @@
 .p-pack--r .p-pack-label { background: var(--red); color: #fff; }
 .p-pack--m .p-pack-label { background: var(--mint); color: var(--navy); }
 .p-pack h3 { color: var(--navy); font-size: 28px; line-height: 1.1; margin: 26px 26px 10px; }
+.p-pack-btn { margin: 26px 26px 0; align-self: stretch; }
 .p-price { font-size: clamp(40px, 4vw, 54px); line-height: 1; font-weight: 800; letter-spacing: -0.03em; margin: 0 26px 14px; color: var(--navy); }
 .p-pack--r .p-price { color: var(--red); }
 .p-pack-lead { font-size: 17px; line-height: 1.5; font-weight: 600; margin: 0 26px 18px; }
-.p-pack ul { list-style: none; margin: 0 26px; padding: 18px 0 0; border-top: 2px solid var(--grey); display: flex; flex-direction: column; gap: 11px; }
+.p-pack ul { list-style: none; margin: 0 26px; padding: 18px 0 0; border-top: 2px solid var(--grey); display: flex; flex-direction: column; gap: 11px; flex: 1 1 auto; }
 .p-pack li { position: relative; padding-left: 20px; font-size: 16px; line-height: 1.45; }
 .p-pack li::before { content: ""; position: absolute; left: 0; top: .5em; width: 9px; height: 9px; background: var(--red); }
 .p-pack--b li::before { background: var(--sky); }
@@ -239,7 +240,8 @@
 .page-premiya .modal .modal-sub { color: var(--navy); opacity: .75; }
 .page-premiya .form-field label { color: var(--navy); }
 .page-premiya .form-field input, .page-premiya .form-field textarea { border-radius: 0; border: 2px solid var(--grey); color: var(--navy); }
-.page-premiya .form-field input:focus, .page-premiya .form-field textarea:focus { border-color: var(--navy); }
+.page-premiya .form-field input:focus, .page-premiya .form-field textarea:focus, .page-premiya .form-field select:focus { border-color: var(--navy); outline: none; }
+.page-premiya .form-field select { width: 100%; padding: 13px 14px; border: 2px solid var(--grey); border-radius: 0; font-family: var(--font-body); font-size: 15px; color: var(--navy); background: #fff; }
 .page-premiya .form-consent { color: var(--navy); opacity: .7; }
 .page-premiya .form-consent a { color: var(--red); }
 .page-premiya .btn { border-radius: 0; letter-spacing: .02em; box-shadow: none; }

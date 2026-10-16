@@ -103,7 +103,7 @@
         <p class="p-lead">«Код Роста» объединит предпринимателей, резидентов и гостей на событии, посвящённом решениям, деловым связям и результатам трёх лет.</p>
         <div class="p-cta">
           <a class="p-btn p-btn--red" href="#event">Зарегистрироваться</a>
-          <a class="p-btn p-btn--outline" href="#partners">Стать партнёром</a>
+          <button class="p-btn p-btn--outline js-open-partner" type="button">Стать партнёром</button>
         </div>
       </div>
       <div class="p-eq" aria-hidden="true"><i class="c-b" style="--i:0;--h:7;--w:15"></i><i class="c-r" style="--i:1;--h:14;--w:9"></i><i class="c-m" style="--i:2;--h:26;--w:20"></i><i class="c-g" style="--i:3;--h:20;--w:11"></i><i class="c-n" style="--i:4;--h:44;--w:24"></i><i class="c-b" style="--i:5;--h:36;--w:13"></i><i class="c-r" style="--i:6;--h:66;--w:28"></i><i class="c-m" style="--i:7;--h:100;--w:34"></i><i class="c-n" style="--i:8;--h:66;--w:28"></i><i class="c-g" style="--i:9;--h:36;--w:13"></i><i class="c-b" style="--i:10;--h:44;--w:24"></i><i class="c-r" style="--i:11;--h:20;--w:11"></i><i class="c-m" style="--i:12;--h:26;--w:20"></i><i class="c-g" style="--i:13;--h:14;--w:9"></i><i class="c-b" style="--i:14;--h:7;--w:15"></i></div>
@@ -265,6 +265,7 @@
             <li>Индивидуальный разбор нейровидимости бренда</li>
             <li>Бренд-зона на форуме и присутствие в информполе после 27 ноября</li>
           </ul>
+          <button class="p-btn p-btn--red p-pack-btn js-open-partner" type="button" data-package="Генеральный партнёр — 500 000 ₽">Выбрать пакет</button>
         </article>
         <article class="p-pack p-pack--r">
           <span class="p-pack-label">Пакет 02&nbsp;&nbsp;/&nbsp;&nbsp;Экспертиза</span>
@@ -279,6 +280,7 @@
             <li>Упоминание в пресс-релизе и в новостной повестке форума</li>
             <li>Диагностика нейровидимости компании</li>
           </ul>
+          <button class="p-btn p-btn--red p-pack-btn js-open-partner" type="button" data-package="Партнёр события — 250 000 ₽">Выбрать пакет</button>
         </article>
         <article class="p-pack p-pack--m">
           <span class="p-pack-label">Пакет 03&nbsp;&nbsp;/&nbsp;&nbsp;Только для резидентов</span>
@@ -292,6 +294,7 @@
             <li>Ваши 10 минут в эфире: персональный подкаст в студии форума</li>
             <li>Два приглашения на трёхлетие «Кода роста»</li>
           </ul>
+          <button class="p-btn p-btn--red p-pack-btn js-open-partner" type="button" data-package="Друг клуба — 80 000 ₽">Выбрать пакет</button>
         </article>
       </div>
 
@@ -319,7 +322,7 @@
           <h2>Станьте частью Живого кода</h2>
           <p>Выберем пакет и согласуем интеграции под задачи вашего бизнеса. Индивидуальный пакет — под ваш бюджет.</p>
         </div>
-        <a class="p-btn p-btn--red p-btn--lg" href="https://t.me/Kodrosta" target="_blank" rel="noopener">Обсудить партнёрство</a>
+        <button class="p-btn p-btn--red p-btn--lg js-open-partner" type="button">Стать партнёром</button>
       </div>
     </div>
   </section>
@@ -389,6 +392,51 @@
       </div>
       <p class="form-consent">Нажимая «Записаться», вы соглашаетесь с <a href="/privacy" target="_blank">политикой обработки персональных данных</a>.</p>
       <button class="btn btn--primary btn--block" type="submit">Записаться</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== MODAL: ЗАЯВКА ПАРТНЁРА (js/main.js → /api/submit, type=partner → группа заявок в Telegram) ===================== -->
+<div class="modal-overlay js-modal-overlay" id="modal-partner">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-partner-title">
+    <button class="modal-close js-modal-close" type="button" aria-label="Закрыть">✕</button>
+    <h3 id="modal-partner-title">Стать партнёром</h3>
+    <p class="modal-sub">«Живой код» — премия «Предприниматель года». Расскажите о компании — менеджер свяжется с вами и предложит формат участия.</p>
+    <div class="form-status js-form-status"></div>
+    <form class="js-form" data-form-type="partner" novalidate>
+      <input type="text" name="website" class="form-hp" tabindex="-1" autocomplete="off">
+      <div class="form-field">
+        <label for="premiya-partner-company">Компания</label>
+        <input id="premiya-partner-company" name="company" type="text" required autocomplete="organization" placeholder="Название компании">
+      </div>
+      <div class="form-field">
+        <label for="premiya-partner-name">Имя</label>
+        <input id="premiya-partner-name" name="name" type="text" required autocomplete="name" placeholder="Как к вам обращаться">
+      </div>
+      <div class="form-field">
+        <label for="premiya-partner-phone">Телефон</label>
+        <input id="premiya-partner-phone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00">
+      </div>
+      <div class="form-field">
+        <label for="premiya-partner-telegram">Telegram</label>
+        <input id="premiya-partner-telegram" name="telegram" type="text" required placeholder="@username">
+      </div>
+      <div class="form-field">
+        <label for="premiya-partner-package">Что интересует</label>
+        <select id="premiya-partner-package" name="package">
+          <option value="">Пока не выбрал(а)</option>
+          <option value="Генеральный партнёр — 500 000 ₽">Генеральный партнёр — 500 000 ₽</option>
+          <option value="Партнёр события — 250 000 ₽">Партнёр события — 250 000 ₽</option>
+          <option value="Друг клуба — 80 000 ₽">Друг клуба — 80 000 ₽</option>
+          <option value="Индивидуальный пакет">Индивидуальный пакет — под ваш бюджет</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="premiya-partner-comment">Комментарий</label>
+        <textarea id="premiya-partner-comment" name="comment" placeholder="Задачи бизнеса, пожелания (необязательно)"></textarea>
+      </div>
+      <p class="form-consent">Нажимая «Отправить», вы соглашаетесь с <a href="/privacy" target="_blank">политикой обработки персональных данных</a>.</p>
+      <button class="btn btn--primary btn--block" type="submit">Отправить заявку</button>
     </form>
   </div>
 </div>

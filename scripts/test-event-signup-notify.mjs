@@ -176,3 +176,30 @@ test('в заявках для группы username всегда с @ (клик
   }), f.env, {});
   assert.ok(dms(f.sent, GROUP)[0].text.includes('Telegram: @mytolstoy\n'));
 });
+
+test('заявка партнёра со страницы премии: компания и пакет доходят до группы, касание partner_request', async t => {
+  const f = fixture(t);
+  const resp = await submit(f.env, {
+    type: 'partner', company: 'ООО «Тест»', package: 'Генеральный партнёр — 500 000 ₽',
+    name: 'Иван Иванов', phone: '+7 900 111-22-33', telegram: '@ivan_test', comment: 'Хотим свой кейс', event: '', eventId: '',
+  });
+  assert.deepEqual(await resp.json(), { ok: true });
+  const posted = dms(f.sent, GROUP);
+  assert.equal(posted.length, 1);
+  assert.match(posted[0].text, /Заявка на партнёрство/);
+  assert.match(posted[0].text, /Компания: ООО «Тест»/);
+  assert.match(posted[0].text, /Интересует: Генеральный партнёр — 500 000 ₽/);
+  assert.match(posted[0].text, /Telegram: @ivan_test/);
+  const touch = f.sqlite.prepare("SELECT kind, note FROM touches ORDER BY id DESC LIMIT 1").get();
+  assert.equal(touch.kind, 'partner_request');
+  assert.match(touch.note, /ООО «Тест»/);
+  // в «Списки участников» мероприятий заявка партнёра не попадает
+  assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS c FROM event_signups").get().c, 0);
+});
+
+test('заявка партнёра без компании отклоняется и в группу не уходит', async t => {
+  const f = fixture(t);
+  const resp = await submit(f.env, { type: 'partner', company: ' ', name: 'Иван', phone: '+7 900 111-22-33', telegram: '@ivan_test', event: '', eventId: '' });
+  assert.equal(resp.status, 400);
+  assert.equal(dms(f.sent, GROUP).length, 0);
+});
