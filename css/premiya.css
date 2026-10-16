@@ -41,20 +41,8 @@
 .page-premiya .burger span, .page-premiya .burger span::before, .page-premiya .burger span::after { background: var(--navy); }
 .page-premiya .nav-dropdown .nav-only-menu a.menu-brand--kodrosta { color: #296EF7; }
 
-/* Лого: иконка-эквалайзер + «КОД РОСТА» красным + «ФОРУМ» голубым */
-.p-logo { gap: 12px; }
-.p-logo-eq { display: flex; align-items: center; height: 32px; flex-shrink: 0; }
-.p-logo-eq i { display: block; width: 4px; background: var(--c, var(--navy)); }
-.p-logo-eq i:nth-child(1) { height: 28%; --c: var(--sky); }
-.p-logo-eq i:nth-child(2) { height: 52%; --c: var(--red); }
-.p-logo-eq i:nth-child(3) { height: 80%; --c: var(--mint); }
-.p-logo-eq i:nth-child(4) { height: 100%; --c: var(--navy); }
-.p-logo-eq i:nth-child(5) { height: 80%; --c: var(--sky); }
-.p-logo-eq i:nth-child(6) { height: 52%; --c: var(--red); }
-.p-logo-eq i:nth-child(7) { height: 28%; --c: var(--mint); }
-.p-logo-text { display: flex; flex-direction: column; gap: 3px; line-height: 1; }
-.p-logo-text b { color: var(--red); font-size: 17px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
-.p-logo-text small { color: var(--sky); font-size: 11px; font-weight: 800; letter-spacing: .3em; text-transform: uppercase; }
+/* Логотип — векторный файл из презентации айдентики форума (assets/premiya/logo-*.svg) */
+.p-logo img { display: block; height: 34px; width: auto; }
 
 /* ---------- Кнопки ---------- */
 .p-btn {
@@ -89,13 +77,13 @@
 .p-lead { font-size: clamp(17px, 1.5vw, 20px); line-height: 1.55; max-width: 520px; margin: 0 0 32px; color: var(--navy); }
 .p-cta { display: flex; flex-wrap: wrap; gap: 14px; }
 
-/* эквалайзер: симметричный, самые высокие по центру; «оживает» при загрузке */
-.p-eq { --u: 1.9px; display: flex; align-items: center; justify-content: center; height: clamp(250px, 38vw, 520px); }
-.p-eq i { display: block; flex: none; width: calc(var(--w) * var(--u)); height: calc(var(--h) * 1%); background: var(--c); transform-origin: center;
-  animation: eq-in .9s cubic-bezier(.2,.8,.2,1) both, eq-live 3.4s ease-in-out infinite alternate;
-  animation-delay: calc(var(--i) * 55ms), calc(1.2s + var(--i) * 140ms); }
-@keyframes eq-in { from { transform: scaleY(.04); } to { transform: scaleY(1); } }
-@keyframes eq-live { from { transform: scaleY(1); } to { transform: scaleY(.84); } }
+/* ключевой визуальный идентификатор: звуковая дорожка «КОД РОСТА» — 30 полос из презентации айдентики; при загрузке «оживает» слева направо, как голос */
+.p-eq { display: flex; align-items: center; justify-content: center; }
+.p-wave { width: 100%; max-width: 660px; height: auto; overflow: visible; }
+.p-wave rect { transform-box: fill-box; transform-origin: center; animation: wave-in .9s cubic-bezier(.2,.8,.2,1) both, wave-live 3.2s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i) * 40ms), calc(1.4s + var(--i) * 90ms); }
+@keyframes wave-in { from { transform: scaleY(.03); } to { transform: scaleY(1); } }
+@keyframes wave-live { from { transform: scaleY(1); } to { transform: scaleY(.88); } }
 
 /* россыпь штрихов — «воздух» вокруг основных элементов */
 .p-ticks { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
@@ -224,7 +212,6 @@
 .page-premiya .footer-col a:hover { color: var(--red); }
 .page-premiya .footer-grid { border-bottom-color: rgba(0,27,125,.2); }
 .page-premiya .footer-bottom, .page-premiya .footer-bottom a { color: rgba(0,27,125,.7); }
-.p-logo-eq--footer { height: 28px; }
 
 /* ---------- Форма записи — в стиле страницы ---------- */
 .page-premiya .modal { border-radius: 0; border-top: 10px solid var(--red); color: var(--navy); }
@@ -249,7 +236,7 @@
 }
 @media (max-width: 860px) {
   .p-hero-grid { grid-template-columns: 1fr; min-height: 0; padding-bottom: 40px; }
-  .p-eq { --u: 1.1px; height: 240px; order: 2; }
+  .p-eq { order: 2; }
   .p-event-card { grid-template-columns: 1fr; }
   .p-event-date { flex-direction: row; justify-content: flex-start; gap: 18px; padding: 22px 24px; text-align: left; align-items: baseline; }
   .p-event-date .d { font-size: 76px; }
@@ -271,8 +258,7 @@
   .p-ph figcaption { padding: 9px 10px 11px; font-size: 12px; letter-spacing: .05em; }
   .p-stripes { height: 28px; }
   .p-offer .p-btn { width: 100%; }
-  .p-logo-text b { font-size: 15px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .p-eq i { animation: none; }
+  .p-wave rect { animation: none; }
 }
