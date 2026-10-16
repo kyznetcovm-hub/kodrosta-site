@@ -176,15 +176,7 @@
 /* ---------- Партнёрам ---------- */
 .p-partners { background: var(--navy); color: #fff; padding: 96px 0 100px; position: relative; overflow: hidden; }
 .p-partners h2, .p-partners h3 { color: #fff; }
-.p-case { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, .7fr); gap: 56px; align-items: center; margin-bottom: 72px; }
-.p-case h2 { font-size: clamp(40px, 6vw, 84px); line-height: .98; margin: 0 0 22px; }
-.p-case h2 em { font-style: normal; color: var(--mint); }
-.p-case p { font-size: 19px; line-height: 1.65; max-width: 640px; color: rgba(255,255,255,.92); margin: 0; }
-.p-case-stats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
-.p-case-stats li { display: flex; align-items: baseline; gap: 18px; border-top: 4px solid #fff; padding-top: 10px; }
-.p-case-stats b { font-size: clamp(56px, 6vw, 84px); line-height: .95; font-weight: 800; letter-spacing: -0.03em; color: var(--c, #fff); min-width: 1.4em; }
-.p-case-stats .c-m { color: var(--mint); } .p-case-stats .c-b { color: var(--sky); } .p-case-stats .c-r { color: var(--red); }
-.p-case-stats span { font-size: 19px; font-weight: 600; }
+.p-partners-h { font-size: clamp(38px, 5.4vw, 72px); line-height: 1; margin: 0 0 44px; }
 
 .p-pack-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; align-items: stretch; }
 .p-pack { background: #fff; color: var(--navy); display: flex; flex-direction: column; padding-bottom: 30px; }
@@ -253,7 +245,6 @@
 /* ---------- Адаптив ---------- */
 @media (max-width: 1040px) {
   .p-pack-grid { grid-template-columns: 1fr; max-width: 640px; }
-  .p-case { grid-template-columns: 1fr; gap: 36px; }
   .p-gallery { column-count: 2; }
 }
 @media (max-width: 860px) {
