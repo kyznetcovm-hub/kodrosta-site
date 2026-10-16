@@ -470,14 +470,18 @@ async function handleCalendarFeed(env) {
       + "\n\nЗаписаться на мероприятие: " + regLink
       + "\nО клубе: " + SITE_URL;
 
+    // «…T00:00:00» — время пока не известно: в календаре событие на весь день
+    const dateOnly = /T00:00/.test(String(e.start));
+    const day = String(e.start).slice(0, 10);
+    const nextDay = new Date(Date.parse(day + "T00:00:00Z") + 86400000).toISOString().slice(0, 10);
     props.push(
       "BEGIN:VEVENT",
       "UID:" + e.id + "@codrosta.club",
       "DTSTAMP:" + toICSDateUTC(e.createdAt),
-      "DTSTART:" + fmtICSUTC(startDate),
-      "DTEND:" + fmtICSUTC(endDate),
+      dateOnly ? "DTSTART;VALUE=DATE:" + day.replace(/-/g, "") : "DTSTART:" + fmtICSUTC(startDate),
+      dateOnly ? "DTEND;VALUE=DATE:" + nextDay.replace(/-/g, "") : "DTEND:" + fmtICSUTC(endDate),
       "SUMMARY:" + icsEscapeText(e.title),
-      "LOCATION:" + icsEscapeText(e.place),
+      ...(e.place ? ["LOCATION:" + icsEscapeText(e.place)] : []),
       "DESCRIPTION:" + icsEscapeText(description),
       "URL:" + regLink,
       "STATUS:CONFIRMED",

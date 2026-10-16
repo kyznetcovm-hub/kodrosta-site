@@ -203,3 +203,17 @@ test('заявка партнёра без компании отклоняетс
   assert.equal(resp.status, 400);
   assert.equal(dms(f.sent, GROUP).length, 0);
 });
+
+test('событие без времени (00:00): напоминаний нет, в календаре — на весь день без пустого LOCATION', async t => {
+  const f = fixture(t);
+  f.sqlite.exec(`INSERT INTO events (id, title, tag, start, end, place, description, created_at)
+    VALUES ('date-only', 'Форум', 'Форум', '2099-11-27T00:00:00', '2099-11-27T00:00:00', '', 'Время и место позже.', '2026-10-17T00:00:00Z');`);
+  // за сутки до события (в 2099) — напоминание не должно уйти даже при наличии записи
+  f.sqlite.exec(`INSERT INTO event_signups (event_id, source, tg_user_id, created_at) VALUES ('date-only', 'bot', 777, '2099-11-20T00:00:00Z');`);
+  assert.equal(await sendEventReminders(f.env, Date.parse('2099-11-26T12:00:00+03:00')), 0);
+  const resp = await worker.fetch(new Request('https://codrosta.club/calendar.ics'), f.env, {});
+  const ics = await resp.text();
+  assert.match(ics, /DTSTART;VALUE=DATE:20991127/);
+  assert.match(ics, /DTEND;VALUE=DATE:20991128/);
+  assert.ok(!/LOCATION:/.test(ics.split('UID:date-only')[1] || ''), 'пустое место не пишем');
+});

@@ -31,9 +31,11 @@
     return h + ":" + m;
   }
 
+  // Время "00:00" — событие без времени (время пока не известно): показываем только дату.
   function fmtFull(iso) {
     var d = new Date(iso);
-    return d.getDate() + " " + MONTHS_FULL[d.getMonth()] + ", " + fmtTime(iso);
+    var date = d.getDate() + " " + MONTHS_FULL[d.getMonth()];
+    return fmtTime(iso) === "00:00" ? date : date + ", " + fmtTime(iso);
   }
 
   // ---- Рендер списка мероприятий ------------------------------------------
@@ -81,7 +83,7 @@
           '<div class="event-info">' +
             '<span class="tag">' + e.tag + '</span>' +
             '<h3>' + e.title + '</h3>' +
-            '<div class="meta">' + fmtFull(e.start) + ' · ' + e.place + '</div>' +
+            '<div class="meta">' + [fmtFull(e.start), e.place].filter(Boolean).join(' · ') + '</div>' +
             '<p class="event-desc-short">' + e.description + '</p>' +
             (hasFull
               ? '<div class="event-desc-full" hidden>' + e.fullDescription.map(function (p) { return '<p>' + p + '</p>'; }).join("") + '</div>' +
@@ -203,7 +205,7 @@
         "endDate": e.end,
         "eventStatus": "https://schema.org/EventScheduled",
         "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
-        "location": { "@type": "Place", "name": e.place },
+        "location": { "@type": "Place", "name": e.place || "Казань" },
         "description": e.description,
         "url": "https://codrosta.club/e/" + encodeURIComponent(e.id),
         "organizer": { "@type": "Organization", "name": "Код Роста", "url": "https://codrosta.club/" }

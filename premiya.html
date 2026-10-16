@@ -469,7 +469,9 @@ document.addEventListener('DOMContentLoaded', function () {
     var info = el('div', 'p-event-info');
     info.appendChild(el('span', 'p-tag', ev.tag || 'Форум и премия'));
     info.appendChild(el('h2', '', ev.title));
-    var meta = pad(d.getHours()) + ':' + pad(d.getMinutes()) + (ev.place ? ' · ' + ev.place : '');
+    // время «00:00» = пока не известно; места тоже может не быть
+    var time = (d.getHours() || d.getMinutes()) ? pad(d.getHours()) + ':' + pad(d.getMinutes()) : '';
+    var meta = [time, ev.place].filter(Boolean).join(' · ') || 'Время и место сообщим дополнительно';
     info.appendChild(el('p', 'p-event-meta', meta));
     if (Array.isArray(ev.fullDescription) && ev.fullDescription.length) {
       ev.fullDescription.forEach(function (t) { info.appendChild(el('p', 'p-event-desc', t)); });

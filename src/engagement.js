@@ -491,8 +491,8 @@ async function handleNewEventCommand(msg, env, text, direction) {
     "",
     `<b>${escapeHtml(e.title)}</b>`,
     `${escapeHtml(e.tag)}`,
-    `${formatRuDateTime(e.start)} — ${formatRuTime(e.end)}`,
-    `${escapeHtml(e.place)}`,
+    eventWhen(e),
+    ...(e.place ? [escapeHtml(e.place)] : []),
     "",
     escapeHtml(e.description),
     "",
@@ -771,8 +771,8 @@ async function handleEventDetail(msg, env, id) {
   const text = [
     `<b>${escapeHtml(e.title)}</b>`,
     escapeHtml(e.tag),
-    `${formatRuDateTime(e.start)} — ${formatRuTime(e.end)}`,
-    escapeHtml(e.place),
+    eventWhen(e),
+    ...(e.place ? [escapeHtml(e.place)] : []),
     "",
     escapeHtml(e.description),
     "",
@@ -917,9 +917,17 @@ function escapeHtml(s) {
 }
 
 const MONTHS_FULL_RU = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+// Событие без времени в базе лежит как "…T00:00:00" (время пока не известно) — в тексте его не показываем,
+// напоминания по такому событию не шлём.
+function isDateOnly(iso) {
+  return /T00:00/.test(String(iso || ""));
+}
 function formatRuDateTime(iso) {
   const d = new Date(iso);
-  return `${d.getDate()} ${MONTHS_FULL_RU[d.getMonth()]}, ${formatRuTime(iso)}`;
+  return `${d.getDate()} ${MONTHS_FULL_RU[d.getMonth()]}${isDateOnly(iso) ? "" : ", " + formatRuTime(iso)}`;
+}
+function eventWhen(e) {
+  return isDateOnly(e.start) ? formatRuDateTime(e.start) : `${formatRuDateTime(e.start)} — ${formatRuTime(e.end)}`;
 }
 function formatRuTime(iso) {
   const d = new Date(iso);
@@ -1054,6 +1062,7 @@ export async function sendEventReminders(env, nowMs = Date.now()) {
 
   let sent = 0;
   for (const row of events || []) {
+    if (isDateOnly(row.start)) continue; // время не известно — напоминать не о чем
     const startMs = eventStartMs(row.start);
     const diff = startMs - nowMs;
     // за сутки — только тем, кто записался заранее (иначе «завтра» неточно);
