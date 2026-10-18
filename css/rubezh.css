@@ -126,6 +126,10 @@ section[id] { scroll-margin-top: 84px; }
   .r-values li:nth-child(n+3) { border-top: 1px solid var(--r-line); }
   .r-gallery { column-count: 2; }
   .r-proof { grid-template-columns: 1fr; gap: 36px; }
+  /* на планшете и телефоне два фото — ровно в ряд, одной высоты, без ступеньки */
+  .r-p--b { margin-top: 0; }
+  .r-p { aspect-ratio: 3 / 4; }
+  .r-p img { height: 100%; object-fit: cover; }
   .r-cards, .r-who { grid-template-columns: 1fr; }
   .r-facts { grid-template-columns: repeat(2, 1fr); }
   .r-fact:nth-child(3) { padding-left: 0; border-left: 0; }
