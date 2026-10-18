@@ -51,6 +51,20 @@ section[id] { scroll-margin-top: 84px; }
 .r-values b { display: block; font-family: var(--r-head); font-weight: 600; font-size: 28px; text-transform: uppercase; letter-spacing: .02em; color: #fff; margin-bottom: 10px; }
 .r-values p { color: var(--r-text); font-size: 15.5px; line-height: 1.55; }
 
+/* ================= РУБЕЖ СУЩЕСТВУЕТ ================= */
+.r-proof { display: grid; grid-template-columns: 1.2fr .95fr; gap: 56px; align-items: center; }
+.r-proof-photos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.r-p { margin: 0; overflow: hidden; background: #000; }
+.r-p img { width: 100%; height: auto; display: block; }
+.r-p--b { margin-top: 56px; }
+.r-proof-text .r-h2 { margin-bottom: 28px; font-size: clamp(28px, 3.6vw, 44px); }
+.r-proof-list { list-style: none; padding: 0; margin: 0 0 28px; }
+.r-proof-list li { padding: 16px 0 16px 18px; border-top: 1px solid var(--r-line); border-left: 3px solid var(--blue); margin-bottom: 0; color: var(--r-text); font-size: 16px; line-height: 1.5; }
+.r-proof-list li + li { border-left-color: var(--blue); }
+.r-proof-list b { color: #fff; font-family: var(--r-head); font-weight: 600; font-size: 20px; letter-spacing: .03em; text-transform: uppercase; margin-right: 6px; }
+.r-proof-link { display: inline-block; color: #fff; font-weight: 600; border-bottom: 2px solid var(--blue); padding-bottom: 2px; }
+.r-proof-link:hover { color: var(--blue); }
+
 /* ================= МЕРОПРИЯТИЕ ================= */
 .r-events { display: grid; gap: 24px; }
 .r-event { display: grid; grid-template-columns: 220px 1fr; gap: 40px; align-items: center; background: var(--r-bg2); border: 1px solid var(--r-line); border-radius: var(--radius); padding: 36px; }
@@ -111,6 +125,7 @@ section[id] { scroll-margin-top: 84px; }
   .r-values li:nth-child(3) { padding-left: 0; border-left: 0; }
   .r-values li:nth-child(n+3) { border-top: 1px solid var(--r-line); }
   .r-gallery { column-count: 2; }
+  .r-proof { grid-template-columns: 1fr; gap: 36px; }
   .r-cards, .r-who { grid-template-columns: 1fr; }
   .r-facts { grid-template-columns: repeat(2, 1fr); }
   .r-fact:nth-child(3) { padding-left: 0; border-left: 0; }
