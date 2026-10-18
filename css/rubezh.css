@@ -75,6 +75,11 @@ section[id] { scroll-margin-top: 84px; }
 .r-card-body h3 { font-family: var(--r-head); font-weight: 600; font-size: 26px; text-transform: uppercase; letter-spacing: .02em; color: #fff; margin-bottom: 10px; padding-top: 14px; border-top: 3px solid var(--blue); display: inline-block; }
 .r-card-body p { color: var(--r-text); font-size: 15.5px; line-height: 1.55; }
 
+/* ================= КАДРЫ С ВЫЕЗДОВ ================= */
+.r-gallery { display: grid; grid-template-columns: 1.4fr 1fr 1.4fr; gap: 16px; align-items: stretch; }
+.r-g { margin: 0; overflow: hidden; background: #000; min-height: 340px; }
+.r-g img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
 /* ================= КОМУ ЕХАТЬ ================= */
 .r-who { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; padding: 0; }
 .r-who li { border-top: 3px solid var(--blue); padding-top: 20px; font-size: 16px; line-height: 1.55; color: var(--r-text); }
@@ -105,6 +110,8 @@ section[id] { scroll-margin-top: 84px; }
   .r-values { grid-template-columns: repeat(2, 1fr); }
   .r-values li:nth-child(3) { padding-left: 0; border-left: 0; }
   .r-values li:nth-child(n+3) { border-top: 1px solid var(--r-line); }
+  .r-gallery { grid-template-columns: 1fr; }
+  .r-g { min-height: 0; aspect-ratio: 4 / 3; }
   .r-cards, .r-who { grid-template-columns: 1fr; }
   .r-facts { grid-template-columns: repeat(2, 1fr); }
   .r-fact:nth-child(3) { padding-left: 0; border-left: 0; }
