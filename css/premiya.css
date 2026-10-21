@@ -266,12 +266,13 @@
 .p-table tbody th { font-weight: 800; white-space: nowrap; }
 .p-note { font-size: 14px; line-height: 1.55; color: rgba(255,255,255,.7); max-width: 760px; margin: 18px 0 0; }
 
-.p-offer { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); align-items: center; background: var(--mint); color: var(--navy); padding: clamp(28px, 4vw, 52px); margin-top: 200px; position: relative; min-height: 260px; }
+.p-offer { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, .7fr); align-items: center; background: var(--grey); color: var(--navy); padding: clamp(28px, 4vw, 52px); margin-top: 260px; position: relative; min-height: 260px; }
 .p-offer::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 12px; background: var(--red); }
 .p-offer-text { padding-left: 14px; }
-.p-offer h2 { color: var(--navy); font-size: clamp(30px, 4vw, 52px); margin: 0 0 28px; }
-.p-offer-btns { display: flex; flex-wrap: wrap; gap: 14px; }
-.p-offer-img { position: absolute; right: clamp(16px, 5vw, 80px); bottom: 0; height: 130%; width: auto; max-width: 46%; object-fit: contain; object-position: right bottom; pointer-events: none; }
+.p-offer h2 { color: var(--navy); font-size: clamp(28px, 3vw, 48px); margin: 0 0 28px; max-width: 12em; }
+.p-offer-btns { display: flex; flex-wrap: nowrap; gap: 14px; }
+.p-offer-btns .p-btn { white-space: nowrap; padding-left: 28px; padding-right: 28px; }
+.p-offer-img { position: absolute; right: clamp(8px, 3vw, 60px); bottom: 0; height: 165%; width: auto; max-width: none; object-fit: contain; object-position: right bottom; pointer-events: none; }
 
 /* ---------- Игра «Совет директоров» ---------- */
 .p-game { background: #fff; }
@@ -349,8 +350,8 @@
   .p-gallery { column-count: 2; }
 }
 @media (max-width: 860px) {
-  .p-offer { grid-template-columns: minmax(0, 1fr); margin-top: 140px; }
-  .p-offer-img { position: relative; right: auto; order: -1; height: auto; width: 78%; max-width: 320px; margin: -130px auto 16px; }
+  .p-offer { grid-template-columns: minmax(0, 1fr); margin-top: 230px; }
+  .p-offer-img { position: relative; right: auto; order: -1; height: auto; width: 88%; max-width: 360px; margin: -210px auto 16px; }
 }
 @media (max-width: 860px) {
   .p-hero-grid { grid-template-columns: 1fr; min-height: 0; padding-bottom: 40px; }
@@ -380,8 +381,8 @@
   .p-ph { margin-bottom: 12px; }
   .p-ph figcaption { padding: 9px 10px 11px; font-size: 12px; letter-spacing: .05em; }
   .p-stripes { height: 28px; }
-  .p-offer .p-btn { width: 100%; }
-  .p-offer-btns { flex-direction: column; }
+  .p-offer-btns { gap: 10px; }
+  .p-offer-btns .p-btn { flex: 1 1 0; width: auto; white-space: normal; text-align: center; padding: 16px 10px; font-size: 15px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .p-wave rect { animation: none; }
