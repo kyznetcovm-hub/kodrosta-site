@@ -176,6 +176,7 @@
 .p-pack-btn { margin: 26px 26px 0; align-self: stretch; }
 .p-price { font-size: clamp(40px, 4vw, 54px); line-height: 1; font-weight: 800; letter-spacing: -0.03em; margin: 0 26px 14px; color: var(--navy); }
 .p-pack--r .p-price { color: var(--red); }
+.p-charity { margin: 0 26px 14px; padding: 9px 12px; background: var(--mint); font-size: 15px; font-weight: 700; line-height: 1.35; color: var(--navy); }
 .p-pack-lead { font-size: 17px; line-height: 1.5; font-weight: 600; margin: 0 26px 18px; }
 .p-pack ul { list-style: none; margin: 0 26px; padding: 18px 0 0; border-top: 2px solid var(--grey); display: flex; flex-direction: column; gap: 11px; flex: 1 1 auto; }
 .p-pack li { position: relative; padding-left: 20px; font-size: 16px; line-height: 1.45; }
