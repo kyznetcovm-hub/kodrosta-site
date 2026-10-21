@@ -337,10 +337,15 @@
         </article>
       </div>
 
-      <div class="p-detail c-b" id="pack-500">
-        <div class="p-detail-head"><span>Пакет 01  /  Лидерство</span><h3>Генеральный партнёр</h3><b>500 000 ₽</b></div>
+      <details class="p-detail c-b" id="pack-500">
+        <summary class="p-detail-head">
+          <span>Пакет 01  /  Лидерство</span>
+          <h3>Генеральный партнёр</h3>
+          <b>500 000 ₽</b>
+          <i class="p-detail-toggle" aria-hidden="true"><em class="p-more">Что входит в пакет</em><em class="p-less">Свернуть</em></i>
+          <p class="p-detail-teaser">Не просто быть среди лидеров. Стать частью истории, которую будут рассказывать о лидерах.</p>
+        </summary>
         <div class="p-detail-body">
-          <p class="p-detail-tag">Не просто быть среди лидеров. Стать частью истории, которую будут рассказывать о лидерах.</p>
           <div class="p-detail-intro"><p>27 ноября предпринимательское сообщество «Код роста» отметит своё трёхлетие. Это встреча людей, которые создают компании, принимают решения, открывают новые возможности и влияют на развитие бизнеса.</p><p>Мы предлагаем вашему бренду роль Соавтора события. Роль, которую увидят предприниматели, услышат потенциальные партнёры, подхватят медиа и которая останется в цифровом пространстве после завершения события.</p></div>
           <ol class="p-di-grid">
         <li class="p-di">
@@ -434,12 +439,17 @@
           </div>
           <p class="p-detail-quote">Не просто поддержите событие, на котором говорят о росте. Сделайте рост вашего бренда частью его истории.</p>
         </div>
-      </div>
+      </details>
 
-      <div class="p-detail c-r" id="pack-250">
-        <div class="p-detail-head"><span>Пакет 02  /  Экспертиза</span><h3>Партнёр события</h3><b>250 000 ₽</b></div>
+      <details class="p-detail c-r" id="pack-250">
+        <summary class="p-detail-head">
+          <span>Пакет 02  /  Экспертиза</span>
+          <h3>Партнёр события</h3>
+          <b>250 000 ₽</b>
+          <i class="p-detail-toggle" aria-hidden="true"><em class="p-more">Что входит в пакет</em><em class="p-less">Свернуть</em></i>
+          <p class="p-detail-teaser">Быть там, где рождаются решения. И сделать так, чтобы ваш бренд запомнили.</p>
+        </summary>
         <div class="p-detail-body">
-          <p class="p-detail-tag">Быть там, где рождаются решения. И сделать так, чтобы ваш бренд запомнили.</p>
           <div class="p-detail-intro"><p>Сильному бизнесу важно не просто присутствовать в предпринимательской среде. Важно становиться частью разговоров, знакомств и возможностей, из которых вырастают новые проекты.</p><p>27 ноября «Код роста» объединит людей, которые привыкли действовать. Ваше партнёрство — возможность войти в этот круг не гостем, а заметным участником события.</p></div>
           <ol class="p-di-grid">
         <li class="p-di">
@@ -521,7 +531,7 @@
           </div>
           <p class="p-detail-quote">Пусть после «Кода роста» у вашего бизнеса останется не только фотография с события, но и новые знакомства, сильный контент и больше причин, по которым вас выбирают.</p>
         </div>
-      </div>
+      </details>
 
       <div class="p-friend">
         <div class="p-friend-main">
@@ -790,6 +800,15 @@ document.addEventListener('DOMContentLoaded', function () {
         // ссылка на мероприятие вида /premiya#event — прокрутка к блоку уже работает через якорь
       });
   }
+
+  // Подробные описания пакетов свёрнуты (<details>); ссылка из меню (#pack-500, #pack-250) раскрывает нужный.
+  function openPackFromHash() {
+    var id = location.hash.slice(1);
+    var d = id && document.getElementById(id);
+    if (d && d.tagName === 'DETAILS') { d.open = true; }
+  }
+  openPackFromHash();
+  window.addEventListener('hashchange', openPackFromHash);
 
   // ---- Фото: крупный просмотр ----
   var figs = Array.prototype.slice.call(document.querySelectorAll('.p-ph'));

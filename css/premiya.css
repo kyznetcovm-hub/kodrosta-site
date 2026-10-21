@@ -202,13 +202,26 @@
 
 /* ---------- Полные описания пакетов ---------- */
 .p-detail { background: #fff; color: var(--navy); margin-top: 56px; scroll-margin-top: 90px; }
-.p-detail-head { background: var(--c); color: var(--navy); padding: 22px clamp(24px, 3vw, 44px); display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 24px; }
+.p-detail + .p-detail { margin-top: 24px; }
+.p-detail-head { background: var(--c); color: var(--navy); padding: 22px clamp(24px, 3vw, 44px) 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; cursor: pointer; list-style: none; position: relative; }
+.p-detail-head::-webkit-details-marker { display: none; }
 .p-detail.c-r .p-detail-head { color: #fff; }
 .p-detail-head span { flex-basis: 100%; font-size: 13px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
 .p-partners .p-detail-head h3 { margin: 0; color: inherit; font-size: clamp(28px, 3.6vw, 46px); line-height: 1.05; }
 .p-detail-head b { margin-left: auto; font-size: clamp(28px, 3.6vw, 46px); line-height: 1.05; font-weight: 800; letter-spacing: -0.02em; }
+.p-detail-toggle { font-style: normal; display: inline-flex; align-items: center; gap: 10px; padding: 12px 20px; background: var(--navy); color: #fff; font-size: 15px; font-weight: 700; letter-spacing: .02em; transition: background-color .15s; }
+.p-detail-toggle em { font-style: normal; }
+.p-detail-toggle::after { content: "+"; font-size: 24px; line-height: 1; font-weight: 500; }
+.p-detail[open] .p-detail-toggle::after { content: "\2212"; }
+.p-detail-head:hover .p-detail-toggle { background: #000f4d; }
+.p-detail.c-r .p-detail-toggle { background: #fff; color: var(--navy); }
+.p-detail.c-r .p-detail-head:hover .p-detail-toggle { background: var(--grey); }
+.p-less { display: none; }
+.p-detail[open] .p-less { display: inline; }
+.p-detail[open] .p-more { display: none; }
+.p-detail-teaser { flex-basis: 100%; margin: 6px 0 0; max-width: 900px; font-size: clamp(17px, 1.7vw, 21px); font-weight: 600; line-height: 1.35; }
+.p-detail-head:focus-visible { outline: 3px solid var(--navy); outline-offset: -6px; }
 .p-detail-body { padding: clamp(24px, 4vw, 56px); }
-.p-detail-tag { margin: 0 0 24px; max-width: 920px; font-size: clamp(22px, 2.6vw, 32px); font-weight: 700; line-height: 1.2; color: var(--navy); }
 .p-detail-intro p { max-width: 860px; margin: 0 0 14px; font-size: 18px; line-height: 1.65; }
 .p-di-grid { list-style: none; margin: 36px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 .p-di { background: var(--grey); border-top: 8px solid var(--c); padding: 22px 26px 12px; }
@@ -337,6 +350,7 @@
 @media (max-width: 560px) {
   .p-detail-assets { grid-template-columns: 1fr; }
   .p-detail-head b { margin-left: 0; flex-basis: 100%; }
+  .p-detail-toggle { flex-basis: 100%; justify-content: center; }
   .p-di { padding: 18px 18px 8px; }
   .p-game-stats { grid-template-columns: 1fr; gap: 14px; }
   .p-game-stats li { flex-direction: row; align-items: baseline; gap: 14px; padding-top: 10px; }
