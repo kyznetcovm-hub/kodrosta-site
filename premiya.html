@@ -61,6 +61,7 @@
     <nav>
       <ul class="nav-links">
         <li><a href="#event">Мероприятие</a></li>
+        <li><a href="#tickets">Билеты</a></li>
         <li><a href="#about">О премии</a></li>
         <li><a href="#photos">Фото</a></li>
         <li><a href="#game">Игра</a></li>
@@ -76,6 +77,7 @@
     <!-- Выпадающее меню (☰): js/main.js копирует список в панель .nav-dropdown -->
     <ul class="js-menu-source" hidden>
         <li><a href="#event">Мероприятие и регистрация</a></li>
+        <li><a href="#tickets">Билеты</a></li>
         <li><a href="#about">О премии</a></li>
         <li><a href="#photos">Фото церемонии</a></li>
         <li><a href="#game">Игра «Совет директоров»</a></li>
@@ -132,6 +134,49 @@
           </div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ===== БИЛЕТЫ: заявка без оплаты через общую форму записи (js/main.js → /api/submit, type=event, поле package) ===== -->
+  <section class="p-section p-tickets" id="tickets">
+    <div class="container">
+      <span class="p-eyebrow">Билеты</span>
+      <h2 class="p-h2">Выберите свой формат участия</h2>
+      <p class="p-deadline"><b>Цены актуальны до 10 ноября.</b> Дальше планируем повышение. <span class="js-deadline-left"></span></p>
+      <div class="p-ticket-grid">
+        <article class="p-ticket c-b">
+          <span class="p-ticket-label">Гость</span>
+          <p class="p-ticket-price">7 000 ₽</p>
+          <h3>Гость праздника + заявка на премию</h3>
+          <ul>
+            <li>Участие в празднике в качестве гостя</li>
+            <li>Заявка на участие в премии «Предприниматель года»</li>
+          </ul>
+          <button class="p-btn p-btn--red p-ticket-btn js-open-ticket" type="button" data-ticket="7 000 ₽ — гость праздника + заявка на премию">Оставить заявку</button>
+        </article>
+        <article class="p-ticket c-r">
+          <span class="p-ticket-label">Гость + игра</span>
+          <p class="p-ticket-price">10 000 ₽</p>
+          <h3>Всё это + участие в игре «Совет директоров»</h3>
+          <ul>
+            <li>Участие в празднике в качестве гостя</li>
+            <li>Заявка на участие в премии «Предприниматель года»</li>
+            <li>Участие в игре «Совет директоров»</li>
+          </ul>
+          <button class="p-btn p-btn--red p-ticket-btn js-open-ticket" type="button" data-ticket="10 000 ₽ — всё это + участие в игре «Совет директоров»">Оставить заявку</button>
+        </article>
+        <article class="p-ticket c-m">
+          <span class="p-ticket-label">Гость + подкаст</span>
+          <p class="p-ticket-price">12 000 ₽</p>
+          <h3>Праздник + запись личного подкаста</h3>
+          <ul>
+            <li>Участие в празднике в качестве гостя</li>
+            <li>Запись личного подкаста — 10 минут</li>
+          </ul>
+          <button class="p-btn p-btn--red p-ticket-btn js-open-ticket" type="button" data-ticket="12 000 ₽ — праздник + запись личного подкаста (10 мин)">Оставить заявку</button>
+        </article>
+      </div>
+      <p class="p-ticket-note">Заявка без оплаты: менеджер свяжется с вами и подтвердит участие.</p>
     </div>
   </section>
 
@@ -638,9 +683,19 @@
         <input id="premiya-event-telegram" name="telegram" type="text" required placeholder="@username">
       </div>
       <div class="form-field">
+        <label for="premiya-event-ticket">Билет</label>
+        <select id="premiya-event-ticket" name="package">
+          <option value="">Пока не выбрал(а)</option>
+          <option value="7 000 ₽ — гость праздника + заявка на премию">7 000 ₽ — гость праздника + заявка на премию</option>
+          <option value="10 000 ₽ — всё это + участие в игре «Совет директоров»">10 000 ₽ — всё это + участие в игре «Совет директоров»</option>
+          <option value="12 000 ₽ — праздник + запись личного подкаста (10 мин)">12 000 ₽ — праздник + запись личного подкаста (10 мин)</option>
+        </select>
+      </div>
+      <div class="form-field">
         <label for="premiya-event-comment">Комментарий</label>
         <textarea id="premiya-event-comment" name="comment" placeholder="Например, сколько человек будет с вами (необязательно)"></textarea>
       </div>
+      <p class="form-consent">Заявка без оплаты: менеджер свяжется с вами и подтвердит участие.</p>
       <p class="form-consent">Нажимая «Записаться», вы соглашаетесь с <a href="/privacy" target="_blank">политикой обработки персональных данных</a>.</p>
       <button class="btn btn--primary btn--block" type="submit">Записаться</button>
     </form>
@@ -719,6 +774,14 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   function pad(n) { return (n < 10 ? '0' : '') + n; }
 
+  // Запись на событие общей формой; ticket — заранее выбранный билет (поле «Билет» в форме)
+  function openRegistration(ev, ticket) {
+    if (!window.kodrostaOpenEventModal) return;
+    window.kodrostaOpenEventModal(ev);
+    var sel = document.querySelector('#modal-event [name="package"]');
+    if (sel) sel.value = ticket || '';
+  }
+
   function isPremiya(ev) {
     return /^zhivoy-kod/.test(ev.id) || /живой код|предприниматель года/i.test(ev.title || '');
   }
@@ -746,9 +809,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var actions = el('div', 'p-event-actions');
     var reg = el('button', 'p-btn p-btn--red p-btn--lg', 'Зарегистрироваться');
     reg.type = 'button';
-    reg.addEventListener('click', function () {
-      if (window.kodrostaOpenEventModal) window.kodrostaOpenEventModal(ev);
-    });
+    reg.addEventListener('click', function () { openRegistration(ev, ''); });
     actions.appendChild(reg);
 
     var share = el('button', 'p-btn p-btn--ghost p-btn--lg', 'Скопировать ссылку');
@@ -770,6 +831,7 @@ document.addEventListener('DOMContentLoaded', function () {
     box.appendChild(date);
     box.appendChild(info);
     box.classList.add('is-live');
+    window.__premiyaEvent = ev;
 
     // Для поисковиков — разметка Event
     try {
@@ -809,6 +871,22 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   openPackFromHash();
   window.addEventListener('hashchange', openPackFromHash);
+
+  // ---- Билеты: заявка без оплаты через ту же форму записи ----
+  Array.prototype.forEach.call(document.querySelectorAll('.js-open-ticket'), function (btn) {
+    btn.addEventListener('click', function () {
+      var ev = window.__premiyaEvent;
+      if (ev) openRegistration(ev, btn.getAttribute('data-ticket'));
+      else window.open('https://t.me/Kodrosta', '_blank');   // событие ещё не загрузилось / не опубликовано
+    });
+  });
+  // Цены на билеты действуют до 10 ноября 2026 включительно — показываем, сколько осталось дней
+  var left = document.querySelector('.js-deadline-left');
+  if (left) {
+    var days = Math.ceil((new Date(2026, 10, 10, 23, 59, 59) - new Date()) / 86400000);
+    if (days > 0) left.textContent = 'Осталось ' + days + ' ' + (days % 10 === 1 && days % 100 !== 11 ? 'день' : (days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 12 || days % 100 > 14) ? 'дня' : 'дней')) + '.';
+    else { var b = left.parentNode; b.innerHTML = '<b>Срок действия этих цен истёк.</b> Актуальную стоимость уточняйте у менеджера.'; }
+  }
 
   // ---- Фото: крупный просмотр ----
   var figs = Array.prototype.slice.call(document.querySelectorAll('.p-ph'));

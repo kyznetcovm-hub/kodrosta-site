@@ -591,14 +591,17 @@ async function handleSubmit(request, env) {
     // Запись на мероприятие «Туризма» помечаем в заголовке — в группе заявок
     // иначе не видно, с какого сайта она пришла.
     signupEvent = await findSignupEvent(env, data.eventId);
+    // Билет (страница премии /premiya, раздел «Билеты»): выбранный вариант приходит в поле package
+    const ticket = String(data.package || "").trim().slice(0, 160);
     text =
       "📅 Запись на мероприятие (" + (signupEvent && isTurizmEvent(signupEvent) ? "с сайта Туризм" : "с сайта") + ")\n\n" +
       "Мероприятие: " + (event || "—") + "\n" +
+      (ticket ? "Билет: " + ticket + "\n" : "") +
       "Имя: " + name + "\n" +
       "Telegram: " + telegramMention(telegram) + "\n" +
       "Телефон: " + phone + "\n" +
       "Комментарий: " + (comment || "—") + promoLine;
-    touchNote = event || promo || null;
+    touchNote = (event ? event + (ticket ? "; " + ticket : "") : "") || promo || null;
   } else {
     // exit_popup — заявка со скидкой из exit-intent pop-up (см. js/exit-popup.js).
     // Источник перехода важен: пользователь приходит по QR с рекламного баннера.

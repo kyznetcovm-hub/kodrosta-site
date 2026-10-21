@@ -217,3 +217,23 @@ test('событие без времени (00:00): напоминаний не�
   assert.match(ics, /DTEND;VALUE=DATE:20991128/);
   assert.ok(!/LOCATION:/.test(ics.split('UID:date-only')[1] || ''), 'пустое место не пишем');
 });
+
+test('заявка на мероприятие с выбранным билетом: билет в сообщении группы и в касании, запись в списке участников', async t => {
+  const f = fixture(t);
+  const resp = await submit(f.env, {
+    name: 'Гость Тестовый', phone: '+7 900 111-22-33', telegram: '@guest_test',
+    package: '10 000 ₽ — всё это + участие в игре «Совет директоров»',
+  });
+  assert.deepEqual(await resp.json(), { ok: true });
+  const posted = dms(f.sent, GROUP);
+  assert.equal(posted.length, 1);
+  assert.match(posted[0].text, /Билет: 10 000 ₽ — всё это \+ участие в игре «Совет директоров»/);
+  assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS c FROM event_signups WHERE event_id = 'podcast'").get().c, 1);
+  assert.match(f.sqlite.prepare("SELECT note FROM touches ORDER BY id DESC LIMIT 1").get().note, /10 000 ₽/);
+});
+
+test('заявка на мероприятие без билета: строки «Билет» нет (обычная запись не меняется)', async t => {
+  const f = fixture(t);
+  await submit(f.env, { name: 'Гость', phone: '+7 900 111-22-33', telegram: '@guest_test' });
+  assert.ok(!/Билет:/.test(dms(f.sent, GROUP)[0].text));
+});
