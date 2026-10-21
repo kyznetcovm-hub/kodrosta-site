@@ -235,61 +235,25 @@
 @media (min-width: 1041px) {
   @supports (grid-template-rows: subgrid) {
     .p-pack-grid { grid-template-rows: auto; }
-    .p-pack { display: grid; grid-template-rows: subgrid; grid-row: span 7; row-gap: 0; align-content: start; }
+    .p-pack { display: grid; grid-template-rows: subgrid; grid-row: span 6; row-gap: 0; align-content: start; }
     .p-pack-label { grid-row: 1; }
     .p-pack h3 { grid-row: 2; }
     .p-price { grid-row: 3; }
     .p-pack-lead { grid-row: 4; }
-    .p-pack ul { grid-row: 5; align-self: start; }
-    .p-pack-foot { grid-row: 6; align-self: start; }
-    .p-pack-btn { grid-row: 7; align-self: end; }
+    .p-pack-more { grid-row: 5; align-self: start; }
+    .p-pack-actions { grid-row: 6; align-self: end; }
   }
 }
 
-/* ---------- Полные описания пакетов ---------- */
-.p-detail { background: #fff; color: var(--navy); margin-top: 56px; scroll-margin-top: 90px; }
-.p-detail + .p-detail { margin-top: 24px; }
-.p-detail-head { background: var(--c); color: var(--navy); padding: 22px clamp(24px, 3vw, 44px) 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; cursor: pointer; list-style: none; position: relative; }
-.p-detail-head::-webkit-details-marker { display: none; }
-.p-detail.c-r .p-detail-head { color: #fff; }
-.p-detail-head span { flex-basis: 100%; font-size: 13px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
-.p-partners .p-detail-head h3 { margin: 0; color: inherit; font-size: clamp(28px, 3.6vw, 46px); line-height: 1.05; }
-.p-detail-head b { margin-left: auto; font-size: clamp(28px, 3.6vw, 46px); line-height: 1.05; font-weight: 800; letter-spacing: -0.02em; }
-.p-detail-toggle { font-style: normal; display: inline-flex; align-items: center; gap: 10px; padding: 12px 20px; background: var(--navy); color: #fff; font-size: 15px; font-weight: 700; letter-spacing: .02em; transition: background-color .15s; }
-.p-detail-toggle em { font-style: normal; }
-.p-detail-toggle::after { content: "+"; font-size: 24px; line-height: 1; font-weight: 500; }
-.p-detail[open] .p-detail-toggle::after { content: "\2212"; }
-.p-detail-head:hover .p-detail-toggle { background: #000f4d; }
-.p-detail.c-r .p-detail-toggle { background: #fff; color: var(--navy); }
-.p-detail.c-r .p-detail-head:hover .p-detail-toggle { background: var(--grey); }
-.p-less { display: none; }
-.p-detail[open] .p-less { display: inline; }
-.p-detail[open] .p-more { display: none; }
-.p-detail-teaser { flex-basis: 100%; margin: 6px 0 0; max-width: 900px; font-size: clamp(17px, 1.7vw, 21px); font-weight: 600; line-height: 1.35; }
-.p-detail-head:focus-visible { outline: 3px solid var(--navy); outline-offset: -6px; }
-.p-detail-body { padding: clamp(24px, 4vw, 56px); }
-.p-detail-intro p { max-width: 860px; margin: 0 0 14px; font-size: 18px; line-height: 1.65; }
-.p-di-grid { list-style: none; margin: 36px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
-.p-di { background: var(--grey); border-top: 8px solid var(--c); padding: 22px 26px 12px; }
-.p-di-n { display: inline-block; background: var(--c); color: var(--navy); padding: 4px 12px; font-size: 22px; font-weight: 800; line-height: 1.2; }
-.p-detail.c-r .p-di-n { color: #fff; }
-.p-partners .p-di h4 { margin: 14px 0 12px; font-size: 22px; line-height: 1.2; color: var(--navy); }
-.p-di p { margin: 0 0 12px; font-size: 16px; line-height: 1.6; }
-.p-di .p-di-lead { font-weight: 800; margin-bottom: 6px; }
-.p-di ul { margin: 0 0 14px; padding-left: 20px; }
-.p-di li { margin-bottom: 6px; font-size: 16px; line-height: 1.5; }
-.p-di .p-di-note { font-size: 14px; opacity: .75; }
-.p-partners .p-detail-assets-h { margin: 44px 0 16px; font-size: clamp(24px, 2.8vw, 34px); color: var(--navy); }
-.p-detail-assets { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
-.p-detail-assets > div { background: var(--grey); border-top: 8px solid var(--sky); padding: 16px 16px 18px; display: flex; flex-direction: column; gap: 6px; }
-.p-detail-assets > div:nth-child(2) { border-top-color: var(--red); }
-.p-detail-assets > div:nth-child(3) { border-top-color: var(--mint); }
-.p-detail-assets > div:nth-child(4) { border-top-color: var(--navy); }
-.p-detail-assets > div:nth-child(5) { border-top-color: var(--sky); }
-.p-detail-assets b { font-size: 17px; letter-spacing: .04em; text-transform: uppercase; }
-.p-detail-assets span { font-size: 15px; line-height: 1.45; }
-.p-detail-quote { margin: 36px 0 0; padding-left: 22px; border-left: 8px solid var(--c); max-width: 880px; font-size: clamp(20px, 2.2vw, 26px); font-weight: 700; line-height: 1.3; }
-
+/* Карточки пакетов раскрываются: состав скрыт, пока не нажата «Что входит в пакет» */
+.p-pack-more { display: none; }
+.p-pack.is-open .p-pack-more { display: block; }
+.p-pack-actions { margin: 22px 26px 0; display: flex; flex-direction: column; gap: 10px; }
+.p-pack-actions .p-pack-btn { margin: 0; align-self: stretch; }
+.p-pack-toggle { justify-content: space-between; }
+.p-pack-toggle i::after { content: "+"; font-style: normal; font-size: 24px; line-height: 1; font-weight: 500; }
+.p-pack.is-open .p-pack-toggle i::after { content: "\2212"; }
+.p-pack-more ul { margin-top: 0; }
 .p-sub-h { font-size: clamp(26px, 3vw, 38px); margin: 72px 0 24px; }
 .p-table-wrap { overflow-x: auto; background: #fff; }
 .p-table { width: 100%; min-width: 680px; border-collapse: collapse; color: var(--navy); font-size: 17px; }
@@ -374,8 +338,6 @@
   .p-podcast-grid { grid-template-columns: 1fr; }
   .p-awards-grid { grid-template-columns: 1fr; gap: 36px; }
   .p-ticket-grid { grid-template-columns: 1fr; max-width: 640px; }
-  .p-di-grid { grid-template-columns: 1fr; }
-  .p-detail-assets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .p-game-top { grid-template-columns: 1fr; gap: 36px; }
   .p-game-cols { grid-template-columns: 1fr; }
   .p-friend { grid-template-columns: minmax(0, 1fr); }
@@ -398,10 +360,6 @@
 }
 @media (max-width: 560px) {
   .p-nom-list { grid-template-columns: 1fr; }
-  .p-detail-assets { grid-template-columns: 1fr; }
-  .p-detail-head b { margin-left: 0; flex-basis: 100%; }
-  .p-detail-toggle { flex-basis: 100%; justify-content: center; }
-  .p-di { padding: 18px 18px 8px; }
   .p-game-stats { grid-template-columns: 1fr; gap: 14px; }
   .p-game-stats li { flex-direction: row; align-items: baseline; gap: 14px; padding-top: 10px; }
   .p-game-stats b { font-size: 52px; min-width: 1.3em; }
