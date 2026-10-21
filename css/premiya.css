@@ -264,7 +264,7 @@
 
 /* ---------- Игра «Совет директоров» ---------- */
 .p-game { background: #fff; }
-.p-game-top { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 48px; align-items: center; }
+.p-game-top { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); gap: 48px; align-items: center; }
 .p-game-sub { font-size: 20px; font-weight: 600; color: var(--navy); margin: 0 0 28px; max-width: 560px; }
 .p-game-stats { list-style: none; margin: 0 0 28px; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
 .p-game-stats li { border-top: 8px solid var(--c); padding-top: 12px; display: flex; flex-direction: column; gap: 4px; }
