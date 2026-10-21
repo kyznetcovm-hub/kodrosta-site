@@ -410,7 +410,7 @@
   .p-section, .p-partners { padding-top: 64px; padding-bottom: 64px; }
   .p-event { padding: 64px 0 72px; }
   .p-btn--lg { padding: 18px 26px; font-size: 17px; }
-  .p-event-actions .p-btn, .p-cta .p-btn { width: 100%; }
+  .p-event-actions .p-btn, .p-cta .p-btn { width: 100%; white-space: normal; }
   .p-gallery { column-gap: 12px; }
   .p-ph { margin-bottom: 12px; }
   .p-ph figcaption { padding: 9px 10px 11px; font-size: 12px; letter-spacing: .05em; }

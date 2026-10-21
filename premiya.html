@@ -863,13 +863,13 @@ document.addEventListener('DOMContentLoaded', function () {
     reg.addEventListener('click', function () { openRegistration(ev, ''); });
     actions.appendChild(reg);
 
-    var share = el('button', 'p-btn p-btn--ghost p-btn--lg', 'Скопировать ссылку');
+    var share = el('button', 'p-btn p-btn--ghost p-btn--lg', 'Поделись ссылкой с другом');
     share.type = 'button';
     share.addEventListener('click', function () {
       var link = location.origin + '/e/' + encodeURIComponent(ev.id);
       var done = function () {
         share.textContent = 'Ссылка скопирована';
-        setTimeout(function () { share.textContent = 'Скопировать ссылку'; }, 1800);
+        setTimeout(function () { share.textContent = 'Поделись ссылкой с другом'; }, 1800);
       };
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(link).then(done).catch(function () { prompt('Скопируйте ссылку:', link); });
