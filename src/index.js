@@ -78,6 +78,7 @@ export default {
   async scheduled(event, env, ctx) {
     if (event.cron === "*/15 * * * *") {
       ctx.waitUntil(runScheduledEventReminders(env, event.cron, event.scheduledTime));
+      ctx.waitUntil(pingZadachnik(env));
       // Повторы регламента продления (05:00/05:15/05:30 UTC) идут с этого же триггера:
       // отдельный cron для них убран, чтобы не превысить лимит триггеров аккаунта Cloudflare.
       const at = new Date(event.scheduledTime);
@@ -95,6 +96,17 @@ export default {
     }
   }
 };
+
+// Личный Задачник (отдельный Worker) не получил своего cron-триггера из-за лимита аккаунта,
+// поэтому его напоминания запускаются отсюда. Адрес с ключом хранится в секрете ZADACHNIK_CRON_URL.
+async function pingZadachnik(env) {
+  if (!env.ZADACHNIK_CRON_URL) return;
+  try {
+    await fetch(env.ZADACHNIK_CRON_URL);
+  } catch (err) {
+    console.error("pingZadachnik failed", err);
+  }
+}
 
 // Каждые 15 минут: напоминания о мероприятиях за сутки и за час. В cron_runs пишем
 // только запуски, где что-то отправлено, — иначе таблица копила бы 96 строк в день.
