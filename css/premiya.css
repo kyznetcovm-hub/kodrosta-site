@@ -57,6 +57,8 @@
 .p-btn--lg { padding: 20px 38px; font-size: 18px; }
 .p-btn--red { background: var(--red); color: #fff; }
 .p-btn--red:hover { background: var(--navy); }
+.p-btn--navy { background: var(--navy); color: #fff; }
+.p-btn--navy:hover { background: var(--red); }
 .p-btn--outline { background: transparent; color: var(--navy); border-color: var(--navy); }
 .p-btn--outline:hover { background: var(--navy); color: #fff; }
 .p-btn--ghost { background: transparent; color: var(--navy); border-color: var(--navy); }
