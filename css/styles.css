@@ -145,6 +145,17 @@ a { color: inherit; }
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--gray-100);
 }
+/* iOS 26 Safari и браузеры внутри мессенджеров: панель браузера полупрозрачная, под ней виден контент страницы,
+   а фиксированная шапка стоит ниже панели — выглядит «оторванной». Продлеваем фон шапки вверх, за край экрана:
+   на компьютере и в обычных браузерах это не видно, на iPhone полоса под панелью закрашена цветом шапки. */
+.site-header::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 100%;
+  height: 240px;
+  background: inherit;
+  pointer-events: none;
+}
 .site-header .container {
   display: flex;
   align-items: center;
