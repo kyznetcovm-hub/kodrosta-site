@@ -266,11 +266,12 @@
 .p-table tbody th { font-weight: 800; white-space: nowrap; }
 .p-note { font-size: 14px; line-height: 1.55; color: rgba(255,255,255,.7); max-width: 760px; margin: 18px 0 0; }
 
-.p-offer { display: flex; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap; background: var(--mint); color: var(--navy); padding: clamp(28px, 4vw, 52px); margin-top: 72px; position: relative; }
+.p-offer { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); align-items: center; background: var(--mint); color: var(--navy); padding: clamp(28px, 4vw, 52px); margin-top: 200px; position: relative; min-height: 260px; }
 .p-offer::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 12px; background: var(--red); }
-.p-offer h2 { color: var(--navy); font-size: clamp(30px, 4vw, 52px); margin: 0 0 10px; }
-.p-offer p { font-size: 19px; max-width: 560px; margin: 0; font-weight: 600; }
-.p-offer > div { padding-left: 14px; }
+.p-offer-text { padding-left: 14px; }
+.p-offer h2 { color: var(--navy); font-size: clamp(30px, 4vw, 52px); margin: 0 0 28px; }
+.p-offer-btns { display: flex; flex-wrap: wrap; gap: 14px; }
+.p-offer-img { position: absolute; right: clamp(16px, 5vw, 80px); bottom: 0; height: 130%; width: auto; max-width: 46%; object-fit: contain; object-position: right bottom; pointer-events: none; }
 
 /* ---------- Игра «Совет директоров» ---------- */
 .p-game { background: #fff; }
@@ -348,6 +349,10 @@
   .p-gallery { column-count: 2; }
 }
 @media (max-width: 860px) {
+  .p-offer { grid-template-columns: minmax(0, 1fr); margin-top: 140px; }
+  .p-offer-img { position: relative; right: auto; order: -1; height: auto; width: 78%; max-width: 320px; margin: -130px auto 16px; }
+}
+@media (max-width: 860px) {
   .p-hero-grid { grid-template-columns: 1fr; min-height: 0; padding-bottom: 40px; }
   .p-eq { order: 2; }
   .p-event-card { grid-template-columns: 1fr; }
@@ -376,6 +381,7 @@
   .p-ph figcaption { padding: 9px 10px 11px; font-size: 12px; letter-spacing: .05em; }
   .p-stripes { height: 28px; }
   .p-offer .p-btn { width: 100%; }
+  .p-offer-btns { flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) {
   .p-wave rect { animation: none; }
