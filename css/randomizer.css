@@ -53,7 +53,7 @@ html, body { margin: 0; padding: 0; background: #fff; }
 #kr-rand .kr-drum-wrap{position:relative;width:min(250px,29vh);height:min(250px,29vh);min-width:170px;min-height:170px;margin:12px auto 4px}
 #kr-rand .kr-drum{position:absolute;inset:0;border-radius:50%;border:3px solid var(--kr-blue);background:#fff;overflow:hidden;box-shadow:0 0 0 6px #eef3fe}
 #kr-rand .kr-drum.kr-spinning{box-shadow:0 0 0 6px #eef3fe,0 0 28px rgba(41,110,247,.3)}
-#kr-rand .kr-pointer{position:absolute;left:50%;top:-14px;margin-left:-13px;width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-top:20px solid var(--kr-red);z-index:3}
+#kr-rand .kr-pointer{position:absolute;left:-24px;top:50%;margin-top:-13px;width:0;height:0;border-top:13px solid transparent;border-bottom:13px solid transparent;border-left:20px solid var(--kr-red);z-index:3}
 #kr-rand .kr-ticket{position:absolute;left:0;top:0;width:88px;height:34px;margin:-17px 0 0 -44px;border:2px solid var(--kr-blue);border-radius:8px;background:#fff;color:var(--kr-blue);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 10px;will-change:transform}
 #kr-rand .kr-ticket.kr-ghost{border-color:#bcd0fb;color:#bcd0fb}
 #kr-rand .kr-ticket.kr-pick{border-color:var(--kr-red);color:var(--kr-red);z-index:2}
