@@ -9,7 +9,7 @@
 
 import {
   parseEventMessage, insertEvent, updateEvent, getEventById, deleteEvent,
-  listUpcomingEvents, renderEventTemplate, setEventSignupChatId, isTurizmEvent,
+  listUpcomingEvents, listAllEvents, renderEventTemplate, setEventSignupChatId, isTurizmEvent,
 } from "./events-store.js";
 import {
   SECTIONS, SECTION_ORDER, renderSectionTemplate, parseSectionReply,
@@ -216,6 +216,7 @@ function adminMenuKeyboard() {
       [{ text: "🟦 РЕДАКТИРОВАТЬ МЕРОПРИЯТИЯ 🟦", callback_data: "noop" }],
       [{ text: "01 · Список мероприятий", callback_data: "menu:events" }],
       [{ text: "02 · Создать мероприятие", callback_data: "menu:create" }],
+      [{ text: "03 · Прошедшие мероприятия", callback_data: "menu:past" }],
 
       [{ text: "🟦 ВОВЛЕЧЁННОСТЬ 🟦", callback_data: "noop" }],
       [{ text: "📊 Вовлечённость", callback_data: "menu:report" }],
@@ -352,6 +353,8 @@ async function handleCallbackQuery(cq, env) {
   if (data === "noop") return; // нажали на заголовок-разделитель — ничего не делаем
   if (data === "menu:home") return handleMenu(fakeMsg, env);
   if (data === "menu:events") return handleListEventsCommand(fakeMsg, env);
+  if (data === "menu:past") return handlePastEventsCommand(fakeMsg, env, 0);
+  if (data.startsWith("past:")) return handlePastEventsCommand(fakeMsg, env, Number(data.slice(5)) || 0);
   if (data === "menu:report") return handleCoolingCommand(fakeMsg, env);
   if (data === "menu:create") {
     return sendMessage(env, from.id, "Куда добавляем мероприятие?", { inline_keyboard: newEventButtonRows().concat([backButtonRow()]) });
@@ -526,6 +529,35 @@ async function handleListEventsCommand(msg, env) {
   ]);
   buttons.push(backButtonRow());
   return sendMessage(env, msg.from.id, "Мероприятия клуба — нажмите, чтобы посмотреть и изменить:", { inline_keyboard: buttons });
+}
+
+// «03 · Прошедшие мероприятия»: те же карточки (ev:<id>), а из них —
+// «Список записавшихся». Новые сверху, по 20 на страницу.
+const PAST_EVENTS_PAGE = 20;
+
+async function handlePastEventsCommand(msg, env, page) {
+  if (!isAdmin(msg.from.username, env)) return;
+  if (!env.DB) return;
+  const nowIso = new Date().toISOString().slice(0, 19);
+  const past = (await listAllEvents(env.DB)).filter((e) => e.start < nowIso).reverse();
+  if (!past.length) {
+    return sendMessage(env, msg.from.id, "Прошедших мероприятий пока нет.", { inline_keyboard: [backButtonRow()] });
+  }
+  const pages = Math.ceil(past.length / PAST_EVENTS_PAGE);
+  page = Math.min(Math.max(page, 0), pages - 1);
+  const buttons = past.slice(page * PAST_EVENTS_PAGE, (page + 1) * PAST_EVENTS_PAGE).map((e) => [
+    { text: `${isTurizmEvent(e) ? "🌲 " : ""}${formatRuDateTime(e.start)} — ${e.title}`.slice(0, 60), callback_data: `ev:${e.id}` },
+  ]);
+  const nav = [];
+  if (page > 0) nav.push({ text: "⬅️", callback_data: `past:${page - 1}` });
+  if (page < pages - 1) nav.push({ text: "➡️", callback_data: `past:${page + 1}` });
+  if (nav.length) buttons.push(nav);
+  buttons.push(backButtonRow());
+  return sendMessage(
+    env, msg.from.id,
+    `Прошедшие мероприятия: ${past.length}${pages > 1 ? ` (стр. ${page + 1} из ${pages})` : ""}. Нажмите — откроется карточка, из неё «👥 Список записавшихся»:`,
+    { inline_keyboard: buttons }
+  );
 }
 
 // ---- Список записавшихся на мероприятие ------------------------------------

@@ -237,3 +237,29 @@ test('заявка на мероприятие без билета: строки
   await submit(f.env, { name: 'Гость', phone: '+7 900 111-22-33', telegram: '@guest_test' });
   assert.ok(!/Билет:/.test(dms(f.sent, GROUP)[0].text));
 });
+
+test('«03 · Прошедшие мероприятия»: пункт в меню, список прошедших новыми сверху, участники из карточки', async t => {
+  const f = fixture(t);
+  f.env.ADMIN_USERNAMES = 'boss';
+  f.sqlite.exec(`INSERT INTO events (id, title, tag, start, end, place, description, created_at)
+    VALUES ('old-1', 'Розыгрыш', 'Мероприятие', '2025-01-10T18:00:00', '2025-01-10T20:00:00', 'Офис', 'Было.', '2025-01-01T00:00:00Z'),
+           ('old-2', 'Вторая встреча', 'Мероприятие', '2025-03-10T18:00:00', '2025-03-10T20:00:00', 'Офис', 'Было.', '2025-01-01T00:00:00Z'),
+           ('future-1', 'Будущее', 'Мероприятие', '2099-01-01T18:00:00', '2099-01-01T20:00:00', 'Офис', 'Будет.', '2025-01-01T00:00:00Z');
+    INSERT INTO event_signups (event_id, tg_user_id, username, person_name, source, created_at) VALUES ('old-1', 77, 'guestx', 'Гость Икс', 'bot', '2025-01-02T00:00:00Z');`);
+  async function tap(data) {
+    f.sent.length = 0;
+    await worker.fetch(new Request('https://codrosta.club/api/telegram-webhook', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ callback_query: { id: 'c', from: { id: 1, username: 'boss' }, data, message: { chat: { id: 1 } } } }),
+    }), f.env, {});
+    return f.sent.filter(m => m.method === 'sendMessage');
+  }
+  const flat = m => m.reply_markup.inline_keyboard.flat();
+  const menu = await tap('menu:home');
+  assert.ok(flat(menu[menu.length - 1]).some(b => b.callback_data === 'menu:past' && b.text.startsWith('03')));
+  const list = await tap('menu:past');
+  const evs = flat(list[0]).filter(b => b.callback_data.startsWith('ev:')).map(b => b.callback_data);
+  assert.deepEqual(evs, ['ev:chat-ev', 'ev:podcast', 'ev:old-2', 'ev:old-1']); // будущее не попало, новые сверху
+  const people = await tap('es:old-1');
+  assert.match(people.map(m => m.text).join('\n'), /@guestx/);
+});
