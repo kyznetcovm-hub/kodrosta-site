@@ -32,6 +32,12 @@ addEvent.run('biznes-banya', 'Бизнес-баня', 'Бизнес-баня', m
 addEvent.run('rubezh', 'РУБЕЖ', 'Событие клуба', month + '-24T11:00:00', month + '-24T20:00:00');
 addEvent.run('kalorimetr', 'Калориметр', 'Марафон', month + '-27T10:00:00', month + '-27T12:00:00');
 
+// участники для «Рандомайзера» (телефон — чтобы проверить, что наружу он не уходит)
+sqlite.exec(`INSERT INTO event_signups (event_id, tg_user_id, username, person_name, phone, source, created_at) VALUES
+  ('rubezh', 1, 'anna_demo', 'Анна Смирнова', '+79001112233', 'bot', 'dev'), ('rubezh', 2, 'ilya_demo', 'Илья Петров', NULL, 'bot', 'dev'),
+  ('rubezh', 3, 'maria_demo', 'Мария Орлова', '+79004445566', 'site', 'dev'), ('rubezh', 4, 'oleg_demo', 'Олег Волков', NULL, 'manual', 'dev'),
+  ('rubezh', 5, 'dina_demo', 'Дина Ким', NULL, 'bot', 'dev'), ('rubezh', 6, 'pavel_demo', 'Павел Рощин', NULL, 'bot', 'dev')`);
+
 const DB = {
   prepare(sql) {
     const st = sqlite.prepare(sql);
@@ -72,14 +78,14 @@ http.createServer(async (req, res) => {
     res.end(await r.text());
     return;
   }
-  const path = url.pathname === '/' || url.pathname === '/office' ? '/office.html' : url.pathname;
+  const path = url.pathname === '/' || url.pathname === '/office' ? '/office.html' : url.pathname === '/randomizer' ? '/randomizer.html' : url.pathname;
   if (path.includes('..') || !existsSync(ROOT + path)) { res.writeHead(404); res.end(); return; }
   let out = readFileSync(ROOT + path);
   // вместо настоящего Telegram SDK — заглушка с подписанным входом
-  if (path === '/office.html') {
+  if (path === '/office.html' || path === '/randomizer.html') {
     out = String(out).replace('<script src="https://telegram.org/js/telegram-web-app.js"></script>',
-      `<script>window.Telegram={WebApp:{initData:${JSON.stringify(initData())},ready(){},expand(){},BackButton:{show(){},hide(){},onClick(){}}}};</script>`);
+      `<script>window.Telegram={WebApp:{initData:${JSON.stringify(initData())},ready(){},expand(){},openTelegramLink(u){window.__opened=u;},BackButton:{show(){},hide(){},onClick(){}}}};</script>`);
   }
   res.writeHead(200, { 'content-type': TYPES[path.slice(path.lastIndexOf('.'))] || 'application/octet-stream', 'cache-control': 'no-store' });
   res.end(out);
-}).listen(PORT, '127.0.0.1', () => console.log(`Офис (стенд): http://127.0.0.1:${PORT}/office`));
+}).listen(PORT, '127.0.0.1', () => console.log(`Офис (стенд): http://127.0.0.1:${PORT}/office, рандомайзер: http://127.0.0.1:${PORT}/randomizer`));

@@ -257,6 +257,7 @@ test('«03 · Прошедшие мероприятия»: пункт в мен�
   const flat = m => m.reply_markup.inline_keyboard.flat();
   const menu = await tap('menu:home');
   assert.ok(flat(menu[menu.length - 1]).some(b => b.callback_data === 'menu:past' && b.text.startsWith('03')));
+  assert.ok(flat(menu[menu.length - 1]).some(b => b.web_app && b.web_app.url === 'https://codrosta.club/randomizer')); // кнопка «Рандомайзер»
   const list = await tap('menu:past');
   const evs = flat(list[0]).filter(b => b.callback_data.startsWith('ev:')).map(b => b.callback_data);
   assert.deepEqual(evs, ['ev:chat-ev', 'ev:podcast', 'ev:old-2', 'ev:old-1']); // будущее не попало, новые сверху

@@ -207,6 +207,7 @@ function adminMenuKeyboard() {
   return {
     inline_keyboard: [
       [{ text: "📱 Офис в кармане", web_app: { url: OFFICE_URL } }],
+      [{ text: "🎲 Рандомайзер", web_app: { url: SITE_URL + "/randomizer" } }],
 
       [{ text: "🟦 РЕДАКТИРОВАТЬ САЙТ 🟦", callback_data: "noop" }],
       [{ text: "01 · О клубе", callback_data: "content:about" }, { text: "02 · Цифры клуба", callback_data: "content:numbers" }],
@@ -604,7 +605,8 @@ function formatPerson(name, username) {
 // Возвращает списки имён для показа. Участники привязанной группы сюда НЕ входят —
 // это состав чата, а не записи. Общая для «Списка участников» в боте и для
 // счётчика регистраций в Mini App «Офис в кармане» (src/office.js), чтобы числа
-// совпадали. mark(display, residentId, username) — оформление строки (✅ резидента).
+// совпадали. mark(display, residentId, username, person) — оформление строки (✅ резидента);
+// person = { name, username } без телефона — для рандомайзера (src/randomizer.js).
 export async function collectEventRegistrations(env, e, mark) {
   mark = mark || function (display) { return display; };
   // username-и и телефоны, уже учтённые более надёжными источниками —
@@ -631,19 +633,19 @@ export async function collectEventRegistrations(env, e, mark) {
   for (const s of signupRows.filter((r) => r.source === "bot")) {
     take(s.username, s.phone, s.resident_id);
     const disp = formatPerson(s.person_name, s.username);
-    botNames.push(mark((disp || `id${s.tg_user_id}`) + (s.phone ? " 📞" : ""), s.resident_id, s.username));
+    botNames.push(mark((disp || `id${s.tg_user_id}`) + (s.phone ? " 📞" : ""), s.resident_id, s.username, { name: s.person_name, username: s.username }));
   }
   for (const s of signupRows.filter((r) => r.source === "site")) {
     if (isTaken(s.username, s.phone, s.resident_id)) continue; // уже записан через бота
     take(s.username, s.phone, s.resident_id);
     const disp = formatPerson(s.person_name, s.username);
-    if (disp) siteNames.push(mark(disp + (s.phone ? " · " + s.phone : ""), s.resident_id, s.username));
+    if (disp) siteNames.push(mark(disp + (s.phone ? " · " + s.phone : ""), s.resident_id, s.username, { name: s.person_name, username: s.username }));
   }
   for (const s of signupRows.filter((r) => r.source === "manual")) {
     if (isTaken(s.username, null, s.resident_id)) continue; // уже записан через бота или сайт
     take(s.username, null, s.resident_id);
     const disp = formatPerson(s.person_name, s.username);
-    if (disp) manualNames.push(mark(disp, s.resident_id, s.username));
+    if (disp) manualNames.push(mark(disp, s.resident_id, s.username, { name: s.person_name, username: s.username }));
   }
 
   // Старые заявки с сайта (до привязки к мероприятию по id) — только в touches,
@@ -664,7 +666,7 @@ export async function collectEventRegistrations(env, e, mark) {
     if (!display || siteSeen.has(display)) continue;
     siteSeen.add(display);
     if (uname) takenUsernames.add(uname);
-    siteNames.push(mark(display, row.resident_id, uname));
+    siteNames.push(mark(display, row.resident_id, uname, { name: row.resident_name || row.person_name, username: row.resident_username || row.person_username }));
   }
   botNames.sort(byNameRu);
   siteNames.sort(byNameRu);

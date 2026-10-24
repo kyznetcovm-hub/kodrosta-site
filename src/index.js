@@ -14,6 +14,7 @@ import { buildMonthlySubscriptionReport } from "./subscriptions.js";
 import { runSubscriptionNotifications } from "./subscription-notifications.js";
 import { buildMetrikaDigest, fetchBlogViews } from "./metrika.js";
 import { handleOfficeApi } from "./office.js";
+import { handleRandomizerApi } from "./randomizer.js";
 
 const SITE_URL = "https://codrosta.club";
 
@@ -48,6 +49,11 @@ export default {
     // Mini App «Офис в кармане» — только для админов бота, см. src/office.js
     if (url.pathname.startsWith("/api/office/")) {
       return handleOfficeApi(request, env, url.pathname);
+    }
+
+    // Mini App «Рандомайзер» (розыгрыши среди записавшихся) — тоже только админам, см. src/randomizer.js
+    if (url.pathname.startsWith("/api/randomizer/")) {
+      return handleRandomizerApi(request, env, url.pathname);
     }
 
     if (url.pathname === "/calendar.ics" && (request.method === "GET" || request.method === "HEAD")) {

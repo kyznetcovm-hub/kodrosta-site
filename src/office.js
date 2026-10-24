@@ -40,7 +40,7 @@ const INIT_DATA_MAX_AGE_SEC = 24 * 60 * 60;
 // приветствии не обращаемся по имени профиля («Код Роста, вот что…»).
 const SHARED_ACCOUNTS = ["kodrosta"];
 
-function json(data, status) {
+export function json(data, status) {
   return new Response(JSON.stringify(data), {
     status: status || 200,
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
@@ -103,7 +103,7 @@ async function isOfficeUser(env, tgUser) {
 }
 
 // Общая проверка для всех /api/office/*: { user } или { response } с ошибкой.
-async function authenticate(request, env) {
+export async function authenticate(request, env) {
   const auth = request.headers.get("authorization") || "";
   const initData = auth.startsWith("tma ") ? auth.slice(4) : "";
   if (!initData) return { response: json({ ok: false, error: "no_auth" }, 401) };
