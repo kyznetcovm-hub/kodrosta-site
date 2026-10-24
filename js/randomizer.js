@@ -162,10 +162,12 @@
 
     var drum = buildDrum(state.participants || []);
     show([
-      h("h1", { text: "Розыгрыш билета" }),
-      h("label", { class: "kr-label", for: "kr-event", text: "Мероприятие" }),
+      h("h1", { class: "kr-h1-sm", text: "Розыгрыш билета" }),
+      h("div", { class: "kr-labelrow" }, [
+        h("label", { class: "kr-label", for: "kr-event", text: "Мероприятие" }),
+        h("button", { class: "kr-link", type: "button", text: "Загрузить список", onclick: loadParticipants })
+      ]),
       select,
-      h("button", { class: "kr-link", type: "button", text: "Загрузить список", onclick: loadParticipants }),
       h("div", { class: "kr-stat" }, [
         h("div", { class: "kr-stat-num" }, [total == null ? "…" : String(total), h("small", { text: total == null ? "загружаем" : plural(total, "участник", "участника", "участников") })]),
         h("div", { class: "kr-stat-note", text: "Имя + username" })
@@ -176,8 +178,10 @@
       h("p", { class: "kr-drum-caption", text: total === 0 ? "На это событие пока никто не записался" : "Всё готово к розыгрышу" }),
       state.error ? h("p", { class: "kr-error", text: state.error }) : null,
       start,
-      h("p", { class: "kr-hint", text: "Поздравление будет доступно после розыгрыша" }),
-      h("div", { class: "kr-center" }, [h("button", { class: "kr-link", type: "button", text: "История розыгрышей", onclick: renderHistory })])
+      h("div", { class: "kr-links" }, [
+        h("span", { class: "kr-hint", text: "Поздравление — после розыгрыша" }),
+        h("button", { class: "kr-link", type: "button", text: "История", onclick: renderHistory })
+      ])
     ]);
     if (!ev && state.events && !state.events.length) {
       main.appendChild(h("p", { class: "kr-error", text: "В боте пока нет мероприятий." }));
@@ -279,9 +283,9 @@
       return h("button", { type: "button", text: String(n), disabled: true, "aria-pressed": String(n === count) });
     }));
     show([
-      h("h1", { text: "Розыгрыш билета" }),
-      h("label", { class: "kr-label", text: "Мероприятие" }),
-      h("div", { class: "kr-select", text: ev.title, style: "display:flex;align-items:center;" }),
+      h("h1", { class: "kr-h1-sm", text: "Розыгрыш билета" }),
+      h("div", { class: "kr-labelrow" }, [h("label", { class: "kr-label", text: "Мероприятие" })]),
+      h("div", { class: "kr-select kr-select-static", text: ev.title }),
       h("div", { class: "kr-stat" }, [
         h("div", { class: "kr-stat-num" }, [String(total), h("small", { text: plural(total, "участник", "участника", "участников") })]),
         h("div", { class: "kr-stat-note", text: "Имя + username" })
@@ -335,14 +339,15 @@
     if (reduceMotion) return null;
     var box = h("div", { class: "kr-confetti" });
     var colors = ["#296ef7", "#eb344a", "#296ef7", "#eb344a", "#ffb800"];
-    for (var i = 0; i < 46; i++) {
+    for (var i = 0; i < 34; i++) {
       var piece = h("i");
       piece.style.left = (Math.random() * 100).toFixed(1) + "%";
       piece.style.background = colors[i % colors.length];
-      piece.style.animationDuration = (2.4 + Math.random() * 2.4).toFixed(2) + "s";
-      piece.style.animationDelay = (Math.random() * 0.8).toFixed(2) + "s";
+      piece.style.animationDuration = (1.6 + Math.random() * 1.4).toFixed(2) + "s";
+      piece.style.animationDelay = (Math.random() * 0.5).toFixed(2) + "s";
       box.appendChild(piece);
     }
+    setTimeout(function () { if (box.parentNode) box.parentNode.removeChild(box); }, 3800);
     return box;
   }
 
@@ -351,43 +356,49 @@
     var title = result.event.title;
     var many = result.winners.length > 1;
     var nodes = [
-      h("h1", { text: many ? "Победители выбраны" : "Победитель выбран" }),
+      h("h1", { class: "kr-h1-sm", text: many ? "Победители выбраны" : "Победитель выбран" }),
       h("p", { class: "kr-win-event", text: title }),
       h("p", { class: "kr-win-sub", text: result.total + " " + plural(result.total, "участник", "участника", "участников") + " • " + result.winners.length + " " + plural(result.winners.length, "победитель", "победителя", "победителей") })
     ];
+    var mainBtn = null;
     result.winners.forEach(function (w, i) {
-      var send = h("button", { class: "kr-btn", type: "button", disabled: !w.username, onclick: function () { sendCongrats(w, title); } }, [
-        w.username ? h("span", { class: "kr-plane" }) : null,
-        w.username ? "Отправить поздравление" : "Нет @username — напишите вручную"
+      var label = w.username ? (many ? "Поздравить" : "Отправить поздравление") : "Нет @username";
+      var send = h("button", { class: "kr-btn" + (many ? " kr-btn-sm" : ""), type: "button", disabled: !w.username, onclick: function () { sendCongrats(w, title); } }, [
+        w.username ? h("span", { class: "kr-plane" }) : null, label
       ]);
       if (w.username) send.firstChild.innerHTML = TICKET_PLANE;
-      var card = h("div", { class: "kr-card", style: "animation-delay:" + (i * 0.25) + "s" }, [
-        h("div", { class: "kr-badge", text: many ? "Победитель " + (i + 1) : "Победитель" }),
-        h("div", { class: "kr-avatar", text: initials(w.name) }),
-        h("div", { class: "kr-win-name", text: w.name }),
-        w.username ? h("div", { class: "kr-win-user", text: "@" + w.username }) : null
-      ]);
-      if (many) card.appendChild(send);
-      nodes.push(card);
-      w._send = send;
+      if (many) {
+        nodes.push(h("div", { class: "kr-row", style: "animation-delay:" + (i * 0.2) + "s" }, [
+          h("div", { class: "kr-avatar kr-avatar-sm", text: initials(w.name) }),
+          h("div", { class: "kr-row-info" }, [
+            h("div", { class: "kr-row-tag", text: "Победитель " + (i + 1) }),
+            h("div", { class: "kr-row-name", text: w.name }),
+            w.username ? h("div", { class: "kr-win-user", text: "@" + w.username }) : null
+          ]),
+          send
+        ]));
+      } else {
+        nodes.push(h("div", { class: "kr-card" }, [
+          h("div", { class: "kr-badge", text: "Победитель" }),
+          h("div", { class: "kr-avatar", text: initials(w.name) }),
+          h("div", { class: "kr-win-name", text: w.name }),
+          w.username ? h("div", { class: "kr-win-user", text: "@" + w.username }) : null
+        ]));
+        mainBtn = send;
+      }
     });
-    nodes.push(h("p", { class: "kr-prize", text: "Твой приз — билет на мероприятие" }));
-    var congrats = h("div", { class: "kr-congrats" }, [
-      h("h2", { text: "Поздравление" }),
-      h("small", { text: "Отправитель: @Kodrosta" }),
+    nodes.push(h("div", { class: "kr-congrats" }, [
+      h("small", { text: "Твой приз — билет на мероприятие. Поздравление от @Kodrosta:" }),
       h("div", { class: "kr-msg", text: congratsText(title) })
-    ]);
-    nodes.push(congrats);
-    if (!many) nodes.push(result.winners[0]._send);
-    else nodes.push(h("p", { class: "kr-hint", text: "Кнопка у каждого победителя откроет чат с готовым текстом" }));
-    nodes.push(h("div", { class: "kr-center" }, [
-      h("button", { class: "kr-link", type: "button", text: "Посмотреть участников", onclick: function () { renderParticipants(function () { renderWinners(result); }); } }),
-      h("br"),
+    ]));
+    if (mainBtn) nodes.push(mainBtn);
+    nodes.push(h("div", { class: "kr-links" }, [
+      h("button", { class: "kr-link", type: "button", text: "Участники", onclick: function () { renderParticipants(function () { renderWinners(result); }); } }),
       h("button", { class: "kr-link", type: "button", text: "Новый розыгрыш", onclick: function () { renderPrep(); } })
     ]));
     show(nodes);
     var conf = confetti();
-    if (conf) main.appendChild(conf);
+    if (conf) main.parentNode.insertBefore(conf, main);
   }
 
   // ---- Участники и история ------------------------------------------------------

@@ -6,35 +6,43 @@ html, body { margin: 0; padding: 0; background: #fff; }
 #kr-rand{--kr-blue:#296ef7;--kr-red:#eb344a;--kr-ink:#0b0b0c;--kr-muted:#6b7080;--kr-bg:#f6f7fb;--kr-line:#e3e6ef;color-scheme:light;font-family:Inter,sans-serif;line-height:1.4;-webkit-text-size-adjust:100%;color:var(--kr-ink)}
 #kr-rand *{box-sizing:border-box}
 #kr-rand [hidden]{display:none!important}
-#kr-rand .kr-app{max-width:430px;margin:auto;min-height:100vh;min-height:100dvh;background:#fff;padding:0 20px calc(24px + env(safe-area-inset-bottom));overflow:hidden;position:relative}
+#kr-rand .kr-app{max-width:430px;margin:auto;min-height:100vh;min-height:100dvh;background:#fff;padding:0 18px calc(14px + env(safe-area-inset-bottom));overflow:hidden;position:relative}
 #kr-rand button,#kr-rand select{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
 #kr-rand button{cursor:pointer}
 #kr-rand button:disabled{cursor:default}
 #kr-rand button:focus-visible,#kr-rand select:focus-visible{outline:3px solid var(--kr-blue);outline-offset:2px}
 
 /* двухстрочная шапка: «Рандомайзер» / «Код Роста» */
-#kr-rand .kr-head{text-align:center;padding:10px 0 6px}
-#kr-rand .kr-head-title{font-size:17px;font-weight:600;line-height:1.2}
-#kr-rand .kr-head-sub{font-size:14px;font-weight:500;color:var(--kr-blue);line-height:1.3}
+#kr-rand .kr-head{text-align:center;padding:6px 0 2px}
+#kr-rand .kr-head-title{font-size:16px;font-weight:600;line-height:1.2}
+#kr-rand .kr-head-sub{font-size:13px;font-weight:500;color:var(--kr-blue);line-height:1.3}
 #kr-rand h1{font:700 30px/1.15 Jost,sans-serif;letter-spacing:-.5px;text-align:center;margin:14px 0 16px}
 #kr-rand .kr-center{text-align:center}
+#kr-rand .kr-h1-sm{font-size:24px;margin:8px 0 10px}
+#kr-rand .kr-labelrow{display:flex;justify-content:space-between;align-items:baseline}
+#kr-rand .kr-labelrow .kr-label{margin:0}
+#kr-rand .kr-labelrow .kr-link{padding:2px 0}
+#kr-rand .kr-links{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:6px}
+#kr-rand .kr-links .kr-hint{margin:0;font-size:12px}
+#kr-rand .kr-links .kr-link{padding:6px 0}
+#kr-rand .kr-select-static{display:flex;align-items:center;background-image:none}
 
 #kr-rand .kr-label{font-size:13px;color:var(--kr-muted);margin:0 0 6px;display:block}
-#kr-rand .kr-select{width:100%;height:46px;border:1px solid var(--kr-line);border-radius:10px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236b7080' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 6 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 14px center;padding:0 40px 0 14px;font-size:15px;appearance:none;-webkit-appearance:none}
+#kr-rand .kr-select{width:100%;height:42px;border:1px solid var(--kr-line);border-radius:10px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236b7080' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 6 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 14px center;padding:0 40px 0 14px;font-size:15px;appearance:none;-webkit-appearance:none}
 #kr-rand .kr-link{border:0;background:none;padding:8px 0;color:var(--kr-blue);font-size:13px}
 
-#kr-rand .kr-stat{display:flex;align-items:center;background:var(--kr-bg);border-radius:14px;padding:12px 18px;margin:8px 0 18px;min-height:72px}
-#kr-rand .kr-stat-num{font:700 40px/1 Jost,sans-serif;color:var(--kr-blue);font-variant-numeric:tabular-nums;min-width:96px}
-#kr-rand .kr-stat-num small{display:block;font:400 13px/1.3 Inter,sans-serif;color:var(--kr-muted);margin-top:4px}
-#kr-rand .kr-stat-note{flex:1;border-left:1px solid var(--kr-line);padding-left:18px;margin-left:12px;font-size:14px;color:var(--kr-muted);min-height:44px;display:flex;align-items:center}
+#kr-rand .kr-stat{display:flex;align-items:center;background:var(--kr-bg);border-radius:14px;padding:8px 16px;margin:10px 0 12px;min-height:56px}
+#kr-rand .kr-stat-num{font:700 30px/1 Jost,sans-serif;color:var(--kr-blue);font-variant-numeric:tabular-nums;min-width:96px}
+#kr-rand .kr-stat-num small{display:block;font:400 13px/1.3 Inter,sans-serif;color:var(--kr-muted);margin-top:2px}
+#kr-rand .kr-stat-note{flex:1;border-left:1px solid var(--kr-line);padding-left:18px;margin-left:12px;font-size:14px;color:var(--kr-muted);min-height:36px;display:flex;align-items:center}
 
-#kr-rand .kr-q{font-size:15px;font-weight:500;margin:0 0 10px}
+#kr-rand .kr-q{font-size:14px;font-weight:500;margin:0 0 8px}
 #kr-rand .kr-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-#kr-rand .kr-seg button{height:42px;border:1px solid #cdd2e0;border-radius:9px;background:#fff;font-size:15px;font-weight:500}
+#kr-rand .kr-seg button{height:38px;border:1px solid #cdd2e0;border-radius:9px;background:#fff;font-size:15px;font-weight:500}
 #kr-rand .kr-seg button[aria-pressed=true]{background:var(--kr-blue);border-color:var(--kr-blue);color:#fff}
 #kr-rand .kr-seg button:disabled{opacity:.45}
 
-#kr-rand .kr-btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;height:50px;border:0;border-radius:12px;background:var(--kr-blue);color:#fff;font-size:16px;font-weight:600}
+#kr-rand .kr-btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;height:46px;border:0;border-radius:12px;background:var(--kr-blue);color:#fff;font-size:16px;font-weight:600}
 #kr-rand .kr-btn:disabled{background:#a9c3fb}
 #kr-rand .kr-btn svg{width:20px;height:20px;fill:#fff}
 #kr-rand .kr-hint{font-size:13px;color:var(--kr-muted);text-align:center;margin:12px 0 0}
@@ -42,35 +50,43 @@ html, body { margin: 0; padding: 0; background: #fff; }
 #kr-rand .kr-state{padding:60px 8px;text-align:center;color:var(--kr-muted);font-size:14px}
 
 /* ---- барабан ---- */
-#kr-rand .kr-drum-wrap{position:relative;width:250px;height:250px;margin:18px auto 6px}
+#kr-rand .kr-drum-wrap{position:relative;width:min(250px,29vh);height:min(250px,29vh);min-width:170px;min-height:170px;margin:12px auto 4px}
 #kr-rand .kr-drum{position:absolute;inset:0;border-radius:50%;border:3px solid var(--kr-blue);background:#fff;overflow:hidden;box-shadow:0 0 0 6px #eef3fe}
 #kr-rand .kr-drum.kr-spinning{box-shadow:0 0 0 6px #eef3fe,0 0 28px rgba(41,110,247,.3)}
 #kr-rand .kr-pointer{position:absolute;left:50%;top:-14px;margin-left:-13px;width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-top:20px solid var(--kr-red);z-index:3}
 #kr-rand .kr-ticket{position:absolute;left:0;top:0;width:88px;height:34px;margin:-17px 0 0 -44px;border:2px solid var(--kr-blue);border-radius:8px;background:#fff;color:var(--kr-blue);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 10px;will-change:transform}
 #kr-rand .kr-ticket.kr-ghost{border-color:#bcd0fb;color:#bcd0fb}
 #kr-rand .kr-ticket.kr-pick{border-color:var(--kr-red);color:var(--kr-red);z-index:2}
-#kr-rand .kr-drum-title{font:700 22px/1.2 Jost,sans-serif;text-align:center;margin:10px 0 2px}
-#kr-rand .kr-drum-caption{font-size:14px;color:var(--kr-muted);text-align:center;margin:0 0 22px;min-height:20px}
+#kr-rand .kr-drum-title{font:700 22px/1.2 Jost,sans-serif;text-align:center;margin:6px 0 0}
+#kr-rand .kr-drum-caption{font-size:13px;color:var(--kr-muted);text-align:center;margin:0 0 10px;min-height:18px}
 #kr-rand .kr-drum.kr-idle .kr-ticket{transition:transform .6s ease}
 
 /* ---- победитель ---- */
-#kr-rand .kr-win-event{font:600 20px/1.25 Jost,sans-serif;text-align:center;margin:-8px 0 2px}
-#kr-rand .kr-win-sub{font-size:13px;color:var(--kr-muted);text-align:center;margin:0 0 22px}
-#kr-rand .kr-card{position:relative;margin:26px 6px 0;padding:34px 16px 18px;border:2px solid var(--kr-blue);border-radius:16px;background:#fff;text-align:center;animation:kr-pop .55s cubic-bezier(.2,1.4,.4,1) both}
+#kr-rand .kr-win-event{font:600 16px/1.25 Jost,sans-serif;text-align:center;margin:-4px 0 2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#kr-rand .kr-win-sub{font-size:13px;color:var(--kr-muted);text-align:center;margin:0 0 14px}
+#kr-rand .kr-card{position:relative;margin:22px 6px 0;padding:26px 14px 12px;border:2px solid var(--kr-blue);border-radius:16px;background:#fff;text-align:center;animation:kr-pop .55s cubic-bezier(.2,1.4,.4,1) both}
 #kr-rand .kr-card::before,#kr-rand .kr-card::after{content:"";position:absolute;top:50%;width:18px;height:18px;margin-top:-9px;border:2px solid var(--kr-blue);border-radius:50%;background:#fff}
 #kr-rand .kr-card::before{left:-11px;clip-path:inset(0 0 0 50%)}
 #kr-rand .kr-card::after{right:-11px;clip-path:inset(0 50% 0 0)}
 #kr-rand .kr-badge{position:absolute;top:-15px;left:50%;transform:translateX(-50%);background:var(--kr-red);color:#fff;font-size:14px;font-weight:600;padding:5px 20px;border-radius:999px;white-space:nowrap}
-#kr-rand .kr-avatar{width:60px;height:60px;border-radius:50%;background:#e3ecfe;color:var(--kr-blue);font-weight:700;font-size:20px;display:grid;place-items:center;margin:0 auto 8px}
-#kr-rand .kr-win-name{font:700 24px/1.2 Jost,sans-serif;overflow-wrap:anywhere}
-#kr-rand .kr-win-user{font-size:15px;color:var(--kr-blue);margin-top:4px;overflow-wrap:anywhere}
+#kr-rand .kr-avatar{width:48px;height:48px;border-radius:50%;background:#e3ecfe;color:var(--kr-blue);font-weight:700;font-size:17px;display:grid;place-items:center;margin:0 auto 6px;flex-shrink:0}
+#kr-rand .kr-avatar-sm{width:40px;height:40px;font-size:14px;margin:0}
+#kr-rand .kr-win-name{font:700 21px/1.2 Jost,sans-serif;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#kr-rand .kr-win-user{font-size:14px;color:var(--kr-blue);margin-top:4px;overflow-wrap:anywhere}
 #kr-rand .kr-prize{text-align:center;font-size:15px;margin:22px 0 18px}
-#kr-rand .kr-congrats{margin:4px 0 0}
+#kr-rand .kr-congrats{margin:12px 0 10px}
 #kr-rand .kr-congrats h2{font-size:15px;font-weight:600;margin:14px 0 2px}
-#kr-rand .kr-congrats small{display:block;font-size:12px;color:var(--kr-muted);margin-bottom:8px}
-#kr-rand .kr-msg{background:var(--kr-bg);border-radius:10px;padding:14px;font-size:15px;line-height:1.45;margin-bottom:12px}
-#kr-rand .kr-card .kr-btn{margin-top:16px;height:46px;font-size:15px}
-#kr-rand .kr-confetti{position:absolute;left:0;right:0;top:0;height:100%;pointer-events:none;overflow:hidden;z-index:5}
+#kr-rand .kr-congrats small{display:block;font-size:12px;color:var(--kr-muted);margin-bottom:6px}
+#kr-rand .kr-msg{background:var(--kr-bg);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#kr-rand .kr-btn-sm{width:auto;height:36px;padding:0 12px;font-size:13px;gap:6px;border-radius:10px;flex-shrink:0}
+#kr-rand .kr-btn-sm svg{width:15px;height:15px}
+#kr-rand .kr-row{display:flex;align-items:center;gap:10px;padding:9px 10px;margin-bottom:8px;border:2px solid var(--kr-blue);border-radius:14px;animation:kr-pop .5s cubic-bezier(.2,1.4,.4,1) both}
+#kr-rand .kr-row-info{flex:1;min-width:0}
+#kr-rand .kr-row-tag{font-size:11px;font-weight:600;color:var(--kr-red);text-transform:uppercase;letter-spacing:.3px}
+#kr-rand .kr-row-name{font:600 16px/1.2 Jost,sans-serif;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#kr-rand .kr-row .kr-win-user{font-size:13px;margin-top:1px}
+#kr-rand .kr-confetti{position:fixed;left:0;right:0;top:0;height:100vh;pointer-events:none;overflow:hidden;z-index:0}
+#kr-rand .kr-main{position:relative;z-index:1}
 #kr-rand .kr-confetti i{position:absolute;top:-16px;width:8px;height:14px;border-radius:2px;animation:kr-fall linear forwards}
 
 /* ---- списки: участники, история ---- */
@@ -87,7 +103,7 @@ html, body { margin: 0; padding: 0; background: #fff; }
 #kr-rand .kr-back{border:0;background:none;padding:10px 0;color:var(--kr-blue);font-size:14px}
 
 @keyframes kr-pop{from{opacity:0;transform:scale(.6) translateY(16px)}to{opacity:1;transform:none}}
-@keyframes kr-fall{to{transform:translateY(900px) rotate(540deg);opacity:.9}}
+@keyframes kr-fall{0%{opacity:1}80%{opacity:1}to{transform:translateY(105vh) rotate(540deg);opacity:0}}
 @media (prefers-reduced-motion:reduce){
   #kr-rand .kr-card{animation:none}
   #kr-rand .kr-confetti{display:none}
