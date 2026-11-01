@@ -202,7 +202,12 @@ export async function handleOfficeApi(request, env, path) {
   if (path === "/api/office/money" && request.method === "GET") {
     const month = new URL(request.url).searchParams.get("month");
     if (!isValidMonth(month)) return json({ ok: false, error: "bad_month" }, 400);
-    return json({ ok: true, money: await getMonthMoney(env.DB, month) });
+    const money = await getMonthMoney(env.DB, month);
+    // Для ввода расходов и плана нужны также события выбранного месяца:
+    // основной /data в ноябре уже не содержит октябрьские встречи.
+    const events = await listEventsFrom(env.DB, month + "-01T00:00:00");
+    money.events = events.map((e) => ({ id: e.id, title: e.title, start: withMoscowOffset(e.start) }));
+    return json({ ok: true, money });
   }
 
   if (path === "/api/office/sales" && request.method === "POST") {

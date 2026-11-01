@@ -453,3 +453,43 @@ test('расходы: комиссия и себестоимость по мер
   assert.equal(m.expenses.list.find((x) => x.id === wrong.id).voided, true);
   assert.equal(m.factKop, 0); // расходы не путаются с поступлениями
 });
+
+test('архив месяца: события для расходов, отдельные итоги и план предыдущего месяца', async (t) => {
+  const { sqlite, env } = moneyEnv(t);
+  const current = moscowDay(new Date()).slice(0, 7);
+  const prevDate = new Date(current + '-01T00:00:00Z');
+  prevDate.setUTCMonth(prevDate.getUTCMonth() - 1);
+  const previous = prevDate.toISOString().slice(0, 7);
+  addEvent(sqlite, 'archive-event', 'Архивная встреча', previous + '-15T18:00:00');
+  addEvent(sqlite, 'current-event', 'Текущая встреча', current + '-15T18:00:00');
+
+  const initial = await (await call(env, '/api/office/data')).json();
+  assert.equal(initial.month, current);
+  assert.ok(!initial.events.some((e) => e.id === 'archive-event'));
+  assert.equal((await call(env, '/api/office/sales', {
+    clientId: 'archive-sale', date: previous + '-15', amountKop: 1500000, source: 'events', eventId: 'archive-event'
+  })).status, 200);
+  assert.equal((await call(env, '/api/office/expenses', {
+    clientId: 'archive-expense', date: previous + '-15', amountKop: 300000, category: 'event_cost', eventId: 'archive-event'
+  })).status, 200);
+  assert.equal((await call(env, '/api/office/plans', {
+    month: previous, sources: { events: 2000000 }, weeks: []
+  })).status, 200);
+
+  const archive = await (await call(env, '/api/office/money?month=' + previous)).json();
+  assert.equal(archive.money.month, previous);
+  assert.equal(archive.money.factKop, 1500000);
+  assert.equal(archive.money.expenses.totalKop, 300000);
+  assert.equal(archive.money.planKop, 2000000);
+  assert.equal(archive.money.weeks.reduce((sum, w) => sum + w.factKop, 0), 1500000);
+  const event = archive.money.events.find((e) => e.id === 'archive-event');
+  assert.deepEqual(event, { id: 'archive-event', title: 'Архивная встреча', start: previous + '-15T18:00:00+03:00' });
+
+  const present = await (await call(env, '/api/office/money?month=' + current)).json();
+  assert.equal(present.money.factKop, 0);
+  assert.equal(present.money.expenses.totalKop, 0);
+  assert.equal(present.money.planKop, null);
+  assert.ok(!present.money.events.some((e) => e.id === 'archive-event'));
+  assert.equal((await call(env, '/api/office/money?month=2026-13')).status, 400);
+  assert.equal((await call(env, '/api/office/money?month=' + previous, undefined, { id: 999, username: 'stranger' })).status, 403);
+});

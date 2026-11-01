@@ -17,7 +17,7 @@ html, body { margin: 0; padding: 0; background: #f6f7fb; }
 #kr-office .kr-phone{max-width:430px;margin:auto;background:var(--kr-bg);color:var(--kr-ink);min-height:100vh;min-height:100dvh}
 #kr-office button,#kr-office input,#kr-office select{font:inherit}
 #kr-office button{color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
-#kr-office button:focus-visible,#kr-office summary:focus-visible,#kr-office input:focus-visible{outline:3px solid var(--kr-blue);outline-offset:3px}
+#kr-office button:focus-visible,#kr-office summary:focus-visible,#kr-office input:focus-visible,#kr-office select:focus-visible{outline:3px solid var(--kr-blue);outline-offset:3px}
 #kr-office button:disabled{opacity:.4}
 #kr-office button:hover:not(:disabled){filter:brightness(.97)}
 #kr-office ::selection{background:#296ef7;color:#fff}
@@ -127,9 +127,14 @@ html, body { margin: 0; padding: 0; background: #f6f7fb; }
 /* ---- Деньги: выбор месяца, ввод продаж, журнал, план (экранов нет в макете —
    собраны из его же элементов: карточки 18px, синий, Inter/Jost, серые) ---- */
 #kr-office .kr-visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-#kr-office .kr-month-pick{position:relative;display:inline-flex;align-items:center;gap:2px;color:var(--kr-blue);font-size:12px;font-weight:500}
-#kr-office .kr-month-pick select{appearance:none;-webkit-appearance:none;border:0;background:none;color:inherit;font:inherit;padding:8px 18px 8px 8px;margin:-8px -18px -8px 0;cursor:pointer;text-align:right}
-#kr-office .kr-month-pick .kr-icon{width:14px;height:14px;pointer-events:none}
+#kr-office .kr-period{margin-bottom:14px}
+#kr-office .kr-month-nav{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px}
+#kr-office .kr-month-arrow{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid #cbd0e0;border-radius:10px;background:#fff;color:var(--kr-blue)}
+#kr-office .kr-month-pick{position:relative;display:flex;align-items:center;min-width:0;color:var(--kr-ink);font-size:16px;font-weight:600}
+#kr-office .kr-month-pick select{appearance:none;-webkit-appearance:none;width:100%;min-width:0;min-height:44px;border:1px solid #cbd0e0;border-radius:10px;background:#fff;color:inherit;font:inherit;padding:9px 30px 9px 12px;cursor:pointer;text-align:center}
+#kr-office .kr-month-pick select:disabled{opacity:.6}
+#kr-office .kr-month-pick .kr-icon{position:absolute;right:10px;width:14px;height:14px;pointer-events:none;color:var(--kr-muted)}
+#kr-office .kr-current-month{display:flex;margin:2px auto -4px}
 #kr-office .kr-save .kr-icon,#kr-office .kr-link .kr-icon{width:16px;height:16px}
 #kr-office .kr-save{display:flex;align-items:center;justify-content:center;gap:6px}
 #kr-office .kr-primary-action{margin-top:14px}

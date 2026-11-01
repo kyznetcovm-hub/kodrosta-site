@@ -101,6 +101,7 @@
     function rub(kop) { return kop == null ? null : kop / 100; }
     return {
       month: m.month,
+      events: m.events || null,
       factRub: rub(m.factKop),
       planRub: rub(m.planKop),
       sources: m.sources.map(function (x) {
@@ -127,11 +128,11 @@
     };
   }
 
-  // Ответ /api/office/money: показываем его на экране «Деньги» и запоминаем
-  // по месяцу — «Обзор» всегда берёт текущий месяц, даже если в «Деньгах»
-  // открыт другой.
+  // Выбранный финансовый месяц общий для «Обзора» и «Денег».
+  // События главного экрана по-прежнему показывают ближайшие встречи.
   function showMoney(m) {
     var mm = mapMoney(m);
+    if (!data.moneyByMonth) data.moneyByMonth = {};
     data.moneyByMonth[mm.month] = mm;
     data.money = mm;
   }
@@ -376,15 +377,38 @@
     return capitalize(MONTHS_NOM[Number(month.slice(5, 7)) - 1]) + " " + month.slice(0, 4);
   }
 
-  // выбор месяца: полгода назад — два вперёд (план на следующий месяц)
+  function offsetMonth(month, offset) {
+    var d = new Date(month + "-01T00:00:00Z");
+    d.setUTCMonth(d.getUTCMonth() + offset);
+    return d.toISOString().slice(0, 7);
+  }
+
+  // Список движется вместе с выбранным месяцем; стрелки открывают и старый архив.
   function monthOptions() {
-    var y = Number(data.month.slice(0, 4)), m = Number(data.month.slice(5, 7));
-    var out = [];
-    for (var k = -6; k <= 2; k++) {
-      var d = new Date(Date.UTC(y, m - 1 + k, 1));
-      out.push(d.toISOString().slice(0, 7));
+    var out = [data.month];
+    for (var k = -12; k <= 12; k++) {
+      var month = offsetMonth(data.money.month, k);
+      if (out.indexOf(month) === -1) out.push(month);
     }
-    return out;
+    return out.sort();
+  }
+
+  function renderMonthPicker() {
+    var month = data.money.month;
+    var disabled = state.moneyLoading ? " disabled" : "";
+    return '<div class="kr-period"><div class="kr-month-nav" role="group" aria-label="Финансовый месяц">' +
+      '<button class="kr-month-arrow" data-month-step="-1" aria-label="Предыдущий месяц"' + disabled + '>' + icon("chevron-left") + '</button>' +
+      '<label class="kr-month-pick"><span class="kr-visually-hidden">Выбрать месяц</span><select data-control="month"' + disabled + '>' +
+      monthOptions().map(function (mo) {
+        return '<option value="' + mo + '"' + (mo === month ? " selected" : "") + '>' + monthLabel(mo) + '</option>';
+      }).join("") + '</select>' + icon("chevron-down") + '</label>' +
+      '<button class="kr-month-arrow" data-month-step="1" aria-label="Следующий месяц"' + disabled + '>' + icon("chevron-right") + '</button></div>' +
+      (month !== data.month ? '<button class="kr-link kr-current-month" data-action="current-month"' + disabled + '>К текущему месяцу</button>' : '') +
+      (state.moneyError ? '<p class="kr-error" role="alert">' + esc(state.moneyError) + '</p>' : '') + '</div>';
+  }
+
+  function moneyLoadingNote() {
+    return '<div class="kr-empty-note" role="status">Загружаем ' + monthLabel(state.moneyLoading).toLowerCase() + '…</div>';
   }
 
   function sourceLabel(key) {
@@ -398,15 +422,8 @@
   function moneyHero(home) {
     var m = data.money;
     var planSet = m.planRub > 0;
-    // на экране «Деньги» месяц выбирается нажатием на его название
-    var monthCtl = home || data.demo
-      ? '<span class="kr-month">' + capitalize(moneyMonthName()) + "</span>"
-      : '<label class="kr-month-pick"><span class="kr-visually-hidden">Месяц</span><select data-control="month"' + (state.moneyLoading ? " disabled" : "") + ">" +
-        monthOptions().map(function (mo) {
-          return '<option value="' + mo + '"' + (mo === m.month ? " selected" : "") + ">" + monthLabel(mo) + "</option>";
-        }).join("") + "</select>" + icon("chevron-down") + "</label>";
     var html = '<section class="kr-panel" aria-label="Продажи клуба за ' + moneyMonthName() + '">' +
-      '<div class="kr-between"><h2>Деньги клуба</h2>' + monthCtl + "</div>" +
+      '<div class="kr-between"><h2>Деньги клуба</h2></div>' +
       // доход — главная цифра; длинная сумма чуть мельче, чтобы влезала в строку
       '<div class="kr-moneyline"><div><span class="kr-label">Факт продаж</span><div class="kr-fact' + (fmtRub(m.factRub).length > 9 ? " kr-fact-long" : "") + '">' +
       fmtRub(m.factRub) + ' <span class="kr-currency">₽</span></div></div>' +
@@ -463,13 +480,7 @@
   }
 
   function renderHome() {
-    // карточка денег на «Обзоре» — всегда текущий месяц
-    var shown = data.money;
-    var current = data.money.month === data.month ? data.money : data.moneyByMonth && data.moneyByMonth[data.month];
-    data.money = current || shown;
-    var hero = moneyHero(true);
-    data.money = shown;
-    return hero +
+    return renderMonthPicker() + (state.moneyLoading ? moneyLoadingNote() : moneyHero(true)) +
       '<div class="kr-section-head"><h2>Ближайшие события</h2><button class="kr-link" data-page="events">Все события ' + icon("arrow-up-right") + "</button></div>" +
       eventList(upcomingEvents().slice(0, 3), "Ближайших событий нет");
   }
@@ -596,12 +607,13 @@
     if (state.form === "sale") return renderEntryForm("sale");
     if (state.form === "expense") return renderEntryForm("expense");
     if (state.form === "plan") return renderPlanForm();
-    var html = moneyHero(false);
+    var html = renderMonthPicker();
+    if (state.moneyLoading) return html + moneyLoadingNote();
+    html += moneyHero(false);
     if (!data.demo) {
       html += '<div class="kr-actions"><button class="kr-save" data-action="open-sale">' + icon("plus") + "Продажа</button>" +
         '<button class="kr-save kr-secondary" data-action="open-expense">' + icon("minus") + "Расход</button></div>";
       if (state.notice) html += '<p class="kr-saved kr-notice" role="status">' + esc(state.notice) + "</p>";
-      if (state.moneyError) html += '<p class="kr-error" role="alert">' + esc(state.moneyError) + "</p>";
     }
     html += renderBudget();
     if (!data.demo) html += renderJournal();
@@ -659,9 +671,9 @@
   }
 
   function eventOptions(selected, emptyLabel) {
-    // мероприятия этого месяца и будущие
+    // Мероприятия выбранного финансового месяца и будущие, включая архив.
     return '<option value="">' + emptyLabel + "</option>" +
-      data.events.slice().sort(function (a, b) { return new Date(a.start) - new Date(b.start); }).map(function (e) {
+      (data.money.events || data.events).slice().sort(function (a, b) { return new Date(a.start) - new Date(b.start); }).map(function (e) {
         var d = dayParts(mskDay(e.start));
         return '<option value="' + esc(e.id) + '"' + (selected === e.id ? " selected" : "") + ">" + d.d + " " + MONTHS_SHORT[d.m - 1] + " · " + esc(e.title) + "</option>";
       }).join("");
@@ -908,7 +920,8 @@
   function eventIdByTitle(title) {
     var t = String(title || "").trim().toLowerCase();
     if (!t) return null;
-    for (var i = 0; i < data.events.length; i++) if (data.events[i].title.trim().toLowerCase() === t) return data.events[i].id;
+    var events = data.money.events || data.events;
+    for (var i = 0; i < events.length; i++) if (events[i].title.trim().toLowerCase() === t) return events[i].id;
     return null;
   }
 
@@ -951,15 +964,26 @@
     });
   }
 
-  // переход с «Обзора» к деньгам — к текущему месяцу, как на карточке
-  function backToCurrentMonth() {
-    if (data.demo || data.money.month === data.month || !data.moneyByMonth[data.month]) return;
-    data.money = data.moneyByMonth[data.month];
-  }
-
-  // смена месяца на экране «Деньги»; при ошибке остаётся прежний месяц
+  // При ошибке остаётся прежний месяц; повторный запрос во время загрузки запрещён.
   function switchMonth(month) {
-    state.moneyLoading = true;
+    if (state.moneyLoading || state.saving || state.voiding || month === data.money.month) return;
+    if (data.demo) {
+      if (!data.moneyByMonth) data.moneyByMonth = { "2026-10": data.money };
+      if (!data.moneyByMonth[month]) {
+        var empty = demoMoney();
+        empty.month = month;
+        empty.factRub = 0;
+        empty.planRub = null;
+        empty.sources.forEach(function (s) { s.factRub = 0; s.planRub = null; });
+        empty.weeks = monthWeeks(month).map(function () { return { factRub: 0, planRub: null }; });
+        data.moneyByMonth[month] = empty;
+      }
+      data.money = data.moneyByMonth[month];
+      state.week = null;
+      render();
+      return;
+    }
+    state.moneyLoading = month;
     state.moneyError = null;
     state.notice = null;
     state.week = null;
@@ -968,9 +992,10 @@
       state.moneyLoading = false;
       showMoney(res.money);
       render();
-    }, function () {
+    }, function (err) {
       state.moneyLoading = false;
-      state.moneyError = "Не удалось загрузить " + monthLabel(month).toLowerCase() + " — проверьте связь.";
+      if (err && err.denied) state.denied = err.denied;
+      state.moneyError = "Не удалось загрузить " + monthLabel(month).toLowerCase() + " — проверьте связь и выберите месяц ещё раз.";
       render();
     });
   }
@@ -1143,6 +1168,12 @@
       state.selected = null;
       state.form = null;
       state.notice = null;
+    } else if (b.dataset.monthStep) {
+      switchMonth(offsetMonth(data.money.month, Number(b.dataset.monthStep)));
+      return;
+    } else if (b.dataset.action === "current-month") {
+      switchMonth(data.month);
+      return;
     } else if (b.dataset.chip) {
       state.values[b.dataset.chip.split(":")[0]] = b.dataset.chip.split(":")[1];
       scrollTop = false;
@@ -1192,12 +1223,10 @@
     } else if (b.dataset.action === "budget") {
       state.page = "money";
       state.budget = true;
-      backToCurrentMonth();
     } else if (b.dataset.action === "weeks") {
       // недели теперь внутри бюджета, в конце — раскрываем его и листаем к ним
       state.page = "money";
       state.budget = true;
-      backToCurrentMonth();
       var weeks = weeksWithMoney();
       for (var k = 0; k < weeks.length; k++) if (weeks[k].status === "current") state.week = k;
       render();
@@ -1264,7 +1293,7 @@
   // Вернулись в офис (свернули Telegram и открыли снова) — тихо обновляем данные,
   // не сбрасывая открытый экран. При ошибке остаются прежние данные, не нули.
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState !== "visible" || !data || data.demo || state.loading || state.denied || state.form) return;
+    if (document.visibilityState !== "visible" || !data || data.demo || state.loading || state.denied || state.form || state.moneyLoading || state.voiding) return;
     if (Date.now() - new Date(data.loadedAt).getTime() < 60000) return;
     var month = data.money.month;
     loadData().then(function (d) {
@@ -1276,6 +1305,8 @@
         return d;
       });
     }).then(function (d) {
+      // Пользователь мог выбрать другой месяц или открыть ввод, пока шло обновление.
+      if (state.moneyLoading || state.form || data.money.month !== month) return;
       data = d;
       if (state.selected !== null && !findEvent(state.selected)) state.selected = null;
       render();
