@@ -72,9 +72,10 @@
         item.className = "partner-event";
         item.innerHTML =
           '<div class="partner-event-date"><time></time><span></span></div>' +
-          '<div class="partner-event-info"><h3></h3><p class="partner-event-speaker"></p><p class="partner-event-description"></p>' +
-          '<details><summary>Для кого и о спикере</summary><p></p><p></p></details></div>' +
-          '<a class="btn partner-event-cta" target="_blank" rel="noopener">Записаться в боте' +
+          '<h3></h3><details><summary>Подробнее</summary>' +
+          '<p class="partner-event-full-title"></p><p class="partner-event-speaker"></p><p class="partner-event-description"></p>' +
+          '<p class="partner-event-audience"></p><p class="partner-event-bio"></p><p class="partner-event-bonus"></p></details>' +
+          '<a class="btn partner-event-cta" target="_blank" rel="noopener">Записаться' +
           '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 13 13 3M5 3h8v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>';
         var dateLabel = item.querySelector("time");
         var clock = fmtTime(event.start);
@@ -82,24 +83,29 @@
         dateLabel.textContent = date.getDate() + " " + MONTHS_FULL[date.getMonth()];
         item.querySelector(".partner-event-date span").textContent =
           clock === "00:00" ? "Время уточняется" : clock + " МСК";
-        item.querySelector("h3").textContent = event.title;
-        item.querySelector(".partner-event-speaker").textContent = speaker || "";
-        item.querySelector(".partner-event-description").textContent = event.description;
+        var shortTitle = event.title.split(": ", 1)[0];
+        item.querySelector("h3").textContent = shortTitle;
         var details = item.querySelector("details");
-        details.hidden = !bio && !audience;
-        details.children[1].textContent = audience ? "Для кого: " + audience : "";
-        details.children[2].textContent = bio || "";
-        if (bonus) {
-          var note = document.createElement("p");
-          note.className = "partner-event-bonus";
-          note.textContent = bonus;
-          item.querySelector(".partner-event-description").after(note);
+        details.querySelector("summary").setAttribute("aria-label", "Подробнее — " + event.title);
+        var detailText = {
+          "full-title": shortTitle !== event.title ? event.title : "",
+          speaker: speaker,
+          description: event.description,
+          audience: audience ? "Для кого: " + audience : "",
+          bio: bio,
+          bonus: bonus
+        };
+        for (var [field, value] of Object.entries(detailText)) {
+          var paragraph = details.querySelector(".partner-event-" + field);
+          paragraph.hidden = !value;
+          paragraph.textContent = value || "";
         }
         var link = item.querySelector("a");
         link.href = BOT_LINK + "?start=e_" + encodeURIComponent(event.id);
         link.setAttribute("aria-label", "Записаться в боте — " + event.title);
         list.appendChild(item);
       }
+      section.querySelector(".partner-events-hint").hidden = events.length < 2;
       section.hidden = false;
       if (location.hash === "#partner-events") section.scrollIntoView();
     } catch (error) {
