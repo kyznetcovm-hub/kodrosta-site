@@ -6,7 +6,7 @@
 // BOT_TOKEN и CHAT_ID заданы как секреты проекта в Cloudflare (см. README).
 
 import { handleTelegramUpdate, recordFormTouch, normalizePhone, sendEventReminders } from "./engagement.js";
-import { listUpcomingEvents, getEventById, isTurizmEvent } from "./events-store.js";
+import { listUpcomingEvents, getEventById, isTurizmEvent, isPartnerEvent, listPartnerEvents } from "./events-store.js";
 import { recordSiteSignup } from "./event-signups.js";
 import { getAllContent } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
@@ -314,6 +314,7 @@ async function handleEventSharePage(request, env, id) {
   const event = env.DB && id ? await getEventById(env.DB, id) : null;
   if (!event) return Response.redirect(SITE_URL + "/#events", 302);
   // мероприятие Туризма — на его собственную страницу
+  if (isPartnerEvent(event)) return Response.redirect(SITE_URL + "/#partner-events", 302);
   if (isTurizmEvent(event)) return Response.redirect(SITE_URL + "/turizm/" + encodeURIComponent(event.id), 302);
 
   const base = await env.ASSETS.fetch(new Request(new URL("/", request.url), request));
@@ -368,7 +369,10 @@ async function handleContentApi(env) {
 async function handleEventsApi(env, section) {
   if (!env.DB) return json([]);
   const turizm = section === "turizm";
-  const events = (await listUpcomingEvents(env.DB)).filter((e) => isTurizmEvent(e) === turizm);
+  const events = section === "partners"
+    ? (await listPartnerEvents(env.DB)).map(({ id, title, start, description, fullDescription }) =>
+        ({ id, title, start, description, fullDescription }))
+    : (await listUpcomingEvents(env.DB)).filter((e) => !isPartnerEvent(e) && isTurizmEvent(e) === turizm);
   return new Response(JSON.stringify(events), {
     headers: { "content-type": "application/json", "cache-control": "public, max-age=60" }
   });
@@ -454,7 +458,7 @@ function eventRegisterLink(e) {
 
 async function handleCalendarFeed(env) {
   // общий календарь клуба — как и список на главной, без мероприятий «Туризма»
-  const events = env.DB ? (await listUpcomingEvents(env.DB)).filter((e) => !isTurizmEvent(e)) : [];
+  const events = env.DB ? (await listUpcomingEvents(env.DB)).filter((e) => !isTurizmEvent(e) && !isPartnerEvent(e)) : [];
 
   const props = [
     "BEGIN:VCALENDAR",
@@ -597,6 +601,9 @@ async function handleSubmit(request, env) {
     // Запись на мероприятие «Туризма» помечаем в заголовке — в группе заявок
     // иначе не видно, с какого сайта она пришла.
     signupEvent = await findSignupEvent(env, data.eventId);
+    if (signupEvent && isPartnerEvent(signupEvent)) {
+      return json({ ok: false, error: "register_in_bot" }, 400);
+    }
     // Билет (страница премии /premiya, раздел «Билеты»): выбранный вариант приходит в поле package
     const ticket = String(data.package || "").trim().slice(0, 160);
     text =

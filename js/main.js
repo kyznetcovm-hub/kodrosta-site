@@ -55,6 +55,58 @@
       });
   }
 
+  async function renderPartnerEvents() {
+    var section = document.getElementById("partner-events");
+    if (!section) return;
+    var list = section.querySelector(".partner-events-list");
+    try {
+      var response = await fetch("/api/events?section=partners");
+      if (!response.ok) return;
+      var events = await response.json();
+      if (!Array.isArray(events) || !events.length) return;
+
+      for (var event of events) {
+        var date = new Date(event.start);
+        var [speaker, bio, audience, bonus] = event.fullDescription || [];
+        var item = document.createElement("article");
+        item.className = "partner-event";
+        item.innerHTML =
+          '<div class="partner-event-date"><time></time><span></span></div>' +
+          '<div class="partner-event-info"><h3></h3><p class="partner-event-speaker"></p><p class="partner-event-description"></p>' +
+          '<details><summary>Для кого и о спикере</summary><p></p><p></p></details></div>' +
+          '<a class="btn partner-event-cta" target="_blank" rel="noopener">Записаться в боте' +
+          '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 13 13 3M5 3h8v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>';
+        var dateLabel = item.querySelector("time");
+        var clock = fmtTime(event.start);
+        dateLabel.dateTime = clock === "00:00" ? event.start.slice(0, 10) : event.start + "+03:00";
+        dateLabel.textContent = date.getDate() + " " + MONTHS_FULL[date.getMonth()];
+        item.querySelector(".partner-event-date span").textContent =
+          clock === "00:00" ? "Время уточняется" : clock + " МСК";
+        item.querySelector("h3").textContent = event.title;
+        item.querySelector(".partner-event-speaker").textContent = speaker || "";
+        item.querySelector(".partner-event-description").textContent = event.description;
+        var details = item.querySelector("details");
+        details.hidden = !bio && !audience;
+        details.children[1].textContent = audience ? "Для кого: " + audience : "";
+        details.children[2].textContent = bio || "";
+        if (bonus) {
+          var note = document.createElement("p");
+          note.className = "partner-event-bonus";
+          note.textContent = bonus;
+          item.querySelector(".partner-event-description").after(note);
+        }
+        var link = item.querySelector("a");
+        link.href = BOT_LINK + "?start=e_" + encodeURIComponent(event.id);
+        link.setAttribute("aria-label", "Записаться в боте — " + event.title);
+        list.appendChild(item);
+      }
+      section.hidden = false;
+      if (location.hash === "#partner-events") section.scrollIntoView();
+    } catch (error) {
+      console.warn("Не удалось загрузить мероприятия партнёров", error);
+    }
+  }
+
   // Ссылка на мероприятие — сразу открываем запись на него. Основной вид —
   // codrosta.club/e/<id> (Worker отдаёт главную с превью мероприятия и
   // data-share-event на <body>); старый вид codrosta.club/?e=<id> тоже работает.
@@ -680,6 +732,7 @@
 
   // ---- Init ---------------------------------------------------------------------
   renderEvents();
+  renderPartnerEvents();
   setupCalendarSub();
   setupSiteContent();
   setupCookieBanner();

@@ -264,3 +264,62 @@ test('«03 · Прошедшие мероприятия»: пункт в мен�
   const people = await tap('es:old-1');
   assert.match(people.map(m => m.text).join('\n'), /@guestx/);
 });
+
+test('вебинары МАСО: отдельная афиша, запись только в боте и без дублей', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-05T10:00:00+03:00') });
+  const f = fixture(t);
+  const migration = readFileSync(new URL('../migrations/0015_maso_partner_webinars.sql', import.meta.url), 'utf8');
+  f.sqlite.exec(migration);
+  f.sqlite.exec(migration);
+  const ids = ['maso-hr-20261110', 'maso-law-20261111', 'maso-edu-20261117'];
+  const get = path => worker.fetch(new Request('https://codrosta.club' + path), f.env, {});
+
+  const partners = await (await get('/api/events?section=partners')).json();
+  assert.deepEqual(partners.map(event => event.id), ids);
+  assert.equal('registerUrl' in partners[0], false);
+  assert.deepEqual(await (await get('/api/events')).json(), []);
+  assert.deepEqual(await (await get('/api/events?section=turizm')).json(), []);
+  assert.doesNotMatch(await (await get('/calendar.ics')).text(), /МАСО|maso-/);
+  assert.equal((await get('/e/' + ids[0])).headers.get('location'), 'https://codrosta.club/#partner-events');
+
+  const send = update => worker.fetch(new Request('https://codrosta.club/api/telegram-webhook', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(update),
+  }), f.env, {});
+  const from = { id: 789, username: 'guest_maso', first_name: 'Гость' };
+  const chat = { id: from.id, type: 'private' };
+
+  for (const id of ids) {
+    await send({ message: { message_id: 1, from, chat, text: '/start e_' + id } });
+    const prompt = dms(f.sent, from.id).at(-1);
+    assert.match(prompt.text, /передаст ваше имя и имя пользователя Telegram/);
+    assert.doesNotMatch(prompt.text, /docx/);
+    assert.equal(prompt.reply_markup.inline_keyboard[0][0].callback_data, 'sreg:' + id);
+  }
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS c FROM event_signups').get().c, 0);
+  assert.equal(dms(f.sent, GROUP).length, 0);
+
+  const confirm = id => send({ callback_query: {
+    id: 'test', from, message: { chat }, data: 'sreg:' + id,
+  } });
+  await confirm(ids[0]);
+  assert.match(dms(f.sent, from.id).at(-1).text, /Карта HR-задачи для ИИ.*maso-hr-task-map\.docx/);
+  await confirm(ids[0]);
+  assert.match(dms(f.sent, from.id).at(-1).text, /уже в списке/);
+
+  t.mock.timers.setTime(Date.parse('2026-11-11T18:00:00+03:00'));
+  const remaining = await (await get('/api/events?section=partners')).json();
+  assert.deepEqual(remaining.map(event => event.id), ids.slice(1));
+  await confirm(ids[0]);
+  assert.match(dms(f.sent, from.id).at(-1).text, /запись.*закрыта/i);
+  await confirm(ids[1]);
+  assert.match(dms(f.sent, from.id).at(-1).text, /время уточняется/);
+  assert.doesNotMatch(dms(f.sent, from.id).at(-1).text, /Напомню/);
+  assert.equal(dms(f.sent, GROUP).length, 2);
+
+  const blocked = await submit(f.env, { name: 'Гость', phone: '+7 900 111-22-33', telegram: '@guest_maso', eventId: ids[2] });
+  assert.equal(blocked.status, 400);
+  assert.deepEqual(await blocked.json(), { ok: false, error: 'register_in_bot' });
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS c FROM event_signups').get().c, 2);
+});

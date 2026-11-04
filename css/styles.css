@@ -1030,3 +1030,128 @@ a { color: inherit; }
   .stat { padding: 28px 18px; }
   .stat .stat-num { font-size: 28px; flex-wrap: wrap; }
 }
+
+/* Партнёрская афиша */
+.partner-events {
+  --partner-display: "Jost", "Inter", system-ui, sans-serif;
+  padding-block: clamp(48px, 7vw, 96px);
+  background: var(--gray-50);
+  scroll-margin-top: 88px;
+}
+
+.partner-events-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.partner-events-head h2 {
+  font-family: var(--partner-display);
+  font-size: clamp(34px, 5.5vw, 62px);
+  letter-spacing: -.035em;
+  margin-bottom: 12px;
+}
+
+.partner-events-head p {
+  color: var(--gray-700);
+  max-width: 63ch;
+  margin: 0;
+}
+
+.partner-events-format {
+  border-top: 4px solid var(--crimson);
+  padding-top: 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.partner-events-format span {
+  display: block;
+  color: var(--gray-700);
+  font-weight: 500;
+  margin-top: 5px;
+}
+
+.partner-events-list {
+  background: var(--white);
+  border-block: 2px solid var(--black);
+}
+
+.partner-event {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr) auto;
+  gap: clamp(16px, 3.5vw, 44px);
+  align-items: start;
+  padding: clamp(18px, 3vw, 34px);
+}
+
+.partner-event + .partner-event { border-top: 1px solid var(--gray-300); }
+
+.partner-event-date time {
+  display: block;
+  color: var(--blue-dark);
+  font: 700 25px/1.1 var(--partner-display);
+}
+
+.partner-event-date span {
+  display: block;
+  font-size: 13px;
+  color: var(--gray-700);
+  margin-top: 6px;
+}
+
+.partner-event-info h3 {
+  font: 700 clamp(22px, 3vw, 30px)/1.1 var(--partner-display);
+  margin: 0 0 8px;
+  text-wrap: balance;
+}
+
+.partner-event-info p {
+  font-size: 15px;
+  color: var(--gray-700);
+  margin: 0 0 8px;
+}
+
+.partner-event-info .partner-event-speaker { font-weight: 700; color: var(--black); }
+.partner-event-info .partner-event-bonus { font-size: 14px; font-weight: 600; }
+.partner-event-info details { font-size: 14px; }
+.partner-event-info summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--blue-dark);
+  padding-block: 5px;
+  text-underline-offset: 3px;
+}
+
+.partner-event-info summary:hover { text-decoration: underline; }
+.partner-event-info details[open] summary { margin-bottom: 6px; }
+
+.partner-event-cta {
+  align-self: center;
+  color: var(--white);
+  background: var(--blue-dark);
+  padding: 10px 16px;
+}
+
+.partner-event-cta:hover { background: var(--black); }
+.partner-events :focus-visible { outline: 2px solid var(--blue-dark); outline-offset: 3px; }
+
+.partner-events-footer {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 12px 32px;
+  margin-top: 20px;
+}
+
+.partner-events-footer p { font-size: 14px; color: var(--gray-700); margin: 0; }
+.partner-events-footer strong { display: block; color: var(--black); margin-bottom: 4px; }
+
+@media (max-width: 760px) {
+  .partner-events-head,
+  .partner-events-footer { grid-template-columns: minmax(0, 1fr); }
+  .partner-events-format { justify-self: start; }
+  .partner-event { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .partner-event-cta { justify-self: start; }
+}

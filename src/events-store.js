@@ -300,6 +300,25 @@ export function isTurizmEvent(event) {
   return String((event && event.tag) || "").trim().toLowerCase().indexOf("туризм") === 0;
 }
 
+const PARTNER_EVENT_TAG = "Партнёр · ИИ МАСО";
+
+export function isPartnerEvent(event) {
+  return event.tag === PARTNER_EVENT_TAG;
+}
+
+export function isPartnerRegistrationOpen(event, now = Date.now()) {
+  const nowMsk = new Date(now + 3 * 3600000).toISOString().slice(0, 19);
+  return event.start.endsWith("T00:00:00")
+    ? event.start.slice(0, 10) >= nowMsk.slice(0, 10)
+    : event.start >= nowMsk;
+}
+
+export async function listPartnerEvents(db) {
+  const { results } = await db.prepare("SELECT * FROM events WHERE tag = ? ORDER BY start")
+    .bind(PARTNER_EVENT_TAG).all();
+  return (results || []).map(rowToEvent).filter((event) => isPartnerRegistrationOpen(event));
+}
+
 export async function listUpcomingEvents(db) {
   var nowIso = new Date().toISOString().slice(0, 19);
   var { results } = await db.prepare("SELECT * FROM events WHERE start >= ? ORDER BY start ASC").bind(nowIso).all();

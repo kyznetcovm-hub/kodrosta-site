@@ -9,7 +9,7 @@
 
 import {
   parseEventMessage, insertEvent, updateEvent, getEventById, deleteEvent,
-  listUpcomingEvents, listAllEvents, renderEventTemplate, setEventSignupChatId, isTurizmEvent,
+  listUpcomingEvents, listAllEvents, renderEventTemplate, setEventSignupChatId, isTurizmEvent, isPartnerEvent, isPartnerRegistrationOpen,
 } from "./events-store.js";
 import {
   SECTIONS, SECTION_ORDER, renderSectionTemplate, parseSectionReply,
@@ -837,9 +837,9 @@ async function handleEventRegLink(msg, env, id) {
     `Приглашаем вас на «<b>${escapeHtml(e.title)}</b>»`,
     `${escapeHtml(formatRuDateTime(e.start))}${e.place ? " · " + escapeHtml(e.place) : ""}`,
     "",
-    "Записаться — выберите удобный способ:",
+    isPartnerEvent(e) ? "Запись через бот клуба:" : "Записаться — выберите удобный способ:",
     "",
-    "<b>Через сайт</b> — короткая форма:",
+    isPartnerEvent(e) ? "<b>Афиша на сайте</b>:" : "<b>Через сайт</b> — короткая форма:",
     siteLink,
     "",
     "<b>Через бота</b> — в один клик, ничего заполнять не нужно:",
@@ -943,6 +943,7 @@ async function handleEventEditReply(msg, env, text, id) {
 // и handleTurizmEventPage в src/index.js). Мероприятия «Туризма» — на его странице.
 // Заявка с неё попадает в «Список участников» этого мероприятия.
 function eventShareLink(id, event) {
+  if (isPartnerEvent(event)) return `${SITE_URL}/#partner-events`;
   return isTurizmEvent(event) ? `${SITE_URL}/turizm/${id}` : `${SITE_URL}/e/${id}`;
 }
 
@@ -1106,7 +1107,7 @@ export async function sendEventReminders(env, nowMs = Date.now()) {
     if (diff > 0 && diff <= HOUR_MS) kinds.push("hour");
     if (!kinds.length) continue;
 
-    const event = { title: row.title, start: row.start, place: row.place, registerUrl: row.register_url };
+    const event = { title: row.title, tag: row.tag, start: row.start, place: row.place, registerUrl: row.register_url };
     const { results: signups } = await env.DB.prepare(
       "SELECT s.tg_user_id, s.created_at, r.chat_id AS resident_chat FROM event_signups s " +
       "LEFT JOIN residents r ON r.id = s.resident_id WHERE s.event_id = ?"
@@ -1116,7 +1117,7 @@ export async function sendEventReminders(env, nowMs = Date.now()) {
       const sameDay = String(row.start).slice(0, 10) === nowMsk.slice(0, 10);
       const head = kind === "hour"
         ? "⏰ Через час начинаем!"
-        : `⏰ Напоминание: ${sameDay ? "сегодня" : "завтра"} мероприятие клуба.`;
+        : `⏰ Напоминание: ${sameDay ? "сегодня" : "завтра"} ${isPartnerEvent(event) ? "вебинар партнёра" : "мероприятие клуба"}.`;
       const text = eventConfirmText(event, head, false);
       const chats = new Set();
       for (const s of signups || []) {
@@ -1155,7 +1156,7 @@ export async function sendEventReminders(env, nowMs = Date.now()) {
 // Человек оставил заявку на вступление на сайте и перешёл в бота: коротко отвечаем
 // и показываем ближайшие мероприятия клуба (без «Туризма» — у него свои).
 async function handleApplyStart(msg, env) {
-  const events = env.DB ? (await listUpcomingEvents(env.DB)).filter((e) => !isTurizmEvent(e)) : [];
+  const events = env.DB ? (await listUpcomingEvents(env.DB)).filter((e) => !isTurizmEvent(e) && !isPartnerEvent(e)) : [];
   const lines = ["Здравствуйте! Это бот клуба «Код Роста». Заявку, оставленную на сайте, менеджер обработает и свяжется с вами."];
   if (events.length) {
     lines.push("", "Ближайшие мероприятия клуба — запись по ссылке. На мероприятие, на которое вы записались, я напомню за день и за час до начала:");
@@ -1176,14 +1177,19 @@ async function handleEventRegPrompt(msg, env, eventId) {
   if (!e) {
     return sendMessage(env, msg.from.id, "Не нашёл это мероприятие — возможно, ссылка устарела. Напишите менеджеру клуба.");
   }
+  if (isPartnerEvent(e) && !isPartnerRegistrationOpen(e)) {
+    return sendMessage(env, msg.from.id, "Запись на этот вебинар закрыта.");
+  }
   const text = [
     "Запись на мероприятие:",
     "",
     `<b>${escapeHtml(e.title)}</b>`,
-    `${formatRuDateTime(e.start)}`,
+    eventSignupDate(e),
     escapeHtml(e.place || ""),
     "",
-    "Нажмите кнопку, чтобы записаться.",
+    isPartnerEvent(e)
+      ? "Нажимая «Записаться», вы соглашаетесь, что клуб передаст ваше имя и имя пользователя Telegram организатору, АНО ДПО «Международная академия современного образования», для участия в вебинаре."
+      : "Нажмите кнопку, чтобы записаться.",
   ].join("\n");
   return sendMessage(env, msg.from.id, text, {
     inline_keyboard: [[{ text: "✅ Записаться", callback_data: `sreg:${eventId}` }]],
@@ -1194,6 +1200,9 @@ async function handleEventRegConfirm(msg, env, eventId) {
   const from = msg.from || {};
   const e = await getEventById(env.DB, eventId);
   if (!e) return sendMessage(env, from.id, "Мероприятие не найдено.");
+  if (isPartnerEvent(e) && !isPartnerRegistrationOpen(e)) {
+    return sendMessage(env, from.id, "Запись на этот вебинар закрыта.");
+  }
 
   let residentId = null;
   if (from.username) {
@@ -1226,9 +1235,12 @@ async function handleEventRegConfirm(msg, env, eventId) {
   }
 
   const head = created ? "✅ Готово, вы записаны!" : "Вы уже в списке на это мероприятие.";
+  const reminder = isDateOnly(e.start)
+    ? ""
+    : "\n\n⏰ Напомню о мероприятии за день и за час до начала.";
   await sendMessage(
     env, from.id,
-    eventConfirmText(e, head) + "\n\n⏰ Напомню о мероприятии за день и за час до начала.\n\nЕсли вы резидент клуба — по желанию поделитесь контактом, чтобы клуб учёл участие. Не обязательно.",
+    eventConfirmText(e, head) + reminder + "\n\nЕсли вы резидент клуба — по желанию поделитесь контактом, чтобы клуб учёл участие. Не обязательно.",
     {
       keyboard: [[{ text: "📞 Поделиться контактом", request_contact: true }]],
       resize_keyboard: true,
@@ -1240,13 +1252,21 @@ async function handleEventRegConfirm(msg, env, eventId) {
 
 // Подтверждение записи: название, время, место, описание и ссылка мероприятия
 // (поле «Регистрация» — чат или эфир), чтобы человек получил всё в Telegram.
+function eventSignupDate(e) {
+  const date = formatRuDateTime(e.start);
+  if (!isPartnerEvent(e)) return date;
+  return date + (isDateOnly(e.start) ? " · время уточняется" : " МСК");
+}
+
 function eventConfirmText(e, head, withDescription = true) {
-  const lines = [head, "", `<b>${escapeHtml(e.title)}</b>`, `📅 ${formatRuDateTime(e.start)}`];
+  const lines = [head, "", `<b>${escapeHtml(e.title)}</b>`, `📅 ${eventSignupDate(e)}`];
   if (e.place) lines.push(`📍 ${escapeHtml(e.place)}`);
   if (withDescription && e.description) lines.push("", escapeHtml(e.description));
   if (e.registerUrl && /^https?:\/\//.test(e.registerUrl)) {
     const isChat = /^https?:\/\/t\.me\//i.test(e.registerUrl);
-    lines.push("", `${isChat ? "💬 Чат мероприятия" : "🔗 Ссылка"}: ${escapeHtml(e.registerUrl)}`);
+    const isMaterial = isPartnerEvent(e) && e.registerUrl === SITE_URL + "/assets/partners/maso-hr-task-map.docx";
+    const label = isMaterial ? "📎 Карта HR-задачи для ИИ" : (isChat ? "💬 Чат мероприятия" : "🔗 Ссылка");
+    lines.push("", `${label}: ${escapeHtml(e.registerUrl)}`);
   }
   return lines.join("\n");
 }
