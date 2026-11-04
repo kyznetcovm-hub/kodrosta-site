@@ -6,7 +6,7 @@
 // BOT_TOKEN и CHAT_ID заданы как секреты проекта в Cloudflare (см. README).
 
 import { handleTelegramUpdate, recordFormTouch, normalizePhone, sendEventReminders } from "./engagement.js";
-import { listUpcomingEvents, getEventById, isTurizmEvent, isPartnerEvent, listPartnerEvents } from "./events-store.js";
+import { listUpcomingEvents, getEventById, isTurizmEvent, isPartnerEvent, isPartnerRegistrationOpen, listPartnerEvents } from "./events-store.js";
 import { recordSiteSignup } from "./event-signups.js";
 import { getAllContent } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
@@ -542,6 +542,14 @@ async function handleSubmit(request, env) {
   const telegram = String(data.telegram || "").trim();
   const type = data.type === "event" ? "event" : data.type === "partner" ? "partner" : data.type === "exit_popup" ? "exit_popup" : "apply";
 
+  const signupEvent = type === "event" ? await findSignupEvent(env, data.eventId) : null;
+  if (signupEvent && isPartnerEvent(signupEvent)) {
+    return handlePartnerWebinarSignup(env, signupEvent, name, phone, data.partnerConsent);
+  }
+  if (type === "event" && data.partnerWebinar === true) {
+    return json({ ok: false, error: "event_not_found" }, 404);
+  }
+
   // exit_popup даёт выбор канала связи (Telegram/MAX/WhatsApp) — Telegram-username
   // обязателен, только если выбран сам Telegram; для MAX/WhatsApp достаточно телефона.
   const CHANNELS = { telegram: "Telegram", max: "MAX", whatsapp: "WhatsApp" };
@@ -563,7 +571,6 @@ async function handleSubmit(request, env) {
 
   let text;
   let touchNote;
-  let signupEvent = null; // мероприятие из D1, на которое записываются (по eventId из формы)
   if (type === "apply") {
     const company = String(data.company || "").trim();
     const comment = String(data.comment || "").trim();
@@ -600,10 +607,6 @@ async function handleSubmit(request, env) {
     const comment = String(data.comment || "").trim();
     // Запись на мероприятие «Туризма» помечаем в заголовке — в группе заявок
     // иначе не видно, с какого сайта она пришла.
-    signupEvent = await findSignupEvent(env, data.eventId);
-    if (signupEvent && isPartnerEvent(signupEvent)) {
-      return json({ ok: false, error: "register_in_bot" }, 400);
-    }
     // Билет (страница премии /premiya, раздел «Билеты»): выбранный вариант приходит в поле package
     const ticket = String(data.package || "").trim().slice(0, 160);
     text =
@@ -689,6 +692,55 @@ async function handleSubmit(request, env) {
   }
 
   return json({ ok: true });
+}
+
+async function handlePartnerWebinarSignup(env, event, name, phone, consent) {
+  if (!isPartnerRegistrationOpen(event)) {
+    return json({ ok: false, error: "registration_closed" }, 409);
+  }
+  const normalizedPhone = normalizePhone(phone);
+  if (!name || name.length > 120 || !/^[\d\s()+-]+$/.test(phone) ||
+      normalizedPhone.length < 7 || normalizedPhone.length > 15 || consent !== true) {
+    return json({ ok: false, error: "validation" }, 400);
+  }
+
+  const residentId = await recordFormTouch(env, {
+    phone: normalizedPhone,
+    name,
+    kind: "partner_webinar_signup",
+    note: event.id + " · consent=maso_name_phone_v1",
+  });
+  let created;
+  try {
+    ({ created } = await recordSiteSignup(env, event.id, { name, phone: normalizedPhone, residentId }));
+  } catch (error) {
+    console.error("Partner webinar signup could not be saved");
+    return json({ ok: false, error: "signup_failed" }, 503);
+  }
+
+  if (created && env.BOT_TOKEN && env.CHAT_ID) {
+    const text = [
+      "📅 Запись на вебинар МАСО (с сайта)",
+      "",
+      "Вебинар: " + event.title,
+      "Имя: " + name,
+      "Телефон: +" + normalizedPhone,
+    ].join("\n");
+    try {
+      const response = await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/sendMessage", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ chat_id: env.CHAT_ID, text }),
+      });
+      if (!response.ok) console.warn("Partner webinar notification failed:", response.status);
+    } catch (error) {
+      console.warn("Partner webinar notification could not be sent");
+    }
+  }
+
+  // Регистрация уже сохранена в списке участников, даже если Telegram не ответил.
+  const materialsUrl = event.registerUrl?.startsWith(SITE_URL + "/assets/partners/") ? event.registerUrl : undefined;
+  return json({ ok: true, materialsUrl });
 }
 
 // В форме пишут и «nick», и «@nick», и «t.me/nick». В заявке для группы приводим

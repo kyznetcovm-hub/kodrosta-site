@@ -71,22 +71,19 @@ export async function recordSiteSignup(env, eventId, { name, phone, username, re
   const u = username
     ? String(username).trim().replace(/^(https?:\/\/)?t\.me\//i, "").replace(/^@/, "").toLowerCase() || null
     : null;
-  const existing = phone
-    ? await env.DB.prepare(
-        "SELECT id FROM event_signups WHERE event_id = ? AND source = 'site' AND phone = ?"
-      ).bind(eventId, phone).first()
-    : null;
-  if (existing) {
-    await env.DB.prepare(
-      "UPDATE event_signups SET username = ?, person_name = ?, resident_id = COALESCE(?, resident_id) WHERE id = ?"
-    ).bind(u, name || null, residentId ?? null, existing.id).run();
-    return { created: false };
-  }
-  await env.DB.prepare(
+  const normalizedPhone = phone || null;
+  const result = await env.DB.prepare(
     "INSERT INTO event_signups (event_id, source, username, person_name, phone, resident_id, created_at) " +
-    "VALUES (?, 'site', ?, ?, ?, ?, ?)"
-  ).bind(eventId, u, name || null, phone || null, residentId ?? null, new Date().toISOString()).run();
-  return { created: true };
+    "SELECT ?, 'site', ?, ?, ?, ?, ? WHERE ? IS NULL OR NOT EXISTS (" +
+    "SELECT 1 FROM event_signups WHERE event_id = ? AND source = 'site' AND phone = ?)"
+  ).bind(eventId, u, name || null, normalizedPhone, residentId ?? null,
+    new Date().toISOString(), normalizedPhone, eventId, normalizedPhone).run();
+  if (result.meta?.changes) return { created: true };
+  await env.DB.prepare(
+    "UPDATE event_signups SET username = ?, person_name = ?, resident_id = COALESCE(?, resident_id) " +
+    "WHERE id = (SELECT id FROM event_signups WHERE event_id = ? AND source = 'site' AND phone = ? ORDER BY id LIMIT 1)"
+  ).bind(u, name || null, residentId ?? null, eventId, normalizedPhone).run();
+  return { created: false };
 }
 
 // Телефон + возможная привязка к резиденту для уже созданной записи через бота.

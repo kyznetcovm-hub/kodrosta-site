@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import worker from '../src/index.js';
-import { sendEventReminders } from '../src/engagement.js';
+import { sendEventReminders, collectEventRegistrations } from '../src/engagement.js';
 
 const GROUP = -100500;
 const LINK = 'https://telemost.360.yandex.ru/j/3841796847';
@@ -265,7 +265,7 @@ test('«03 · Прошедшие мероприятия»: пункт в мен�
   assert.match(people.map(m => m.text).join('\n'), /@guestx/);
 });
 
-test('вебинары МАСО: отдельная афиша, запись только в боте и без дублей', async t => {
+test('вебинары МАСО: отдельная афиша и сохранение ранее выданных ссылок бота', async t => {
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-05T10:00:00+03:00') });
   const f = fixture(t);
   const migration = readFileSync(new URL('../migrations/0015_maso_partner_webinars.sql', import.meta.url), 'utf8');
@@ -318,8 +318,49 @@ test('вебинары МАСО: отдельная афиша, запись т�
   assert.doesNotMatch(dms(f.sent, from.id).at(-1).text, /Напомню/);
   assert.equal(dms(f.sent, GROUP).length, 2);
 
-  const blocked = await submit(f.env, { name: 'Гость', phone: '+7 900 111-22-33', telegram: '@guest_maso', eventId: ids[2] });
-  assert.equal(blocked.status, 400);
-  assert.deepEqual(await blocked.json(), { ok: false, error: 'register_in_bot' });
-  assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS c FROM event_signups').get().c, 2);
+});
+
+test('форма МАСО: согласие и телефон без Telegram, подтверждение и шаблон после сохранения', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-05T10:00:00+03:00') });
+  const f = fixture(t);
+  for (const migration of ['0015_maso_partner_webinars.sql', '0016_maso_hr_materials_copy.sql']) {
+    f.sqlite.exec(readFileSync(new URL('../migrations/' + migration, import.meta.url), 'utf8'));
+  }
+  const hr = 'maso-hr-20261110';
+  const law = 'maso-law-20261111';
+  const edu = 'maso-edu-20261117';
+  const send = fields => submit(f.env, {
+    name: 'Гость', phone: '+7 900 111-22-33', eventId: hr, partnerWebinar: true, partnerConsent: true, ...fields,
+  });
+  const rows = () => f.sqlite.prepare('SELECT event_id, source, person_name, phone, username FROM event_signups ORDER BY id').all();
+  assert.equal((await send({ partnerConsent: false })).status, 400);
+  assert.equal((await send({ phone: '() -' })).status, 400);
+  assert.equal((await send({ eventId: 'missing' })).status, 404);
+  assert.equal(rows().length, 0);
+  assert.equal(f.sent.length, 0);
+
+  const [first, repeat] = await Promise.all([send({}), send({ phone: '8 900 111 22 33' })]);
+  for (const resp of [first, repeat]) {
+    assert.deepEqual(await resp.json(), {
+      ok: true, materialsUrl: 'https://codrosta.club/assets/partners/maso-hr-task-map.docx',
+    });
+  }
+  assert.equal(rows().length, 1);
+  assert.equal(rows()[0].event_id, hr);
+  assert.equal(rows()[0].source, 'site');
+  assert.equal(rows()[0].phone, '79001112233');
+  assert.equal(rows()[0].username, null);
+  assert.equal(dms(f.sent, GROUP).length, 1);
+  assert.match(dms(f.sent, GROUP)[0].text, /ИИ в работе HR/);
+
+  const listed = await collectEventRegistrations(f.env, { id: hr, title: 'ИИ в работе HR: от разовых запросов к рабочему результату' });
+  assert.deepEqual(listed.siteNames, ['Гость · 79001112233']);
+
+  assert.deepEqual(await (await send({ eventId: law })).json(), { ok: true });
+  f.state.status = 502;
+  assert.deepEqual(await (await send({ eventId: edu })).json(), { ok: true });
+  assert.deepEqual(rows().map(row => row.event_id), [hr, law, edu]);
+  t.mock.timers.setTime(Date.parse('2026-11-18T00:00:00+03:00'));
+  assert.equal((await send({})).status, 409);
+  assert.equal(rows().length, 3);
 });

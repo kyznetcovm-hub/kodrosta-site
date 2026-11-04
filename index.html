@@ -628,7 +628,7 @@
     <button class="modal-close js-modal-close" type="button" aria-label="Закрыть">✕</button>
     <h3 id="modal-event-title">Запись на мероприятие</h3>
     <p class="modal-sub js-modal-event-sub">Оставьте контакты — подтвердим участие.</p>
-    <div class="form-status js-form-status"></div>
+    <div class="form-status js-form-status" role="status"></div>
     <form class="js-form" data-form-type="event" novalidate>
       <input type="text" name="website" class="form-hp" tabindex="-1" autocomplete="off">
       <input type="hidden" name="event" class="js-event-title" value="">
@@ -641,15 +641,20 @@
         <label for="event-phone">Телефон</label>
         <input id="event-phone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00">
       </div>
-      <div class="form-field">
+      <div class="form-field js-club-event-field">
         <label for="event-telegram">Telegram</label>
         <input id="event-telegram" name="telegram" type="text" required placeholder="@username">
       </div>
-      <div class="form-field">
+      <div class="form-field js-club-event-field">
         <label for="event-comment">Комментарий</label>
         <textarea id="event-comment" name="comment" placeholder="Например, сколько человек будет с вами (необязательно)"></textarea>
       </div>
       <p class="form-consent">Нажимая «Записаться», вы соглашаетесь с <a href="/privacy" target="_blank">политикой обработки персональных данных</a>.</p>
+      <p class="form-consent js-partner-webinar-consent" hidden>
+        <label><input type="checkbox" name="partnerConsent" disabled>
+          Согласен на передачу моего имени и телефона АНО ДПО «Международная академия современного образования» для участия в выбранном вебинаре.
+        </label>
+      </p>
       <button class="btn btn--primary btn--block" type="submit">Записаться</button>
     </form>
   </div>

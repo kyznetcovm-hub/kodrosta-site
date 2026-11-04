@@ -938,6 +938,14 @@ a { color: inherit; }
   line-height: 1.5;
 }
 .form-consent a { color: var(--blue); text-decoration: underline; }
+.js-partner-webinar-consent label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--gray-700);
+  cursor: pointer;
+}
+.js-partner-webinar-consent input { flex: none; margin: 2px 0 0; accent-color: var(--blue-dark); }
 .form-status {
   font-size: 14px;
   padding: 12px 14px;

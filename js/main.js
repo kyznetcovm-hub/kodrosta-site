@@ -65,7 +65,7 @@
       var events = await response.json();
       if (!Array.isArray(events) || !events.length) return;
 
-      for (var event of events) {
+      for (const event of events) {
         var date = new Date(event.start);
         var [speaker, bio, audience, bonus] = event.fullDescription || [];
         var item = document.createElement("article");
@@ -75,8 +75,7 @@
           '<h3></h3><details><summary>Подробнее</summary>' +
           '<p class="partner-event-full-title"></p><p class="partner-event-speaker"></p><p class="partner-event-description"></p>' +
           '<p class="partner-event-audience"></p><p class="partner-event-bio"></p><p class="partner-event-bonus"></p></details>' +
-          '<a class="btn partner-event-cta" target="_blank" rel="noopener">Записаться' +
-          '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 13 13 3M5 3h8v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>';
+          '<button class="btn partner-event-cta" type="button">Записаться</button>';
         var dateLabel = item.querySelector("time");
         var clock = fmtTime(event.start);
         dateLabel.dateTime = clock === "00:00" ? event.start.slice(0, 10) : event.start + "+03:00";
@@ -100,9 +99,9 @@
           paragraph.hidden = !value;
           paragraph.textContent = value || "";
         }
-        var link = item.querySelector("a");
-        link.href = BOT_LINK + "?start=e_" + encodeURIComponent(event.id);
-        link.setAttribute("aria-label", "Записаться в боте — " + event.title);
+        var button = item.querySelector(".partner-event-cta");
+        button.setAttribute("aria-label", "Записаться — " + event.title);
+        button.addEventListener("click", function () { openEventModal(event, true); });
         list.appendChild(item);
       }
       section.querySelector(".partner-events-hint").hidden = events.length < 2;
@@ -310,7 +309,7 @@
     if (window.kodrostaAnalytics) window.kodrostaAnalytics.track(
       id === "modal-apply" ? "apply_form_open" : id === "modal-partner" ? "partner_form_open" : "event_form_open"
     );
-    var firstInput = el.querySelector("input:not([type=hidden])");
+    var firstInput = el.querySelector('input[name="name"]');
     if (firstInput) setTimeout(function () { firstInput.focus(); }, 100);
   }
 
@@ -337,11 +336,26 @@
 
   var currentEvent = null; // мероприятие, открытое в форме записи
 
-  function openEventModal(event) {
+  function openEventModal(event, partnerWebinar) {
     var overlay = overlays["modal-event"];
     if (!overlay || !event) return;
     currentEvent = event;
-    overlay.querySelector(".js-modal-event-sub").textContent = event.title + " · " + fmtFull(event.start);
+    var form = overlay.querySelector("form");
+    var consent = form.querySelector('[name="partnerConsent"]');
+    if (consent) {
+      consent.checked = false;
+      consent.disabled = !partnerWebinar;
+      consent.required = !!partnerWebinar;
+      consent.closest(".js-partner-webinar-consent").hidden = !partnerWebinar;
+      form.querySelectorAll(".js-club-event-field").forEach(function (field) {
+        field.hidden = !!partnerWebinar;
+        field.querySelector("input, textarea").disabled = !!partnerWebinar;
+      });
+      overlay.querySelector("#modal-event-title").textContent = partnerWebinar ? "Запись на вебинар" : "Запись на мероприятие";
+    }
+    var date = fmtFull(event.start);
+    if (partnerWebinar) date += fmtTime(event.start) === "00:00" ? " · время уточняется" : " МСК";
+    overlay.querySelector(".js-modal-event-sub").textContent = event.title + " · " + date;
     overlay.querySelector(".js-event-title").value = event.title;
     var idField = overlay.querySelector(".js-event-id");
     if (idField) idField.value = event.id;
@@ -471,8 +485,11 @@
     if (!name.value.trim()) return "Укажите, пожалуйста, имя.";
     if (!PHONE_RE.test(phone.value.trim())) return "Проверьте номер телефона.";
 
+    var consent = form.querySelector('[name="partnerConsent"]:enabled');
+    if (consent && !consent.checked) return "Подтвердите согласие на передачу контактов организатору.";
+
     var telegram = form.querySelector('[name="telegram"]');
-    if (!telegram.value.trim()) return "Укажите ваш Telegram.";
+    if (!telegram.disabled && !telegram.value.trim()) return "Укажите ваш Telegram.";
 
     var companyField = form.querySelector('[name="company"]');
     if (companyField && !companyField.value.trim()) return "Укажите компанию или сферу деятельности.";
@@ -538,10 +555,14 @@
       }
 
       var type = form.getAttribute("data-form-type");
+      var consent = form.querySelector('[name="partnerConsent"]:enabled');
+      var openedAt = form.dataset.openedAt;
       // Промокод из exit-popup (js/exit-popup.js) "долетает" сюда, если пользователь
       // получил скидку в pop-up, а потом отправил основную форму вступления/записи.
       var pendingPromo = "";
-      try { pendingPromo = localStorage.getItem("kodrosta_promo_pending") || ""; } catch (e) {}
+      if (!consent) {
+        try { pendingPromo = localStorage.getItem("kodrosta_promo_pending") || ""; } catch (e) {}
+      }
       var data = {
         type: type,
         name: form.querySelector('[name="name"]').value.trim(),
@@ -558,6 +579,12 @@
         promo: pendingPromo
       };
 
+      if (consent) {
+        data.partnerWebinar = true;
+        data.partnerConsent = consent.checked;
+        data.telegram = "";
+        data.comment = "";
+      }
       if (window.kodrostaAnalytics) Object.assign(data, window.kodrostaAnalytics.attribution());
 
       var submitBtn = form.querySelector('[type="submit"]');
@@ -566,7 +593,8 @@
       // Запись на мероприятие и заявку на вступление показываем сразу, не дожидаясь ответа сервера (он идёт
       // 2–3 секунды из-за Telegram) — человек не должен ждать и уходить. Заявка
       // сначала сохраняется на сервере; если отправка не удалась, вернём форму с ошибкой.
-      if (type === "event") showEventSuccess(form);
+      if (consent) showStatus(form, "pending", "Отправляем заявку…");
+      else if (type === "event") showEventSuccess(form);
       else if (type === "apply") showApplySuccess(form);
       else if (type === "partner") showPartnerSuccess(form);
 
@@ -576,12 +604,17 @@
         body: JSON.stringify(data)
       })
         .then(function (res) {
-          if (!res.ok) throw new Error("request_failed");
+          if (!res.ok && !consent) throw new Error("request_failed");
           return res.json();
         })
         .then(function (result) {
           if (!result.ok) throw new Error(result.error || "unknown");
-          form.reset();
+          if (!consent || openedAt === form.dataset.openedAt) form.reset();
+          if (consent && openedAt === form.dataset.openedAt) {
+            showStatus(form, "ok", "Готово, вы записаны! Детали участия сообщим по указанному телефону.");
+            if (result.materialsUrl) addStatusButton(form, result.materialsUrl, "Скачать «Карту HR-задачи для ИИ»", "primary");
+            form.style.display = "none";
+          }
           if (typeof ym === "function") ym(111842641, "reachGoal", "form_submit", { type: type });
           if (window.kodrostaAnalytics) window.kodrostaAnalytics.track(
             type === "apply" ? "apply_form_success" : type === "partner" ? "partner_form_success" : "event_form_success"
@@ -595,7 +628,15 @@
             localStorage.setItem("kodrosta_conversion_completed", "1");
           } catch (e) {}
         })
-        .catch(function () {
+        .catch(function (error) {
+          if (consent) {
+            if (openedAt === form.dataset.openedAt) {
+              showStatus(form, "err", error.message === "registration_closed"
+                ? "Запись на этот вебинар закрыта."
+                : "Не удалось отправить заявку. Проверьте данные и попробуйте ещё раз.");
+            }
+            return;
+          }
           form.style.display = "";
           showStatus(
             form,
