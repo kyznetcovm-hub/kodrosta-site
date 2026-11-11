@@ -72,9 +72,9 @@
         item.className = "partner-event";
         item.innerHTML =
           '<div class="partner-event-date"><time></time><span></span></div>' +
-          '<h3></h3><details><summary>Подробнее</summary>' +
-          '<p class="partner-event-full-title"></p><p class="partner-event-speaker"></p><p class="partner-event-description"></p>' +
-          '<p class="partner-event-audience"></p><p class="partner-event-bio"></p><p class="partner-event-bonus"></p></details>' +
+          '<h3></h3><details><summary>Подробнее</summary><div class="partner-event-body">' +
+          '<p class="partner-event-speaker"></p><p class="partner-event-full-title"></p><p class="partner-event-description"></p>' +
+          '<p class="partner-event-audience"></p><p class="partner-event-bio"></p><p class="partner-event-bonus"></p></div></details>' +
           '<button class="btn partner-event-cta" type="button">Записаться</button>';
         var dateLabel = item.querySelector("time");
         var clock = fmtTime(event.start);
