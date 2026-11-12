@@ -216,3 +216,8 @@ html, body { margin: 0; padding: 0; background: #f6f7fb; }
 @media(max-width:380px){#kr-office .kr-plan-row{grid-template-columns:1fr 120px}#kr-office .kr-sale{padding:12px 14px}}
 @media(max-width:380px){#kr-office .kr-top{padding:18px}#kr-office .kr-content{padding:16px 12px calc(110px + env(safe-area-inset-bottom))}#kr-office .kr-panel{padding:17px}#kr-office .kr-fact{font-size:33px}#kr-office .kr-fact-long{font-size:26px}#kr-office .kr-plan{font-size:15px}#kr-office .kr-moneyline{gap:10px}#kr-office .kr-week{gap:7px}#kr-office .kr-event{padding:14px}#kr-office .kr-budget{padding:0 14px}#kr-office .kr-budget table{font-size:11px}}
 @media(prefers-reduced-motion:reduce){#kr-office .kr-bar>span{transition:none}}
+
+/* Действия над сохранённой операцией и блокировка формы на время записи. */
+#kr-office .kr-entry-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+#kr-office .kr-entry-fields{border:0;padding:0;margin:0;min-width:0}
+#kr-office .kr-entry-actions .kr-link{min-height:44px}

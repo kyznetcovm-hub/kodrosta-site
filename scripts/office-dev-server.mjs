@@ -56,6 +56,14 @@ const DB = {
 };
 const env = { DB, BOT_TOKEN: TOKEN, ADMIN_USERNAMES: 'mytolstoy,Kodrosta', ASSETS: { fetch: async () => new Response('', { status: 404 }) } };
 
+// Фикстуры редактирования — только в локальной sqlite в памяти.
+if (process.env.OFFICE_EDIT_FIXTURES === '1') {
+  const {addExpense, addSale} = await import(ROOT + '/src/office-money.js');
+  const user = {id:222,username:'Kodrosta'};
+  await addExpense(DB,{clientId:'fixture-expense',date:month+'-01',amountKop:300000,category:'commission',comment:'Ошибочный комментарий'},user);
+  await addSale(DB,{clientId:'fixture-sale',date:month+'-01',amountKop:1500000,source:'new',comment:'Тестовая продажа'},user);
+}
+
 // initData так, как её подписывает Telegram (core.telegram.org/bots/webapps)
 function initData() {
   const p = new URLSearchParams({ auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id: 222, first_name: 'Код Роста', username: 'Kodrosta' }) });

@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import worker from '../src/index.js';
+const { default: worker } = await import(process.env.OFFICE_WORKER_UNDER_TEST || '../src/index.js');
 import { verifyInitData } from '../src/office.js';
 
 const BOT_TOKEN = 'fixture-not-a-token';
@@ -492,4 +492,123 @@ test('архив месяца: события для расходов, отде�
   assert.ok(!present.money.events.some((e) => e.id === 'archive-event'));
   assert.equal((await call(env, '/api/office/money?month=2026-13')).status, 400);
   assert.equal((await call(env, '/api/office/money?month=' + previous, undefined, { id: 999, username: 'stranger' })).status, 403);
+});
+
+test('редактирование: комментарий расхода и продажи меняется в той же записи, история и повтор', async (t) => {
+  const { sqlite, env } = moneyEnv(t);
+  for (const [kind, article, articleValue] of [['expenses','category','commission'], ['sales','source','new']]) {
+    const created = await (await call(env, '/api/office/' + kind, {
+      clientId: 'create-' + kind, date: '2026-10-15', amountKop: 1500000, [article]: articleValue, comment: 'Неверный комментарий'
+    }, { id: 222, username: 'Kodrosta' })).json();
+    const body = { id: created.id, clientId: 'edit-' + kind, expectedRevision: 0, date: '2026-10-15', amountKop: 1500000, [article]: articleValue, comment: 'Исправленный комментарий' };
+    assert.equal((await call(env, '/api/office/' + kind + '/edit', body)).status, 200);
+    assert.equal((await (await call(env, '/api/office/' + kind + '/edit', body)).json()).duplicate, true);
+    const money = (await (await call(env, '/api/office/money?month=2026-10')).json()).money;
+    const list = kind === 'sales' ? money.sales : money.expenses.list;
+    assert.equal(list.length, 1);
+    assert.equal(list[0].id, created.id);
+    assert.equal(list[0].comment, 'Исправленный комментарий');
+    assert.equal(list[0].amountKop, 1500000);
+    assert.equal(list[0].revision, 1);
+    assert.equal(list[0].createdBy, 'kodrosta');
+    assert.equal(list[0].editedBy, 'mytolstoy');
+    assert.ok(list[0].editedAt);
+    const edits = sqlite.prepare('SELECT * FROM money_entry_edits WHERE client_id = ?').all(body.clientId);
+    assert.equal(edits.length, 1);
+    assert.equal(JSON.parse(edits[0].before_json).comment, 'Неверный комментарий');
+    assert.equal(JSON.parse(edits[0].after_json).comment, 'Исправленный комментарий');
+    const cleared = { ...body, clientId: 'clear-' + kind, expectedRevision: 1, comment: '' };
+    assert.equal((await call(env, '/api/office/' + kind + '/edit', cleared)).status, 200);
+    const table = kind === 'sales' ? 'sales' : 'expenses';
+    assert.equal(sqlite.prepare('SELECT comment FROM ' + table + ' WHERE id = ?').get(created.id).comment, null);
+  }
+  const final = (await (await call(env, '/api/office/money?month=2026-10')).json()).money;
+  assert.equal(final.factKop, 1500000);
+  assert.equal(final.expenses.totalKop, 1500000);
+});
+
+test('редактирование: новая дата переносит операцию между месяцами и пересчитывает статьи и недели', async (t) => {
+  const { sqlite, env } = moneyEnv(t);
+  addEvent(sqlite, 'edit-event', 'Встреча', '2026-10-21T18:00:00');
+  const expense = await (await call(env, '/api/office/expenses', { clientId: 'move-expense', date: '2026-09-01', amountKop: 10000, category: 'commission' })).json();
+  const sale = await (await call(env, '/api/office/sales', { clientId: 'move-sale', date: '2026-09-01', amountKop: 50000, source: 'new' })).json();
+  assert.equal((await call(env, '/api/office/expenses/edit', { id: expense.id, clientId: 'move-expense-edit', expectedRevision: 0, date: '2026-10-21', amountKop: 20000, category: 'event_cost', eventId: 'edit-event', comment: 'Уточнено' })).status, 200);
+  assert.equal((await call(env, '/api/office/sales/edit', { id: sale.id, clientId: 'move-sale-edit', expectedRevision: 0, date: '2026-10-21', amountKop: 75000, source: 'events', eventId: 'edit-event' })).status, 200);
+  const old = (await (await call(env, '/api/office/money?month=2026-09')).json()).money;
+  const next = (await (await call(env, '/api/office/money?month=2026-10')).json()).money;
+  assert.equal(old.factKop, 0);
+  assert.equal(old.expenses.totalKop, 0);
+  assert.equal(next.factKop, 75000);
+  assert.equal(next.sources.find(s => s.key === 'new').factKop, 0);
+  assert.equal(next.sources.find(s => s.key === 'events').factKop, 75000);
+  assert.equal(next.weeks.reduce((a,w) => a + w.factKop, 0), 75000);
+  assert.equal(next.expenses.totalKop, 20000);
+  assert.deepEqual(next.expenses.categories.map(c => c.factKop), [0, 20000]);
+  assert.equal(next.expenses.byEvent[0].eventId, 'edit-event');
+  assert.equal(next.expenses.list.length, 1);
+  assert.equal(next.sales.length, 1);
+});
+
+test('редактирование: неверные данные, отменённые операции и чужой аккаунт отклоняются', async (t) => {
+  const { sqlite, env } = moneyEnv(t);
+  const original = await (await call(env, '/api/office/expenses', { clientId: 'protected', date: '2026-10-15', amountKop: 10000, category: 'commission', comment: 'Исходный' })).json();
+  const body = { id: original.id, clientId: 'protected-edit', expectedRevision: 0, date: '2026-10-15', amountKop: 10000, category: 'commission', comment: 'Правка' };
+  for (const extra of [{ id: -1 },{ id: '1' },{ expectedRevision: undefined },{ expectedRevision: -1 },{ amountKop: -1 },{ amountKop: 1.5 },{ date: '2026-02-30' },{ date: '2999-01-01' },{ category: 'other' },{ category: 'event_cost' },{ clientId: '' }]) {
+    assert.equal((await call(env, '/api/office/expenses/edit', { ...body, ...extra })).status, 400, JSON.stringify(extra));
+  }
+  assert.equal((await call(env, '/api/office/expenses/edit', { ...body, id: 999999 })).status, 404);
+  assert.equal((await call(env, '/api/office/expenses/edit', body, { id: 999, username: 'stranger' })).status, 403);
+  assert.equal((await worker.fetch(new Request('https://codrosta.club/api/office/expenses/edit', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}),env,{})).status,401);
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM money_entry_edits').get().n, 0);
+  assert.equal(sqlite.prepare('SELECT comment FROM expenses WHERE id=?').get(body.id).comment, 'Исходный');
+  await call(env, '/api/office/expenses/void', {id:body.id});
+  assert.equal((await call(env, '/api/office/expenses/edit', body)).status, 409);
+});
+
+test('редактирование: устаревшая версия не перезаписывает чужую правку; повтор старого запроса не откатывает новую', async (t) => {
+  const { sqlite, env } = moneyEnv(t);
+  const x = await (await call(env, '/api/office/sales', {clientId:'conflict-create',date:'2026-10-01',amountKop:10000,source:'new'})).json();
+  const first = {id:x.id,clientId:'first-edit',expectedRevision:0,date:'2026-10-01',amountKop:10000,source:'new',comment:'Первая правка'};
+  assert.equal((await call(env,'/api/office/sales/edit',first)).status,200);
+  assert.equal((await call(env,'/api/office/sales/edit',{...first,clientId:'stale-edit',comment:'Затереть'})).status,409);
+  assert.equal((await call(env,'/api/office/sales/edit',{...first,comment:'Другое содержимое того же запроса'})).status,409);
+  const unchanged = await (await call(env,'/api/office/sales/edit',{...first,clientId:'unchanged-edit',expectedRevision:1})).json();
+  assert.equal(unchanged.unchanged,true);
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM money_entry_edits').get().n,1);
+  assert.equal((await call(env,'/api/office/sales/edit',{...first,clientId:'second-edit',expectedRevision:1,comment:'Вторая правка'})).status,200);
+  assert.equal((await (await call(env,'/api/office/sales/edit',first)).json()).duplicate,true);
+  assert.equal(sqlite.prepare('SELECT comment FROM sales WHERE id=?').get(x.id).comment,'Вторая правка');
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM money_entry_edits').get().n,2);
+});
+
+test('редактирование: отмена между чтением и записью блокирует правку без ложной истории', async (t) => {
+  const { sqlite, env } = moneyEnv(t);
+  const x = await (await call(env,'/api/office/expenses',{clientId:'race-create',date:'2026-10-01',amountKop:10000,category:'commission',comment:'Исходный'})).json();
+  const batch=env.DB.batch;
+  env.DB.batch=async stmts=>{
+    sqlite.prepare("UPDATE expenses SET voided_at='2026-10-01', voided_by='kodrosta' WHERE id=?").run(x.id);
+    return batch(stmts);
+  };
+  assert.equal((await call(env,'/api/office/expenses/edit',{id:x.id,clientId:'race-edit',expectedRevision:0,date:'2026-10-01',amountKop:20000,category:'commission',comment:'Не записывать'})).status,409);
+  assert.equal(sqlite.prepare('SELECT comment FROM expenses WHERE id=?').get(x.id).comment,'Исходный');
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM money_entry_edits').get().n,0);
+});
+
+test('редактирование: совпавший clientId другой операции не разрешает перезаписать конкурентную правку', async (t) => {
+  const { sqlite, env } = moneyEnv(t);
+  const create = clientId => call(env,'/api/office/sales',{clientId,date:'2026-10-01',amountKop:10000,source:'new'}).then(r=>r.json());
+  const own = await create('race-own');
+  const other = await create('race-other');
+  const batch = env.DB.batch;
+  env.DB.batch = async stmts => {
+    const add = sqlite.prepare('INSERT INTO money_entry_edits (client_id,kind,entry_id,revision,before_json,after_json,edited_at,edited_by) VALUES (?,\'sale\',?,1,\'{}\',\'{}\',\'2026-10-01\',\'kodrosta\')');
+    add.run('shared-client-id',other.id);
+    add.run('concurrent-own-edit',own.id);
+    sqlite.prepare('UPDATE sales SET comment=? WHERE id=?').run('Сохранено вторым админом',own.id);
+    return batch(stmts);
+  };
+  const r=await call(env,'/api/office/sales/edit',{id:own.id,clientId:'shared-client-id',expectedRevision:0,date:'2026-10-01',amountKop:10000,source:'new',comment:'Устаревшее содержимое'});
+  assert.equal(r.status,409);
+  assert.equal(sqlite.prepare('SELECT comment FROM sales WHERE id=?').get(own.id).comment,'Сохранено вторым админом');
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM money_entry_edits WHERE entry_id=?').get(own.id).n,1);
 });

@@ -30,7 +30,7 @@
 
 import { normalizeUsername, collectEventRegistrations } from "./engagement.js";
 import { listEventsFrom, getEventById, setEventPlan, isTurizmEvent } from "./events-store.js";
-import { getMonthMoney, addSale, voidSale, addExpense, voidExpense, savePlans, isValidMonth } from "./office-money.js";
+import { getMonthMoney, addSale, voidSale, addExpense, voidExpense, editSale, editExpense, savePlans, isValidMonth } from "./office-money.js";
 
 // initData живёт, пока открыт Mini App; сутки — с запасом на «открыл утром,
 // смотрит вечером», и всё ещё не позволяет пользоваться утёкшей строкой вечно.
@@ -164,7 +164,7 @@ async function readJson(request) {
 }
 
 function result(r) {
-  return r.ok ? json(r) : json(r, r.error === "not_found" ? 404 : 400);
+  return r.ok ? json(r) : json(r, r.error === "not_found" ? 404 : ["conflict", "voided", "edit_request_changed"].includes(r.error) ? 409 : 400);
 }
 
 async function handleEventPlan(request, env) {
@@ -216,6 +216,12 @@ export async function handleOfficeApi(request, env, path) {
     return result(await addSale(env.DB, body, user));
   }
 
+  if (path === "/api/office/sales/edit" && request.method === "POST") {
+    const body = await readJson(request);
+    if (!body) return json({ ok: false, error: "bad_json" }, 400);
+    return result(await editSale(env.DB, body, user));
+  }
+
   if (path === "/api/office/sales/void" && request.method === "POST") {
     const body = await readJson(request);
     if (!body) return json({ ok: false, error: "bad_json" }, 400);
@@ -226,6 +232,12 @@ export async function handleOfficeApi(request, env, path) {
     const body = await readJson(request);
     if (!body) return json({ ok: false, error: "bad_json" }, 400);
     return result(await addExpense(env.DB, body, user));
+  }
+
+  if (path === "/api/office/expenses/edit" && request.method === "POST") {
+    const body = await readJson(request);
+    if (!body) return json({ ok: false, error: "bad_json" }, 400);
+    return result(await editExpense(env.DB, body, user));
   }
 
   if (path === "/api/office/expenses/void" && request.method === "POST") {

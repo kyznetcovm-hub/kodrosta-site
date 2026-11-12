@@ -108,6 +108,12 @@ export async function ensureMoneyTables(db) {
     "voided_by TEXT)"
   ).run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(exp_date)").run();
+  await db.prepare(
+    "CREATE TABLE IF NOT EXISTS money_entry_edits (" +
+    "client_id TEXT PRIMARY KEY, kind TEXT NOT NULL, entry_id INTEGER NOT NULL, revision INTEGER NOT NULL, " +
+    "before_json TEXT NOT NULL, after_json TEXT NOT NULL, edited_at TEXT NOT NULL, edited_by TEXT NOT NULL, " +
+    "UNIQUE (kind, entry_id, revision))"
+  ).run();
   tablesReady.add(db);
 }
 
@@ -146,13 +152,21 @@ function isValidDay(day) {
   return !isNaN(d) && d.toISOString().slice(0, 10) === day;
 }
 
+// Только внутренние константы kind/table, не пользовательские SQL-идентификаторы.
+function entryEditColumns(kind, table) {
+  const where = " FROM money_entry_edits WHERE kind = '" + kind + "' AND entry_id = " + table + ".id";
+  return "(SELECT COALESCE(MAX(revision), 0)" + where + ") AS revision, " +
+    "(SELECT edited_at" + where + " ORDER BY revision DESC LIMIT 1) AS edited_at, " +
+    "(SELECT edited_by" + where + " ORDER BY revision DESC LIMIT 1) AS edited_by";
+}
+
 // ---- Чтение: итоги месяца ---------------------------------------------------
 
 export async function getMonthMoney(db, month) {
   await ensureMoneyTables(db);
   const weeksGrid = monthWeeks(month);
   const { results: saleRows } = await db.prepare(
-    "SELECT id, sale_date, amount_kop, source, event_id, comment, created_at, created_by, voided_at, voided_by " +
+    "SELECT id, sale_date, amount_kop, source, event_id, comment, created_at, created_by, voided_at, voided_by, " + entryEditColumns("sale", "sales") + " " +
     "FROM sales WHERE sale_date >= ? AND sale_date <= ? ORDER BY sale_date DESC, id DESC"
   ).bind(month + "-01", month + "-31").all();
   const { results: planRows } = await db.prepare(
@@ -162,7 +176,7 @@ export async function getMonthMoney(db, month) {
     "SELECT source, title, event_id, qty, price_kop FROM sales_plan_items WHERE month = ? ORDER BY source, pos, id"
   ).bind(month).all();
   const { results: expRows } = await db.prepare(
-    "SELECT id, exp_date, amount_kop, category, event_id, comment, created_at, created_by, voided_at, voided_by " +
+    "SELECT id, exp_date, amount_kop, category, event_id, comment, created_at, created_by, voided_at, voided_by, " + entryEditColumns("expense", "expenses") + " " +
     "FROM expenses WHERE exp_date >= ? AND exp_date <= ? ORDER BY exp_date DESC, id DESC"
   ).bind(month + "-01", month + "-31").all();
   const eventTitles = await loadEventTitles(db, [].concat(
@@ -243,6 +257,9 @@ export async function getMonthMoney(db, month) {
         comment: r.comment || null,
         createdAt: r.created_at,
         createdBy: r.created_by || null,
+        revision: r.revision,
+        editedAt: r.edited_at || null,
+        editedBy: r.edited_by || null,
         voided: !!r.voided_at,
         voidedBy: r.voided_by || null,
       })),
@@ -257,6 +274,9 @@ export async function getMonthMoney(db, month) {
       comment: r.comment || null,
       createdAt: r.created_at,
       createdBy: r.created_by || null,
+      revision: r.revision,
+      editedAt: r.edited_at || null,
+      editedBy: r.edited_by || null,
       voided: !!r.voided_at,
       voidedBy: r.voided_by || null,
     })),
@@ -353,6 +373,69 @@ export async function addExpense(db, input, user) {
 
 export function voidExpense(db, id, user) {
   return voidRecord(db, "expenses", id, user);
+}
+
+// История правок хранится отдельно: исходная запись и её ID остаются прежними.
+// revision защищает от перезаписи правки, которую второй админ уже сохранил.
+async function editMoneyEntry(db, kind, input, user) {
+  await ensureMoneyTables(db);
+  if (!Number.isInteger(input.id) || input.id <= 0) return { ok: false, error: "bad_id" };
+  if (!Number.isInteger(input.expectedRevision) || input.expectedRevision < 0) return { ok: false, error: "bad_revision" };
+  const c = checkCommon(input);
+  if (c.error) return { ok: false, error: c.error };
+  const isSale = kind === "sale";
+  const table = isSale ? "sales" : "expenses";
+  const dateColumn = isSale ? "sale_date" : "exp_date";
+  const articleColumn = isSale ? "source" : "category";
+  if (!(isSale ? SOURCE_KEYS : EXPENSE_KEYS).includes(input[articleColumn])) {
+    return { ok: false, error: isSale ? "bad_source" : "bad_category" };
+  }
+  const eventId = (!isSale || input.source === "events") && typeof input.eventId === "string" && input.eventId ? input.eventId : null;
+  if (!isSale && input.category === "event_cost" && !eventId) return { ok: false, error: "need_event" };
+  const after = { date: input.date, amountKop: input.amountKop, article: input[articleColumn], eventId, comment: c.comment };
+  const afterJson = JSON.stringify(after);
+  function replay(edit) {
+    if (edit.kind !== kind || edit.entry_id !== input.id || edit.after_json !== afterJson) return { ok: false, error: "edit_request_changed" };
+    return { ok: true, id: input.id, date: input.date, duplicate: true, revision: edit.revision };
+  }
+  const existing = await db.prepare("SELECT * FROM money_entry_edits WHERE client_id = ?").bind(c.clientId).first();
+  if (existing) return replay(existing);
+  const row = await db.prepare("SELECT *, " + entryEditColumns(kind, table) + " FROM " + table + " WHERE id = ?").bind(input.id).first();
+  if (!row) return { ok: false, error: "not_found" };
+  if (row.voided_at) return { ok: false, error: "voided" };
+  if (row.revision !== input.expectedRevision) return { ok: false, error: "conflict" };
+  const beforeJson = JSON.stringify({ date: row[dateColumn], amountKop: row.amount_kop, article: row[articleColumn], eventId: row.event_id || null, comment: row.comment || null });
+  if (beforeJson === afterJson) return { ok: true, id: input.id, date: input.date, unchanged: true, revision: row.revision };
+  const revision = row.revision + 1;
+  const now = new Date().toISOString();
+  const count = "(SELECT COALESCE(MAX(revision), 0) FROM money_entry_edits WHERE kind = ? AND entry_id = ?)";
+  const audit = db.prepare(
+    "INSERT INTO money_entry_edits (client_id, kind, entry_id, revision, before_json, after_json, edited_at, edited_by) " +
+    "SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM " + table + " WHERE id = ? AND voided_at IS NULL AND " + count + " = ?) " +
+    "ON CONFLICT(client_id) DO NOTHING"
+  ).bind(c.clientId, kind, input.id, revision, beforeJson, afterJson, now, who(user), input.id, kind, input.id, row.revision);
+  const update = db.prepare(
+    "UPDATE " + table + " SET " + dateColumn + " = ?, amount_kop = ?, " + articleColumn + " = ?, event_id = ?, comment = ? " +
+    "WHERE id = ? AND voided_at IS NULL AND " + count + " = ? AND EXISTS (SELECT 1 FROM money_entry_edits " +
+    "WHERE client_id = ? AND kind = ? AND entry_id = ? AND revision = ? AND after_json = ?)"
+  ).bind(input.date, input.amountKop, input[articleColumn], eventId, c.comment, input.id, kind, input.id, revision, c.clientId, kind, input.id, revision, afterJson);
+  try {
+    // D1 batch — одна транзакция: запись и история изменятся вместе.
+    await db.batch([audit, update]);
+  } catch (err) {
+    if (!/unique/i.test(String(err && err.message))) throw err;
+  }
+  const saved = await db.prepare("SELECT * FROM money_entry_edits WHERE client_id = ?").bind(c.clientId).first();
+  if (!saved) return { ok: false, error: "conflict" };
+  return { ...replay(saved), duplicate: false };
+}
+
+export function editSale(db, input, user) {
+  return editMoneyEntry(db, "sale", input, user);
+}
+
+export function editExpense(db, input, user) {
+  return editMoneyEntry(db, "expense", input, user);
 }
 
 // plans: { items: { new: [{ title, eventId, qty, priceKop }], ... }, weeks: [kop|null, ...] }

@@ -113,7 +113,8 @@
       weeks: m.weeks.map(function (w) { return { factRub: rub(w.factKop), planRub: rub(w.planKop), bySource: w.bySource.map(rub) }; }),
       sales: m.sales.map(function (x) {
         return { id: x.id, date: x.date, amountRub: rub(x.amountKop), source: x.source, eventId: x.eventId, eventTitle: x.eventTitle,
-          comment: x.comment, createdAt: x.createdAt, createdBy: x.createdBy, voided: x.voided, voidedBy: x.voidedBy };
+          comment: x.comment, createdAt: x.createdAt, createdBy: x.createdBy,
+          revision: x.revision || 0, editedAt: x.editedAt, editedBy: x.editedBy, voided: x.voided, voidedBy: x.voidedBy };
       }),
       expenses: {
         totalRub: rub(m.expenses.totalKop),
@@ -121,7 +122,8 @@
         byEvent: m.expenses.byEvent.map(function (e) { return { eventId: e.eventId, eventTitle: e.eventTitle, factRub: rub(e.factKop) }; }),
         list: m.expenses.list.map(function (x) {
           return { id: x.id, date: x.date, amountRub: rub(x.amountKop), category: x.category, eventId: x.eventId, eventTitle: x.eventTitle,
-            comment: x.comment, createdAt: x.createdAt, createdBy: x.createdBy, voided: x.voided, voidedBy: x.voidedBy };
+            comment: x.comment, createdAt: x.createdAt, createdBy: x.createdBy,
+            revision: x.revision || 0, editedAt: x.editedAt, editedBy: x.editedBy, voided: x.voided, voidedBy: x.voidedBy };
         })
       },
       note: MONEY_NOTE
@@ -643,13 +645,14 @@
     return html + '<section class="kr-event-list" aria-label="Поступления и расходы за месяц">' + list.map(function (r) {
       var x = r.x, d = dayParts(x.date), isExp = r.kind === "expense";
       var title = isExp ? expenseLabel(x.category) : sourceLabel(x.source);
-      var meta = [x.eventTitle || "", x.comment || "", x.createdBy ? "внёс @" + x.createdBy : ""].filter(Boolean);
+      var meta = [x.eventTitle || "", x.comment || "", x.createdBy ? "внёс @" + x.createdBy : "", x.editedBy ? "исправил @" + x.editedBy : ""].filter(Boolean);
       return '<div class="kr-sale' + (x.voided ? " kr-voided" : "") + (isExp ? " kr-expense" : "") + '">' +
         '<div class="kr-event-date">' + pad(d.d) + "<small>" + MONTHS_SHORT[d.m - 1].toUpperCase() + "</small></div>" +
         '<div class="kr-sale-main"><p class="kr-event-name">' + esc(title) + "</p>" +
         (meta.length ? '<p class="kr-event-type">' + esc(meta.join(" · ")) + "</p>" : "") +
         (x.voided ? '<p class="kr-event-type">Отменена' + (x.voidedBy ? " · @" + esc(x.voidedBy) : "") + "</p>"
-          : '<button class="kr-link kr-void" data-void="' + r.kind + ":" + x.id + '">Отменить</button>') + "</div>" +
+          : '<div class="kr-entry-actions"><button class="kr-link" data-edit="' + r.kind + ':' + x.id + '">' + icon("pencil") + 'Редактировать</button>' +
+            '<button class="kr-link kr-void" data-void="' + r.kind + ':' + x.id + '">Отменить</button></div>') + "</div>" +
         '<div class="kr-sale-amount">' + (isExp ? "−" : "") + fmtRub(x.amountRub) + " ₽</div></div>";
     }).join("") + "</section>";
   }
@@ -667,13 +670,38 @@
     state.form = kind;
     state.values = { clientId: newClientId(), amount: "", source: "", category: "", eventId: "", date: date, comment: "" };
     state.formError = null;
+    state.editConflict = false;
     state.notice = null;
+  }
+
+  function openEditEntry(ref) {
+    var kind = ref.split(":")[0], id = Number(ref.split(":")[1]);
+    var list = kind === "sale" ? data.money.sales : data.money.expenses.list;
+    var entry = null;
+    list.forEach(function (x) { if (x.id === id) entry = x; });
+    if (!entry || entry.voided) return;
+    state.form = kind;
+    state.values = { clientId: newClientId(), editId: entry.id, expectedRevision: entry.revision || 0,
+      amount: numToInput(entry.amountRub), date: entry.date, source: entry.source || "", category: entry.category || "",
+      eventId: entry.eventId || "", eventTitle: entry.eventTitle || entry.eventId || "", comment: entry.comment || "" };
+    state.formError = null;
+    state.editConflict = false;
+    state.notice = null;
+  }
+
+  function entryTitle(kind) {
+    return state.values.editId ? (kind === "sale" ? "Редактирование продажи" : "Редактирование расхода") : ENTRY[kind].title;
   }
 
   function eventOptions(selected, emptyLabel) {
     // Мероприятия выбранного финансового месяца и будущие, включая архив.
+    var events = (data.money.events || data.events).slice();
+    // Не теряем старую привязку, даже если мероприятие отсутствует в текущем списке.
+    if (selected && !events.some(function (e) { return e.id === selected; })) {
+      events.push({ id: selected, title: state.values.eventTitle || selected, start: state.values.date + "T12:00:00+03:00" });
+    }
     return '<option value="">' + emptyLabel + "</option>" +
-      (data.money.events || data.events).slice().sort(function (a, b) { return new Date(a.start) - new Date(b.start); }).map(function (e) {
+      events.sort(function (a, b) { return new Date(a.start) - new Date(b.start); }).map(function (e) {
         var d = dayParts(mskDay(e.start));
         return '<option value="' + esc(e.id) + '"' + (selected === e.id ? " selected" : "") + ">" + d.d + " " + MONTHS_SHORT[d.m - 1] + " · " + esc(e.title) + "</option>";
       }).join("");
@@ -704,7 +732,7 @@
     var cfg = ENTRY[kind], v = state.values;
     var ev = cfg.needEvent(v);
     var html = '<button class="kr-back" data-action="close-form">' + icon("chevron-left") + "К деньгам</button>" +
-      '<section class="kr-panel kr-form">' +
+      '<section class="kr-panel kr-form"><fieldset class="kr-entry-fields"' + (state.saving ? " disabled" : "") + '>' +
       '<label class="kr-field"><span class="kr-label">Сумма, ₽</span>' +
       '<input class="kr-input kr-input-big" data-field="amount" inputmode="decimal" autocomplete="off" placeholder="0" value="' + esc(v.amount) + '"></label>' +
       '<div class="kr-field"><span class="kr-label">' + cfg.chipsLabel + '</span><div class="kr-chips" role="radiogroup" aria-label="' + cfg.chipsLabel + '">' +
@@ -720,10 +748,11 @@
       '<input class="kr-input" type="date" data-field="date" max="' + today() + '" value="' + esc(v.date) + '"></label>' +
       '<label class="kr-field"><span class="kr-label">Комментарий — необязательно</span>' +
       '<input class="kr-input" data-field="comment" maxlength="300" autocomplete="off" placeholder="' + cfg.placeholder + '" value="' + esc(v.comment) + '"></label>' +
-      '<button class="kr-save" data-action="save-entry"' + (state.saving ? " disabled" : "") + ">" + (state.saving ? "Сохраняем…" : cfg.save) + "</button>" +
+      '<button class="kr-save" data-action="save-entry"' + (state.saving ? " disabled" : "") + ">" + (state.saving ? "Сохраняем…" : v.editId ? "Сохранить изменения" : cfg.save) + "</button></fieldset>" +
       (state.formError ? '<p class="kr-error" role="alert">' + esc(state.formError) + "</p>" : "") +
       "</section>" +
-      '<p class="kr-caption">' + cfg.note + " Ошибочную запись можно отменить в списке операций.</p>";
+      (state.editConflict ? '<button class="kr-link" data-action="refresh-money">Обновить операции</button>' : '') +
+      '<p class="kr-caption">' + (v.editId ? "Изменения сохранятся в этой операции. Итоги бюджета пересчитаются автоматически." : cfg.note + " Ошибочную запись можно исправить или отменить в списке операций.") + "</p>";
     return html;
   }
 
@@ -733,7 +762,11 @@
     bad_category: "Выберите статью расхода.",
     need_event: "Выберите мероприятие.",
     bad_date: "Проверьте дату.",
-    future_date: "Дата не может быть позже сегодняшней."
+    future_date: "Дата не может быть позже сегодняшней.",
+    conflict: "Операцию уже изменили. Обновите операции и откройте её заново, чтобы не затереть чужую правку.",
+    voided: "Операция уже отменена. Обновите список операций.",
+    not_found: "Операция не найдена. Обновите список операций.",
+    edit_request_changed: "Предыдущая правка уже сохранена. Обновите операции перед следующим изменением."
   };
 
   function saveEntry() {
@@ -758,19 +791,25 @@
     var body = { clientId: v.clientId, date: v.date, amountKop: kop, eventId: ev ? v.eventId || null : null, comment: v.comment };
     body[cfg.field] = v[cfg.field];
     var label = kind === "sale" ? sourceLabel(v.source) : expenseLabel(v.category);
-    // тот же clientId при повторе после ошибки — сервер не создаст дубль
-    api(cfg.url, body).then(function () {
-      return api("/api/office/money?month=" + v.date.slice(0, 7)).then(function (res) {
+    if (v.editId) {
+      body.id = v.editId;
+      body.expectedRevision = v.expectedRevision;
+    }
+    // Тот же clientId при повторе после ошибки: запись и история не дублируются.
+    api(cfg.url + (v.editId ? "/edit" : ""), body).then(function () {
+      return api("/api/office/money?month=" + body.date.slice(0, 7)).then(function (res) {
         state.saving = false;
         showMoney(res.money);
         state.form = null;
         state.values = {};
-        state.notice = cfg.done + ": " + fmtRub(kop / 100) + " ₽ · " + label + ".";
+        state.editConflict = false;
+        state.notice = (v.editId ? "Изменения сохранены" : cfg.done) + ": " + fmtRub(kop / 100) + " ₽ · " + label + ".";
         render();
         window.scrollTo(0, 0);
       });
     }).catch(function (e) {
       state.saving = false;
+      state.editConflict = !!(e && ["conflict", "voided", "not_found", "edit_request_changed"].indexOf(e.code) !== -1);
       state.formError = e && e.denied ? DENIED_TEXT[e.denied]
         : e && e.code && SAVE_ERRORS[e.code] ? SAVE_ERRORS[e.code]
         : "Не удалось сохранить — проверьте связь и нажмите ещё раз. Введённое не потеряется.";
@@ -965,8 +1004,8 @@
   }
 
   // При ошибке остаётся прежний месяц; повторный запрос во время загрузки запрещён.
-  function switchMonth(month) {
-    if (state.moneyLoading || state.saving || state.voiding || month === data.money.month) return;
+  function switchMonth(month, force) {
+    if (state.moneyLoading || state.saving || state.voiding || (!force && month === data.money.month)) return;
     if (data.demo) {
       if (!data.moneyByMonth) data.moneyByMonth = { "2026-10": data.money };
       if (!data.moneyByMonth[month]) {
@@ -1037,7 +1076,7 @@
   function subtitle() {
     if (state.selected !== null) return "Регистрации и план по каждому событию.";
     if (state.page === "events") return "Регистрации и план по каждому событию.";
-    if (state.page === "money" && (state.form === "sale" || state.form === "expense")) return ENTRY[state.form].subtitle;
+    if (state.page === "money" && (state.form === "sale" || state.form === "expense")) return state.values.editId ? "Изменение сохранённой операции" : ENTRY[state.form].subtitle;
     if (state.page === "money" && state.form === "plan") return monthLabel(data.money.month);
     if (state.page === "money") return "Продажи и поступления · " + moneyMonthName() + " " + data.money.month.slice(0, 4);
     return ""; // на «Обзоре» подзаголовка нет — Михаил попросил убрать приветствие
@@ -1068,7 +1107,7 @@
     var t = dayParts(today());
     document.getElementById("kr-date").innerHTML = t.d + " " + MONTHS_GEN[t.m - 1] + "<br>" + t.y;
     document.getElementById("kr-title").textContent = state.selected !== null ? "Событие"
-      : state.form === "sale" || state.form === "expense" ? ENTRY[state.form].title : state.form === "plan" ? "План продаж" : TITLES[state.page];
+      : state.form === "sale" || state.form === "expense" ? entryTitle(state.form) : state.form === "plan" ? "План продаж" : TITLES[state.page];
     var sub = subtitle();
     document.getElementById("kr-subtitle").textContent = sub;
     document.getElementById("kr-subtitle").hidden = !sub;
@@ -1130,6 +1169,7 @@
 
   // ---- Telegram: кнопка «Назад» в шапке, цвета оболочки ---------------------
   function goBack() {
+    if (state.saving || state.voiding) return;
     if (state.form) {
       state.form = null;
       state.formError = null;
@@ -1161,7 +1201,7 @@
 
   root.addEventListener("click", function (ev) {
     var b = ev.target.closest("button");
-    if (!b || b.disabled) return;
+    if (!b || b.disabled || state.saving || state.voiding) return;
     var scrollTop = true;
     if (b.dataset.page) {
       state.page = b.dataset.page;
@@ -1177,6 +1217,14 @@
     } else if (b.dataset.chip) {
       state.values[b.dataset.chip.split(":")[0]] = b.dataset.chip.split(":")[1];
       scrollTop = false;
+    } else if (b.dataset.edit) {
+      openEditEntry(b.dataset.edit);
+    } else if (b.dataset.action === "refresh-money") {
+      state.form = null;
+      state.values = {};
+      state.editConflict = false;
+      switchMonth(data.money.month, true);
+      return;
     } else if (b.dataset.void) {
       voidEntry(b.dataset.void);
       return;
