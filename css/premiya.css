@@ -354,6 +354,9 @@
 .p-organizer-role { margin: 0 0 20px; color: var(--navy); font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .p-organizer-logo { display: flex; align-items: center; height: 80px; }
 .p-organizer-logo img { display: block; width: 264px; max-width: 100%; height: auto; }
+.p-organizer-logo--club { gap: 18px; }
+.p-organizer-logo--club img { width: 95px; height: 80px; flex: 0 0 auto; object-fit: contain; }
+.p-organizer-name { font-size: 28px; font-weight: 700; line-height: 1.15; }
 .p-organizer-description { max-width: 360px; margin: 18px 0 0; color: var(--navy); font-size: 16px; line-height: 1.5; }
 
 /* ---------- Адаптив ---------- */
