@@ -289,7 +289,10 @@
 .p-game-photo::before { content: ""; position: absolute; left: 18px; top: 18px; right: 0; bottom: 0; background: var(--red); }
 .p-game-photo img { position: relative; display: block; width: 100%; height: auto; }
 .p-game-author { display: flex; align-items: center; gap: 16px; margin-top: 24px; color: var(--navy); }
-.p-game-author > img { display: block; flex: 0 0 72px; width: 72px; height: 80px; object-fit: cover; object-position: 50% 24%; }
+.p-game-author-frame { display: block; position: relative; flex: 0 0 auto; padding: 0 6px 6px 0; }
+.p-game-author-frame::before { content: ""; position: absolute; left: 6px; top: 6px; right: 0; bottom: 0; background: var(--sky); }
+.p-game-author-portrait { display: block; position: relative; width: 72px; height: 80px; overflow: hidden; }
+.p-game-author-portrait img { display: block; width: 200px; max-width: none; height: auto; transform: translate(-59px, -53px); }
 .p-game-author p { margin: 0; display: flex; flex-direction: column; gap: 4px; }
 .p-game-author span { font-size: 13px; line-height: 1.4; }
 .p-game-author strong { font-size: 18px; font-weight: 700; line-height: 1.25; }
