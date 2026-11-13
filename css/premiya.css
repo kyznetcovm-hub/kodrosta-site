@@ -347,6 +347,15 @@
 .page-premiya .btn--ghost { color: var(--navy); border-color: var(--navy); }
 .page-premiya .form-status { border-radius: 0; }
 
+/* ---------- Организаторы и партнёры ---------- */
+.p-organizers { background: #fff; }
+.p-organizers-title { margin: 0 0 36px; font-size: clamp(30px, 3.3vw, 44px); line-height: 1.15; color: var(--navy); }
+.p-organizers-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 64px; padding-top: 32px; border-top: 1px solid var(--grey); }
+.p-organizer-role { margin: 0 0 20px; color: var(--navy); font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.p-organizer-logo { display: flex; align-items: center; height: 80px; }
+.p-organizer-logo img { display: block; width: 264px; max-width: 100%; height: auto; }
+.p-organizer-description { max-width: 360px; margin: 18px 0 0; color: var(--navy); font-size: 16px; line-height: 1.5; }
+
 /* ---------- Адаптив ---------- */
 @media (max-width: 1040px) {
   .p-podcast-grid { grid-template-columns: 1fr; }
@@ -378,6 +387,7 @@
   .p-lb-nav { width: 38px; height: 54px; margin-top: -27px; }
 }
 @media (max-width: 560px) {
+  .p-organizers-grid { grid-template-columns: 1fr; gap: 40px; }
   .p-nom-list { grid-template-columns: 1fr; }
   .p-game-stats { grid-template-columns: 1fr; gap: 14px; }
   .p-game-stats li { flex-direction: row; align-items: baseline; gap: 14px; padding-top: 10px; }
