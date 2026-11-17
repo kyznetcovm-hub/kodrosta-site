@@ -349,17 +349,18 @@
 .page-premiya .form-status { border-radius: 0; }
 
 /* ---------- Организаторы и партнёры ---------- */
-.p-organizers { background: #fff; }
-.p-organizers-title { margin: 0 0 36px; font-size: clamp(30px, 3.3vw, 44px); line-height: 1.15; color: var(--navy); }
-.p-organizers-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; padding-top: 32px; border-top: 1px solid var(--grey); }
-.p-organizer-role { margin: 0 0 20px; color: var(--navy); font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.p-organizer-logo { display: flex; align-items: center; height: 112px; }
-.p-organizer-logo img { display: block; width: 264px; max-width: 100%; height: auto; }
-.p-organizer-logo--club { gap: 18px; }
-.p-organizer-logo--club img { width: 95px; height: 80px; flex: 0 0 auto; object-fit: contain; }
-.p-organizer-name { font-size: 28px; font-weight: 700; line-height: 1.15; }
-.p-organizer-logo--tsum img { width: 320px; }
-.p-organizer-description { max-width: 360px; margin: 18px 0 0; color: var(--navy); font-size: 16px; line-height: 1.5; }
+.page-premiya .p-organizers { padding: 32px 0; background: #fff; }
+.p-organizers .container { max-width: 960px; }
+.p-organizers-title { margin: 0 0 20px; font-size: 22px; line-height: 1.2; color: var(--navy); }
+.p-organizers-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; padding-top: 20px; border-top: 1px solid var(--grey); }
+.p-organizer-role { margin: 0 0 12px; color: var(--navy); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.p-organizer-logo { display: flex; align-items: center; height: 64px; }
+.p-organizer-logo img { display: block; width: 150px; max-width: 100%; height: auto; }
+.p-organizer-logo--club { gap: 10px; }
+.p-organizer-logo--club img { width: 57px; height: 48px; flex: 0 0 auto; object-fit: contain; }
+.p-organizer-name { font-size: 20px; font-weight: 700; line-height: 1.15; }
+.p-organizer-logo--tsum img { width: 190px; }
+.p-organizer-description { max-width: 300px; margin: 8px 0 0; color: var(--navy); font-size: 12px; line-height: 1.45; }
 
 /* ---------- Адаптив ---------- */
 @media (max-width: 1040px) {
@@ -393,7 +394,7 @@
   .p-lb-nav { width: 38px; height: 54px; margin-top: -27px; }
 }
 @media (max-width: 560px) {
-  .p-organizers-grid { grid-template-columns: 1fr; gap: 40px; }
+  .p-organizers-grid { grid-template-columns: 1fr; gap: 24px; }
   .p-nom-list { grid-template-columns: 1fr; }
   .p-game-stats { grid-template-columns: 1fr; gap: 14px; }
   .p-game-stats li { flex-direction: row; align-items: baseline; gap: 14px; padding-top: 10px; }
