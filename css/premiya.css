@@ -351,17 +351,19 @@
 /* ---------- Организаторы и партнёры ---------- */
 .p-organizers { background: #fff; }
 .p-organizers-title { margin: 0 0 36px; font-size: clamp(30px, 3.3vw, 44px); line-height: 1.15; color: var(--navy); }
-.p-organizers-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 64px; padding-top: 32px; border-top: 1px solid var(--grey); }
+.p-organizers-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; padding-top: 32px; border-top: 1px solid var(--grey); }
 .p-organizer-role { margin: 0 0 20px; color: var(--navy); font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.p-organizer-logo { display: flex; align-items: center; height: 80px; }
+.p-organizer-logo { display: flex; align-items: center; height: 112px; }
 .p-organizer-logo img { display: block; width: 264px; max-width: 100%; height: auto; }
 .p-organizer-logo--club { gap: 18px; }
 .p-organizer-logo--club img { width: 95px; height: 80px; flex: 0 0 auto; object-fit: contain; }
 .p-organizer-name { font-size: 28px; font-weight: 700; line-height: 1.15; }
+.p-organizer-logo--tsum img { width: 320px; }
 .p-organizer-description { max-width: 360px; margin: 18px 0 0; color: var(--navy); font-size: 16px; line-height: 1.5; }
 
 /* ---------- Адаптив ---------- */
 @media (max-width: 1040px) {
+  .p-organizers-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .p-podcast-grid { grid-template-columns: 1fr; }
   .p-awards-grid { grid-template-columns: 1fr; gap: 36px; }
   .p-ticket-grid { grid-template-columns: 1fr; max-width: 640px; }
