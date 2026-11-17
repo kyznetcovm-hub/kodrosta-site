@@ -352,7 +352,7 @@
 .page-premiya .p-organizers { padding: 32px 0; background: #fff; }
 .p-organizers .container { max-width: 960px; }
 .p-organizers-title { margin: 0 0 20px; font-size: 22px; line-height: 1.2; color: var(--navy); }
-.p-organizers-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; padding-top: 20px; border-top: 1px solid var(--grey); }
+.p-organizers-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; padding-top: 20px; border-top: 1px solid var(--grey); }
 .p-organizer-role { margin: 0 0 12px; color: var(--navy); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .p-organizer-logo { display: flex; align-items: center; height: 64px; }
 .p-organizer-logo img { display: block; width: 150px; max-width: 100%; height: auto; }
