@@ -3,7 +3,9 @@
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var role = null, event = null, tickets = [], stream = null, busy = false, scanGeneration = 0;
-  var hostKey = sessionStorage.getItem('admission-host-key') || '';
+  var tgApp = window.Telegram && window.Telegram.WebApp;
+  if (tgApp && tgApp.initData) { tgApp.ready(); tgApp.expand(); }
+  sessionStorage.removeItem('admission-host-key');
   var ticketToken = new URLSearchParams(location.hash.slice(1)).get('t');
   var guestTicket = null, qrImage = null;
   function show(id, visible) { $(id).hidden = !visible; }
@@ -13,7 +15,6 @@
   function ticketUrl(token) { return location.origin + '/admission?view=ticket#t=' + token; }
   async function api(path, body) {
     var headers = {};
-    if (hostKey) headers['x-admission-key'] = hostKey;
     var tg = window.Telegram && window.Telegram.WebApp;
     if (tg && tg.initData) headers.authorization = 'tma ' + tg.initData;
     if (body !== undefined) headers['content-type'] = 'application/json';
@@ -21,7 +22,7 @@
       body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store' });
     var data;
     try { data = await response.json(); } catch (_) { throw new Error('Сервер не ответил. Проверь связь и обратись к организатору.'); }
-    if (!response.ok) throw new Error(data.error || 'Не удалось проверить билет');
+    if (!response.ok) { var err = new Error(data.error || 'Не удалось проверить билет'); err.status = response.status; throw err; }
     return data;
   }
   function setEvent(value) { event = value; show('demo-banner', event.demo); }
@@ -36,12 +37,12 @@
     var data = await api('me'); role = data.role; setEvent(data.event);
     show('login', false); show('workspace', true); show('ticket-view', false);
     show('tab-guests', role === 'admin'); show('show-create', role === 'admin');
-    show('sheet-sync', role === 'admin');
+    show('sheet-sync', role === 'admin'); show('staff-panel', role === 'admin');
     $('sync-help').textContent = data.syncSource + '. Изменения оплат применяются после обновления списка.';
     $('sync-payments').textContent = data.syncSource.indexOf('Тестовый снимок') === 0 ? 'Загрузить тестовый снимок' : 'Обновить из таблицы';
     $('list-title').textContent = role === 'host' ? 'Поиск без QR-кода' : 'Список гостей';
     $('list-help').textContent = role === 'host' ? 'Сверь имя гостя перед ручной регистрацией прохода.' : 'Приглашение становится действительным после подтверждения участия.';
-    selectTab(role === 'host'); notice(''); await refresh();
+    selectTab(role === 'host' || new URLSearchParams(location.search).get('mode') === 'hostess'); notice(''); await refresh();
   }
   async function refresh() {
     var data = await api('tickets'); tickets = data.tickets;
@@ -49,6 +50,30 @@
     $('stat-admitted').textContent = data.stats.admitted;
     $('stat-expected').textContent = data.stats.expected;
     renderGuests();
+    if (role === 'admin') await refreshStaff();
+  }
+  async function refreshStaff() {
+    var data = await api('staff'), root = $('staff-list'); root.replaceChildren();
+    var pending = data.staff.filter(function (s) { return s.state === 'pending'; }).length;
+    $('staff-count').textContent = pending ? '(' + pending + ' ждут подтверждения)' : '';
+    if (!data.staff.length) root.append(element('p', 'Заявок пока нет', 'muted'));
+    data.staff.forEach(function (s) {
+      var row = element('article', '', 'guest-row'), info = element('div');
+      info.append(element('h3', s.name), element('p', (s.username ? '@' + s.username + ' · ' : '') + 'Telegram ID ' + s.telegramId), element('p', s.state === 'approved' ? 'Доступ разрешён' : s.state === 'revoked' ? 'Доступ закрыт' : 'Ожидает подтверждения'));
+      var buttons = element('div', '', 'row-actions');
+      buttons.append(action(s.state === 'approved' ? 'Отозвать доступ' : 'Разрешить доступ', async function () {
+        if (!window.confirm((s.state === 'approved' ? 'Закрыть' : 'Разрешить') + ' доступ к проверке билетов для ' + s.name + '?')) return;
+        await api('staff', {telegramId:s.telegramId,state:s.state === 'approved' ? 'revoked' : 'approved'}); await refreshStaff();
+      }));
+      if (s.state === 'pending') buttons.append(action('Отклонить', async function () { await api('staff', {telegramId:s.telegramId,state:'revoked'}); await refreshStaff(); }));
+      row.append(info,buttons); root.append(row);
+    });
+  }
+  async function showAccess(request) {
+    var data = await api('access', request ? {} : undefined);
+    show('login', true); show('telegram-login', false); show('access-panel', true);
+    show('request-access', data.state === 'none');
+    $('access-message').textContent = data.state === 'none' ? 'Запроси доступ. Организатор увидит твой Telegram-аккаунт и подтвердит его.' : data.state === 'pending' ? 'Заявка отправлена. После подтверждения организатором нажми «Проверить доступ».' : data.state === 'revoked' ? 'Доступ закрыт организатором. Свяжись с ним для повторного допуска.' : 'Доступ подтверждён. Нажми «Проверить доступ».';
   }
   function action(label, handler, className) {
     var b = element('button', label, className || 'outline'); b.type = 'button';
@@ -118,12 +143,23 @@
   }
   function stopCamera() {
     scanGeneration++;
+    if (tgApp && tgApp.initData && tgApp.isVersionAtLeast('6.4')) { try { tgApp.closeScanQrPopup(); } catch (_) {} }
     if (stream) stream.getTracks().forEach(function (track) { track.stop(); });
     stream = null; $('camera').srcObject = null; show('camera-placeholder', true); show('stop-camera', false);
     $('start-camera').disabled = false;
   }
   async function startCamera() {
     stopCamera(); var generation = scanGeneration;
+    if (tgApp && tgApp.initData && tgApp.isVersionAtLeast('6.4') && ['android','ios'].includes(tgApp.platform)) {
+      try {
+        tgApp.showScanQrPopup({text:'Наведи камеру на QR-код приглашения'}, function (raw) {
+          if (generation !== scanGeneration || busy) return true;
+          var token = parseCode(raw);
+          if (!token) { notice('Это не билет премии. Покажи QR-код приглашения.'); return false; }
+          checkIn({token:token}); return true;
+        }); return;
+      } catch (_) { /* В старом клиенте остаётся камера браузера. */ }
+    }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { notice('Камера недоступна. Открой страницу по HTTPS или найди гостя по имени.'); return; }
     var detector = null;
     if (window.BarcodeDetector) { try { detector = new window.BarcodeDetector({ formats: ['qr_code'] }); } catch (_) {} }
@@ -209,15 +245,9 @@
         + (r.issues.length ? ' ' + r.issues.slice(0,5).map(function (x) { return x.id + ': ' + x.reason; }).join('; ') : ''));
     } catch (err) { notice(err.message); } finally { button.disabled = false; }
   };
-  $('host-access').onclick = async function () {
-    this.disabled = true;
-    try {
-      var data = await api('host-access');
-      if (!data.key) throw new Error('Не настроен ключ входа. Обратись к организатору.');
-      try { await navigator.clipboard.writeText(data.key); notice('Ключ хостес скопирован. Передай его сотруднику вместе со ссылкой ' + location.origin + '/admission. Ключ даёт доступ только к проверке входа.'); }
-      catch (_) { $('host-access-fallback').value = data.key; show('host-access-fallback',true); $('host-access-fallback').select(); notice('Скопируй выделенный ключ и передай его хостес вместе со ссылкой ' + location.origin + '/admission.'); }
-    } catch (err) { notice(err.message); } finally { this.disabled = false; }
-  };
+  $('refresh-staff').onclick = function () { refreshStaff().catch(function (err) { notice(err.message); }); };
+  $('request-access').onclick = async function () { this.disabled = true; try { await showAccess(true); } catch (err) { notice(err.message); } finally { this.disabled = false; } };
+  $('retry-access').onclick = async function () { this.disabled = true; try { await enter(); } catch (err) { if (err.status === 401 || err.status === 403) await showAccess(false).catch(function (e) { notice(e.message); }); else notice(err.message); } finally { this.disabled = false; } };
   $('show-create').onclick = function () { show('create-form', $('create-form').hidden); };
   $('create-form').onsubmit = async function (ev) {
     ev.preventDefault(); var b = this.querySelector('button'); b.disabled = true;
@@ -225,8 +255,7 @@
     catch (err) { notice(err.message); } finally { b.disabled = false; }
   };
   $('manual-code').onsubmit = function (ev) { ev.preventDefault(); var token = parseCode($('scan-code').value); if (!token) { decision('red', 'Это не билет премии'); return; } checkIn({ token: token }); };
-  $('host-login').onsubmit = async function (ev) { ev.preventDefault(); hostKey = $('host-key').value.trim(); try { await enter(); sessionStorage.setItem('admission-host-key', hostKey); $('host-key').value = ''; } catch (err) { hostKey = ''; notice(err.message); } };
-  $('logout').onclick = async function () { stopCamera(); hostKey = ''; sessionStorage.removeItem('admission-host-key'); await fetch('/api/admission-demo/logout', { method: 'POST' }).catch(function () {}); location.href = '/admission'; };
+  $('logout').onclick = async function () { stopCamera(); if (tgApp && tgApp.initData) { tgApp.close(); return; } await fetch('/api/admission-demo/logout', { method: 'POST' }).catch(function () {}); location.href = '/admission'; };
   $('save-ticket').onclick = function () { saveTicket().catch(function () { notice('Не получилось сохранить картинку. Сделай скриншот приглашения.'); }); };
   ['admin', 'host'].forEach(function (which) { $('demo-' + which).onclick = async function () { try { var response = await fetch('/api/admission-demo/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role: which }) }); if (!response.ok) throw new Error('Не удалось открыть тестовую роль'); await enter(); } catch (err) { notice(err.message); } }; });
   document.addEventListener('visibilitychange', function () { if (document.hidden) stopCamera(); });
@@ -234,10 +263,12 @@
   (async function () {
     try {
       if (ticketToken) { await renderTicket(); return; }
-      try { await enter(); return; } catch (_) {}
+      try { await enter(); return; } catch (err) {
+        if (tgApp && tgApp.initData) { if (err.status === 401 || err.status === 403) await showAccess(false); else { show('login',true); notice(err.message); } return; }
+      }
       show('login', true);
-      try { var demo = await fetch('/api/admission-demo/info', { cache: 'no-store' }); if (demo.ok && (await demo.json()).demo) { show('demo-login', true); show('demo-banner', true); show('host-login', false); show('admin-hint', false); } } catch (_) {}
+      try { var demo = await fetch('/api/admission-demo/info', { cache: 'no-store' }); if (demo.ok && (await demo.json()).demo) { show('demo-login', true); show('demo-banner', true); show('telegram-login', false); } } catch (_) {}
     } catch (err) { notice(err.message); }
   })();
-  setInterval(function () { if (role && !document.hidden) refresh().catch(function () { notice('Нет связи с базой. Новые проходы нужно проверять после восстановления связи.'); }); }, 15000);
+  setInterval(function () { if (role && !document.hidden) refresh().catch(function (err) { if (err.status === 401 || err.status === 403) { role = null; stopCamera(); show('workspace',false); show('login',true); showAccess(false).catch(function (e) { notice(e.message); }); } else notice('Нет связи с базой. Новые проходы нужно проверять после восстановления связи.'); }); }, 15000);
 })();
