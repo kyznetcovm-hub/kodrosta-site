@@ -12,6 +12,7 @@ scripts
 .DS_Store
 **/.DS_Store
 CLAUDE.md
+ADMISSION.md
 AGENTS.md
 BLOG_POST_TEMPLATE.md
 EVENT_TEMPLATE.md

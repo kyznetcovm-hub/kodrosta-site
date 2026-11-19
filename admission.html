@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Билеты · Живой код</title>
+  <link rel="stylesheet" href="/css/admission.css">
+  <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
+  <script src="/js/vendor/qrcode-1.4.4.min.js" defer></script>
+  <script src="/js/vendor/jsqr-1.4.0.js" defer></script>
+  <script src="/js/admission.js" defer></script>
+</head>
+<body>
+  <div class="ribbon" aria-hidden="true"></div>
+  <header class="topbar">
+    <a href="/premiya" aria-label="Страница премии"><img src="/assets/premiya/logo-wordmark.svg" width="143" height="34" alt="Код Роста"></a>
+    <span>ПРЕМИЯ · 2026</span>
+  </header>
+  <main>
+    <div id="demo-banner" class="demo-banner" hidden>ТЕСТОВЫЙ РЕЖИМ · проверка работы системы · билеты не дают права входа на премию</div>
+    <div id="notice" class="notice" role="status" hidden></div>
+    <section id="login" hidden>
+      <p class="eyebrow">Служба гостеприимства</p><h1>У каждого гостя<br>свой живой код.</h1>
+      <p class="lead">Выпуск приглашений и регистрация входа на премию «Предприниматель года».</p>
+      <div id="demo-login" class="demo-panel" hidden>
+        <h2>Проверим, как это работает</h2><p>В демонстрации доступны две роли. Общая база сохраняет проходы между открытиями страницы.</p>
+        <div class="actions"><button id="demo-admin">Я организатор</button><button id="demo-host" class="outline">Я хостес</button></div>
+      </div>
+      <form id="host-login" class="login-form"><label for="host-key">Ключ доступа хостес</label>
+        <input id="host-key" type="password" autocomplete="off" required placeholder="Выдаёт организатор">
+        <button type="submit">Открыть вход</button>
+      </form>
+      <p class="muted" id="admin-hint">Организатор входит через Telegram-кабинет клуба.</p>
+    </section>
+    <section id="workspace" hidden>
+      <div class="workspace-head"><div><p class="eyebrow">Живой код / 27 ноября</p><h1 id="workspace-title">Гости и приглашения</h1></div><button id="logout" class="text-button">Выйти</button></div>
+      <nav class="tabs" aria-label="Разделы проверки"><button id="tab-guests" class="outline">Приглашения</button><button id="tab-scan" class="outline">Проверка входа</button></nav>
+      <div id="sheet-sync" hidden><div class="actions"><button id="sync-payments" class="outline">Обновить из таблицы</button><button id="host-access" class="outline">Скопировать ключ хостес</button></div><p id="sync-help" class="muted">Изменения оплат применяются после обновления списка.</p><input id="host-access-fallback" type="text" readonly hidden aria-label="Ключ хостес для ручного копирования" autocomplete="off"></div>
+      <div class="stats"><div><strong id="stat-total">—</strong><span>В списке</span></div><div class="mint"><strong id="stat-admitted">—</strong><span>Уже пришли</span></div><div><strong id="stat-expected">—</strong><span>Ожидаем</span></div></div>
+      <section id="scan-panel" hidden>
+        <div class="scanner-layout"><div>
+          <div class="camera"><video id="camera" playsinline muted aria-label="Камера для проверки QR"></video><div id="camera-placeholder"><span class="scan-icon" aria-hidden="true"></span><h2>Гость показывает билет.<br>Ты наводишь камеру.</h2><p>QR можно показать на экране или на бумаге.</p></div></div>
+          <div class="actions"><button id="start-camera">Включить камеру</button><button id="stop-camera" class="outline" hidden>Остановить</button></div>
+          <p class="muted" id="camera-hint">Разреши доступ к задней камере телефона.</p>
+        </div><div>
+          <div id="decision" class="decision neutral" role="status" aria-live="polite"><span class="decision-symbol">—</span><h2>Готовы встречать</h2><p>Результат появится после проверки по базе.</p></div>
+          <form id="manual-code" class="manual-code"><label for="scan-code">Если камера не считывает код</label><input id="scan-code" placeholder="Вставь ссылку на билет" autocomplete="off" required><button type="submit" class="outline">Проверить и зарегистрировать</button></form>
+        </div></div>
+      </section>
+      <section id="guest-panel">
+        <div class="section-heading"><h2 id="list-title">Список гостей</h2><button id="show-create">Добавить гостя</button></div>
+        <form id="create-form" class="create-form" hidden>
+          <label>Имя и фамилия<input name="name" required minlength="2" maxlength="120" placeholder="Например, Анна Смирнова"></label>
+          <label>Компания<input name="company" maxlength="160" placeholder="Название компании"></label>
+          <label>Категория<select name="category"><option>Гость</option><option>Резидент</option><option>Номинант</option><option>Партнёр</option><option>VIP</option></select></label>
+          <button type="submit">Добавить в ожидание</button>
+        </form>
+        <label class="search-label" for="search">Найти гостя по имени или компании</label><input id="search" type="search" placeholder="Начни вводить имя или компанию" autocomplete="off">
+        <p class="muted" id="list-help">Приглашение становится действительным после подтверждения участия.</p>
+        <div id="guest-list" class="guest-list"></div>
+      </section>
+    </section>
+    <section id="ticket-view" class="ticket-view" hidden>
+      <article class="ticket"><div class="ticket-top"><p class="eyebrow">Трёхлетие «Кода Роста»</p><h1>ЖИВОЙ<br><span>КОД</span></h1><p>Премия «Предприниматель года»</p><div class="event-meta"><strong>27 ноября 2026</strong><span>Центр уникального мастерства · Казань</span></div></div>
+        <div class="ticket-body"><span id="ticket-category" class="category"></span><h2 id="ticket-name"></h2><p id="ticket-company"></p><div id="ticket-qr" class="ticket-qr"></div><p id="ticket-state" class="muted"></p><p>Покажи QR-код хостес на входе.<br>Один билет — один гость.</p></div>
+      </article>
+      <div class="actions ticket-actions"><button id="save-ticket">Сохранить приглашение</button></div><p class="muted">Сохрани картинку заранее, чтобы открыть билет без интернета.</p>
+    </section>
+  </main><footer>Код Роста · Живой код · Премия «Предприниматель года»</footer>
+</body>
+</html>
