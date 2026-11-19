@@ -16,6 +16,7 @@ import {
   getSectionValues, setSectionValues, setPendingEdit, getPendingEdit, clearPendingEdit,
 } from "./content-store.js";
 import { syncResidentsFromSheet } from "./sheets-sync.js";
+import { handleAdmissionCallback, sendAdmissionEntry } from "./admission-workflow.js";
 import { listSubscriptionsDueThisMonth, listNewMembersThisMonth, listLeftMembersThisMonth, listReportMonths, buildSubscriptionReportForMonth, currentReportYear, FIRST_REPORT_YEAR } from "./subscriptions.js";
 import {
   recordBotSignup, recordManualSignups, attachSignupPhone, listEventSignups, ensureSignupTables,
@@ -189,7 +190,7 @@ export async function handleTelegramUpdate(update, env) {
   if (text.startsWith("/events")) return handleListEventsCommand(msg, env);
   if (text.startsWith("/delevent")) return handleDeleteEventCommand(msg, env, text);
   if (/^Дата\s*[:：]/im.test(text)) return handleNewEventCommand(msg, env, text);
-  if (/^\/hostess(?:@\w+)?(?:\s|$)/i.test(text)) return handleHostessCommand(msg, env);
+  if (/^\/(?:hostess|tickets)(?:@\w+)?(?:\s|$)/i.test(text)) return handleHostessCommand(msg, env);
   if (text.startsWith("/menu")) return handleMenu(msg, env);
   if (text.startsWith("/office")) return handleOfficeCommand(msg, env);
   if (text.startsWith("/start")) return handleStart(msg, env);
@@ -209,7 +210,7 @@ function adminMenuKeyboard() {
     inline_keyboard: [
       [{ text: "📱 Офис в кармане", web_app: { url: OFFICE_URL } }],
       [{ text: "🎲 Рандомайзер", web_app: { url: SITE_URL + "/randomizer" } }],
-      [{ text: "🎟 Билеты премии", web_app: { url: SITE_URL + "/admission" } }],
+      [{ text: "🎟 Билеты премии", callback_data: "adm:roles" }],
       [{ text: "📷 Вход для хостес", web_app: { url: SITE_URL + "/admission?mode=hostess" } }],
 
       [{ text: "🟦 РЕДАКТИРОВАТЬ САЙТ 🟦", callback_data: "noop" }],
@@ -295,9 +296,7 @@ async function handleMenu(msg, env) {
 
 async function handleHostessCommand(msg, env) {
   if (msg.chat?.type !== 'private') return;
-  return sendMessage(env, msg.from.id, 'Вход для хостес — по вашему аккаунту Telegram. При первом открытии запросите доступ у организатора.', {
-    inline_keyboard: [[{text:'📷 Вход для хостес',web_app:{url:SITE_URL + '/admission?mode=hostess'}}]],
-  });
+  return sendAdmissionEntry(env,msg.from);
 }
 
 // Шаблон нового мероприятия. Направление (сайт клуба или «Туризм») выбирается
@@ -337,6 +336,7 @@ async function handleNewEventStart(msg, env, direction) {
 }
 
 async function handleCallbackQuery(cq, env) {
+  if (await handleAdmissionCallback(cq,env)) return;
   const from = cq.from || {};
   const data = cq.data || "";
   const fakeMsg = { from };
@@ -1052,7 +1052,7 @@ async function handleContact(msg, env) {
 async function handleStart(msg, env) {
   // Диплинк вида t.me/<бот>?start=e_<eventId> — запись на мероприятие.
   const param = (msg.text || "").split(/\s+/)[1] || "";
-  if (param === 'hostess') return handleHostessCommand(msg, env);
+  if (param === 'hostess' || param === 'tickets') return handleHostessCommand(msg, env);
   if (param.startsWith("e_")) {
     return handleEventRegPrompt(msg, env, param.slice(2));
   }

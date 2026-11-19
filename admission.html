@@ -28,15 +28,17 @@
         <h2>Проверим, как это работает</h2><p>В демонстрации доступны две роли. Общая база сохраняет проходы между открытиями страницы.</p>
         <div class="actions"><button id="demo-admin">Я организатор</button><button id="demo-host" class="outline">Я хостес</button></div>
       </div>
-      <div id="telegram-login"><p>Вход по твоему аккаунту Telegram. Доступ к проверке билетов подтверждает организатор.</p><a href="https://t.me/KodrostaAssistant_bot?start=hostess" class="outline">Открыть бота — вход для хостес</a></div>
+      <div id="telegram-login"><p>Михаил подтверждает доступ по твоему аккаунту Telegram.</p><a href="https://t.me/KodrostaAssistant_bot?start=tickets" class="outline">Открыть бота — система билетов</a></div>
       <div id="access-panel" hidden><p id="access-message" role="status"></p><div class="actions"><button id="request-access">Запросить доступ</button><button id="retry-access" class="outline">Проверить доступ</button></div></div>
     </section>
     <section id="workspace" hidden>
+      <p id="manager-preview" class="demo-banner" hidden>Ты вошёл как менеджер. Все действия сохраняются в общей базе — для проверки добавляй гостей с именем «ТЕСТ».</p>
       <div class="workspace-head"><div><p class="eyebrow">Живой код / 27 ноября</p><h1 id="workspace-title">Гости и приглашения</h1></div><button id="logout" class="text-button">Выйти</button></div>
       <nav class="tabs" aria-label="Разделы проверки"><button id="tab-guests" class="outline">Приглашения</button><button id="tab-scan" class="outline">Проверка входа</button></nav>
-      <div id="sheet-sync" hidden><button id="sync-payments" class="outline">Обновить из таблицы</button><p id="sync-help" class="muted">Изменения оплат применяются после обновления списка.</p></div>
-      <details id="staff-panel" hidden><summary>Команда входа <span id="staff-count"></span></summary><p class="muted">Отправь сотруднику <a href="https://t.me/KodrostaAssistant_bot?start=hostess">ссылку на вход для хостес</a>. Он запросит доступ, а ты разрешишь его здесь. Сверь аккаунт сотрудника перед подтверждением.</p><button id="refresh-staff" class="outline">Обновить заявки</button><div id="staff-list"></div></details>
+      <section id="requests-panel" hidden><h2>Ждут твоего решения</h2><p class="muted">Заявки также приходят в личный чат с ботом. Проверь поступление денег перед подтверждением оплаты.</p><div id="requests-list"></div></section>
+      <details id="staff-panel" hidden><summary>Команда <span id="staff-count"></span></summary><p class="muted">Одна ссылка сотрудникам: <a href="https://t.me/KodrostaAssistant_bot?start=tickets">система билетов в боте</a>. Заявки приходят тебе в Telegram с кнопками «Да» и «Нет».</p><button id="refresh-staff" class="outline">Обновить команду</button><div id="staff-list"></div></details>
       <div class="stats"><div><strong id="stat-total">—</strong><span>В списке</span></div><div class="mint"><strong id="stat-admitted">—</strong><span>Уже пришли</span></div><div><strong id="stat-expected">—</strong><span>Ожидаем</span></div></div>
+      <div class="actions"><button id="refresh-guests" class="outline">Обновить список</button><span class="muted">Общая база команды · автоматическое обновление каждые 5 секунд</span></div>
       <section id="scan-panel" hidden>
         <div class="scanner-layout"><div>
           <div class="camera"><video id="camera" playsinline muted aria-label="Камера для проверки QR"></video><div id="camera-placeholder"><span class="scan-icon" aria-hidden="true"></span><h2>Гость показывает билет.<br>Ты наводишь камеру.</h2><p>QR можно показать на экране или на бумаге.</p></div></div>
@@ -52,11 +54,13 @@
         <form id="create-form" class="create-form" hidden>
           <label>Имя и фамилия<input name="name" required minlength="2" maxlength="120" placeholder="Например, Анна Смирнова"></label>
           <label>Компания<input name="company" maxlength="160" placeholder="Название компании"></label>
-          <label>Категория<select name="category"><option>Гость</option><option>Резидент</option><option>Номинант</option><option>Партнёр</option><option>VIP</option></select></label>
-          <button type="submit">Добавить в ожидание</button>
+          <label>Пакет участия<select name="category"><option value="Гость">Премия — 7 000 ₽</option><option value="Гость + игра">Премия + игра — 10 000 ₽</option><option value="Гость + подкаст">Премия + подкаст — 12 000 ₽</option><option value="Гость + игра + подкаст">Премия + игра + подкаст — 15 000 ₽</option></select></label>
+          <button type="submit">Добавить гостя</button>
         </form>
+        <form id="payment-form" class="workflow-form" hidden><h3>Сообщить об оплате</h3><p id="payment-guest"></p><label>Получено, ₽<input id="payment-amount" type="number" required step="0.01" min="0"></label><label>Комментарий к оплате<textarea id="payment-comment" maxlength="400" placeholder="Кто и как оплатил, чтобы Михаил мог проверить поступление"></textarea></label><div class="actions"><button type="submit">Отправить Михаилу</button><button type="button" id="cancel-payment" class="outline">Отмена</button></div></form>
+        <section id="share-panel" class="workflow-form" hidden><h3>Отправить оплаченный билет</h3><p>Выбери переписку с гостем в Telegram или скопируй готовое приглашение.</p><textarea id="share-message" readonly rows="7" aria-label="Приглашение для гостя"></textarea><div class="actions"><a id="share-telegram" target="_blank" rel="noopener noreferrer" class="outline">Отправить в Telegram ↗</a><button id="copy-invitation" class="outline">Скопировать приглашение</button><a id="open-shared-ticket" target="_blank" rel="noopener noreferrer">Открыть билет</a><button id="close-share" class="text-button">Закрыть</button></div></section>
         <label class="search-label" for="search">Найти гостя по имени или компании</label><input id="search" type="search" placeholder="Начни вводить имя или компанию" autocomplete="off">
-        <p class="muted" id="list-help">Приглашение становится действительным после подтверждения участия.</p>
+        <p class="muted" id="list-help">Билет для отправки появится после подтверждения оплаты Михаилом.</p>
         <div id="guest-list" class="guest-list"></div>
       </section>
     </section>

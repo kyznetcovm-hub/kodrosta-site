@@ -7,6 +7,7 @@ import vm from 'node:vm';
 import worker from '../src/index.js';
 import { ensureAdmission } from '../src/admission.js';
 import { parseAdmissionSheet, syncAdmissionRows } from '../src/admission-sync.js';
+import { handleAdmissionCallback, decideAdmissionRequest } from '../src/admission-workflow.js';
 const TOKEN = 'test-only-bot-token', HOST_KEY = 'test-host-key-with-more-than-32-characters';
 function admin(user = {id:1,username:'admin'}, authDate = Math.floor(Date.now() / 1000)) {
   const p = new URLSearchParams({ auth_date: String(authDate), user: JSON.stringify(user) });
@@ -17,23 +18,29 @@ function admin(user = {id:1,username:'admin'}, authDate = Math.floor(Date.now() 
 async function fixture(t) {
   const sqlite = new DatabaseSync(':memory:'); t.after(() => sqlite.close());
   sqlite.exec("CREATE TABLE residents (telegram_username TEXT, chat_id INTEGER); INSERT INTO residents VALUES ('admin', 1)");
-  const DB = { prepare(sql) { const st = sqlite.prepare(sql); let v = []; return { bind(...x) { v = x; return this; }, async first() { return st.get(...v) ?? null; }, async all() { return { results: st.all(...v) }; }, async run() { return { meta: { changes: Number(st.run(...v).changes) } }; } }; }, async batch(statements) {
-    sqlite.exec('BEGIN'); try { for (const st of statements) await st.run(); sqlite.exec('COMMIT'); } catch (err) { sqlite.exec('ROLLBACK'); throw err; }
+  const DB = { prepare(sql) { const st = sqlite.prepare(sql); let v = []; return { bind(...x) { v = x; return this; }, async first() { return st.get(...v) ?? null; }, async all() { return { results: st.all(...v) }; }, run() { return { meta: { changes: Number(st.run(...v).changes) } }; } }; }, async batch(statements) {
+    sqlite.exec('BEGIN'); try { for (const st of statements) st.run(); sqlite.exec('COMMIT'); } catch (err) { sqlite.exec('ROLLBACK'); throw err; }
   } };
-  const env = { DB, BOT_TOKEN: TOKEN, ADMIN_USERNAMES: 'admin' };
+  const messages=[];
+  t.mock.method(globalThis,'fetch',async(url,options)=>{
+    assert.match(String(url),/^https:\/\/api\.telegram\.org\//);messages.push({method:String(url).split('/').pop(),body:JSON.parse(options.body)});
+    return Response.json({ok:true,result:{message_id:messages.length}});
+  });
+  const env = { DB, BOT_TOKEN: TOKEN, ADMIN_USERNAMES: 'admin', ADMISSION_OWNER_USERNAME:'admin' };
   await ensureAdmission(env);
   sqlite.prepare("INSERT INTO admission_staff VALUES ('premiya-2026-demo',2,'Хостес','host','approved','2026-11-19',NULL,NULL)").run();
   for (const [id, status, event] of [['active','active','premiya-2026-demo'], ['pending','pending','premiya-2026-demo'], ['cancelled','cancelled','premiya-2026-demo'], ['other','active','other-event']])
     sqlite.prepare('INSERT INTO admission_tickets (id,event_id,token,person_name,company,category,status,created_at) VALUES (?,?,?,?,?,?,?,?)')
       .run(id,event, id.padEnd(64, '0').replace(/[^a-f0-9]/g, 'a'), 'Тестовый гость', 'Тестовая компания', 'Гость',status,'2026-11-19T00:00:00Z');
   const tokens = Object.fromEntries(sqlite.prepare('SELECT id,token FROM admission_tickets').all().map(r => [r.id,r.token]));
-  async function call(path, body, role = 'host') {
+  async function call(path, body, role = 'host',view) {
     const headers = typeof role === 'object' ? {authorization:admin(role)} : role === 'admin' ? { authorization: admin() } : role === 'host' ? { authorization:admin({id:2,username:'host'}) } : {};
+    if (view) headers['x-admission-view']=view;
     if (body !== undefined) headers['content-type'] = 'application/json';
     const r = await worker.fetch(new Request('https://codrosta.club/api/admission/' + path, { headers, method: body === undefined ? 'GET' : 'POST', body: body === undefined ? undefined : JSON.stringify(body) }), env, {});
     return { status: r.status, body: await r.json(), headers: r.headers };
   }
-  return { call, tokens, sqlite, env };
+  return { call, tokens, sqlite, env, messages };
 }
 test('две одновременные проверки: ровно один зелёный проход', async t => {
   const { call, tokens } = await fixture(t);
@@ -55,7 +62,7 @@ test('нет входа без авторизации, нельзя выдать
   const { call, tokens } = await fixture(t);
   for (const path of ['me','tickets']) assert.equal((await call(path, undefined, 'guest')).status, 401);
   assert.equal((await call('check-in', { token: tokens.active }, 'guest')).status, 401);
-  assert.equal((await call('create', { name: 'Чужой гость', category: 'VIP' })).status, 403);
+  assert.equal((await call('create', { name: 'Чужой гость', category: 'VIP' })).status, 400);
   assert.equal((await call('status', { id: 'active', status: 'cancelled' })).status, 403);
   assert.equal((await call('tickets')).body.tickets[0].token, undefined);
 });
@@ -138,14 +145,14 @@ test('парсер: четыре тарифа, перестановка стол
   const row=paidRow();row[8]='31.11.2026';assert.equal(parseAdmissionSheet([sheetHeader,row])[0].eligible,false);
   assert.throws(()=>parseAdmissionSheet([['Неверные заголовки']]),/заголовки/);
 });
-test('API синхронизации: только организатор; сбой источника не меняет базу',async t=>{
+test('таблица исключена из рабочего процесса: старый API не меняет оплаты и QR',async t=>{
   const {env,call,sqlite}=await fixture(t);env.ADMISSION_READ_SHEET=async()=>[sheetHeader,paidRow()];
-  assert.equal((await call('sync',{},'host')).status,403);
+  assert.equal((await call('sync',{},'host')).status,410);
   assert.equal((await call('sync',{},'guest')).status,401);
-  const r=await call('sync',{},'admin');assert.equal(r.status,200);assert.equal(r.body.report.created,1);
+  const r=await call('sync',{},'admin');assert.equal(r.status,410);
   env.ADMISSION_READ_SHEET=async()=>{throw new Error('Источник недоступен');};
-  assert.equal((await call('sync',{},'admin')).status,503);
-  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM admission_sheet_tickets').get().n,1);
+  assert.equal((await call('sync',{},'admin')).status,410);
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM admission_sheet_tickets').get().n,0);
 });
 test('Telegram: заявка, одобрение, вход без ключа и отзыв уже открытой сессии',async t=>{
  const {call,sqlite}=await fixture(t), user={id:3,username:'new_host',first_name:'Анна',last_name:'Тестовая'};
@@ -164,7 +171,7 @@ test('Telegram: заявка, одобрение, вход без ключа и 
  await call('staff',{telegramId:3,state:'revoked'},'admin');
  assert.equal((await call('tickets',undefined,user)).status,401);
  assert.equal((await call('check-in',{id:'pending'},user)).status,401);
- assert.equal((await call('access',{},user)).body.state,'revoked');
+ assert.equal((await call('access',{},user)).body.state,'pending');
  assert.equal((await call('staff',{telegramId:3,state:'approved'},'admin')).status,200);
  assert.equal((await call('me',undefined,{id:3,username:'changed_name'})).body.role,'host');
  assert.equal((await call('me',undefined,{id:4,username:'new_host'})).status,401);
@@ -200,7 +207,7 @@ test('бот: прямая ссылка, /hostess и /menu открывают х
  for (const text of ['/start hostess','/hostess','/menu']) {
    await handleTelegramUpdate({message:{from:{id:3,first_name:'Хостес'},chat:{id:3,type:'private'},text}},env);
    const sent=messages.at(-1);assert.equal(sent.chat_id,3);
-   assert.equal(sent.reply_markup.inline_keyboard[0][0].web_app.url,'https://codrosta.club/admission?mode=hostess');
+   assert.equal(sent.reply_markup.inline_keyboard[0][0].callback_data,'adm:request');
    assert.equal(sent.reply_markup.keyboard,undefined);
  }
 });
@@ -208,15 +215,16 @@ test('бот: прямая ссылка, /hostess и /menu открывают х
 // UI исполняется вместе с настоящим Worker и SQLite; Telegram подменён только на границе SDK.
 async function browserFixture(env,user,options={}) {
  const html=readFileSync(new URL('../admission.html',import.meta.url),'utf8'), nodes=new Map();
- function node() { return {hidden:false,textContent:'',value:'',children:[],append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},setAttribute(){},scrollIntoView(){}}; }
+ function node() { return {hidden:false,textContent:'',value:'',children:[],append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},setAttribute(){},scrollIntoView(){},querySelector(){return node();},reset(){}}; }
  for (const match of html.matchAll(/id="([^"]+)"/g)) nodes.set(match[1],node());
  const drawn=[], canvasContext={fillRect(){},fillText(text){drawn.push(text);},measureText(text){return {width:text.length*16};},drawImage(){}};
  const document={hidden:false,getElementById(id){assert.ok(nodes.has(id),'реальный HTML содержит '+id);return nodes.get(id);},createElement(tag){const n=node();if(tag==='canvas'){n.getContext=()=>canvasContext;n.toDataURL=()=>'data:image/png;base64,dGVzdA==';}n.click=()=>{};return n;},addEventListener(){}};
  const sdk={initData:admin(user).slice(4),platform:'ios',ready(){},expand(){},isVersionAtLeast(){return true;},closeScanQrPopup(){},showScanQrPopup(_,callback){this.scan=callback;}};
- const context={document,window:{Telegram:{WebApp:sdk},qrcode(){return {addData(){},make(){},createDataURL(){return 'data:image/gif;base64,dGVzdA==';}};},addEventListener(){},confirm(){return true;}},Image:class {async decode(){}},sessionStorage:{removeItem(){}},location:new URL(options.url || 'https://codrosta.club/admission?mode=hostess'),URL,URLSearchParams,navigator:{},setInterval(){},fetch(url,options={}){return worker.fetch(new Request(new URL(url,'https://codrosta.club'),options),env,{});}};
+ const intervals=[];
+ const context={document,window:{Telegram:{WebApp:sdk},qrcode(){return {addData(){},make(){},createDataURL(){return 'data:image/gif;base64,dGVzdA==';}};},addEventListener(){},confirm(){return true;}},Image:class {async decode(){}},FormData:class {constructor(form){return form.testEntries;}},sessionStorage:{removeItem(){}},location:new URL(options.url || 'https://codrosta.club/admission?mode=hostess'),URL,URLSearchParams,navigator:{},setInterval(fn,ms){intervals.push({fn,ms});},fetch(url,options={}){return worker.fetch(new Request(new URL(url,'https://codrosta.club'),options),env,{});}};
  vm.runInNewContext(readFileSync(new URL('../js/admission.js',import.meta.url),'utf8'),context);
  async function settle(){for(let i=0;i<30;i++)await new Promise(resolve=>setImmediate(resolve));}
- await settle();return {nodes,sdk,settle,drawn};
+ await settle();return {nodes,sdk,settle,drawn,intervals};
 }
 test('экран хостес: запрос доступа, подтверждение организатором и вход одной кнопкой',async t=>{
  const {env,call}=await fixture(t), ui=await browserFixture(env,{id:3,first_name:'Анна'});
@@ -225,7 +233,7 @@ test('экран хостес: запрос доступа, подтвержде
  assert.match(ui.nodes.get('access-message').textContent,/Заявка отправлена/);
  await call('staff',{telegramId:3,state:'approved'},'admin');await ui.nodes.get('retry-access').onclick();
  assert.equal(ui.nodes.get('login').hidden,true);assert.equal(ui.nodes.get('scan-panel').hidden,false);
- assert.equal(ui.nodes.get('sheet-sync').hidden,true);assert.equal(ui.nodes.get('staff-panel').hidden,true);
+ assert.equal(ui.nodes.has('sheet-sync'),false);assert.equal(ui.nodes.get('staff-panel').hidden,true);
 });
 test('сканер Telegram: проверяет тестовый QR и игнорирует повторный callback камеры',async t=>{
  const {env,tokens,sqlite}=await fixture(t), ui=await browserFixture(env,{id:2,username:'host'});
@@ -248,4 +256,170 @@ test('приглашение: четыре купленных пакета на 
    for(const text of [expected,'27 ноября 2026 · Начало в 18:30','ЦУМ · ул. Московская, 2','Дресс-код — коктейльный','Telegram: @Kodrosta · t.me/Kodrosta']) assert.ok(ui.drawn.includes(text),text);
  }
  assert.equal(sqlite.prepare("SELECT checked_in_at FROM admission_tickets WHERE id='active'").get().checked_in_at,null);
+});
+
+const callback = (id, data, chatId=id) => ({id:'telegram-fixture-query',from:{id,first_name:'Менеджер'},data,message:{message_id:123,chat:{id:chatId,type:'private'}}});
+test('весь путь авторизации в боте: ничего лишнего до допуска, отказ, новая заявка и две кнопки только Михаилу',async t=>{
+ const {env,call,sqlite,messages}=await fixture(t),{handleTelegramUpdate}=await import('../src/engagement.js');
+ await handleTelegramUpdate({message:{from:{id:3,first_name:'Анна'},chat:{id:3,type:'private'},text:'/start tickets'}},env);
+ const entry=messages.at(-1).body.reply_markup.inline_keyboard.flat();
+ assert.deepEqual(entry,[{text:'Запросить авторизацию',callback_data:'adm:request'}]);
+ assert.equal((await call('tickets',undefined,{id:3})).status,401);
+ await handleAdmissionCallback(callback(3,'adm:request'),env);
+ const first=sqlite.prepare("SELECT * FROM admission_requests WHERE kind='access'").get();
+ const notice=messages.find(m=>m.method==='sendMessage'&&m.body.chat_id===1);
+ assert.deepEqual(notice.body.reply_markup.inline_keyboard[0].map(b=>b.text),['Да','Нет']);
+ assert.equal(JSON.stringify((await call('access',undefined,{id:3})).body).includes(first.id),false);
+ await handleAdmissionCallback(callback(1,'adm:n:'+first.id),env);
+ assert.equal((await call('access',undefined,{id:3})).body.state,'revoked');
+ await handleAdmissionCallback(callback(3,'adm:request'),env);
+ const second=sqlite.prepare("SELECT * FROM admission_requests WHERE kind='access' AND state='pending'").get();
+ assert.notEqual(second.id,first.id);
+ await handleAdmissionCallback(callback(1,'adm:y:'+first.id),env);
+ assert.equal((await call('me',undefined,{id:3})).status,401);
+ await handleAdmissionCallback(callback(1,'adm:y:'+second.id),env);
+ assert.equal((await call('me',undefined,{id:3})).body.role,'host');
+ assert.equal(messages.at(-2).method,'editMessageReplyMarkup');
+});
+test('менеджер добавляет гостя: до подтверждения нет ссылки, после кнопки «Оплата прошла» билет доступен всей команде',async t=>{
+ const {env,call,sqlite,messages}=await fixture(t);
+ const added=await call('create',{name:'Новый оплаченный гость',company:'Компания',category:'Гость + игра + подкаст'});
+ assert.equal(added.status,201);const id=added.body.id;
+ assert.equal((await call('share',{id})).status,403);
+ assert.equal((await call('check-in',{id})).body.decision,'red');
+ assert.equal((await call('payment-request',{id,amountRub:10000})).status,400);
+ assert.equal((await call('payment-request',{id,amountRub:15000,comment:'Перевод от компании'})).status,200);
+ const notice=messages.find(m=>m.method==='sendMessage'&&m.body.chat_id===1);
+ assert.match(notice.body.text,/15.000/);assert.match(notice.body.text,/Перевод от компании/);
+ const buttons=notice.body.reply_markup.inline_keyboard[0];assert.equal(buttons[0].text,'Оплата прошла');
+ assert.equal((await call('share',{id})).status,403);
+ const request=sqlite.prepare("SELECT * FROM admission_requests WHERE kind='payment'").get();
+ assert.equal((await call('requests',{id:request.id,approve:true})).status,403);
+ await handleAdmissionCallback(callback(1,buttons[0].callback_data),env);
+ const shared=await call('share',{id});assert.equal(shared.status,200);assert.match(shared.body.url,/#t=[a-f0-9]{64}$/);
+ const detail=sqlite.prepare('SELECT * FROM admission_ticket_details WHERE ticket_id=?').get(id);
+ assert.equal(detail.created_by,2);assert.equal(detail.approved_by,1);assert.equal(detail.paid_kopeks,1500000);
+ const before=detail.approved_at;await handleAdmissionCallback(callback(1,buttons[0].callback_data),env);
+ assert.equal(sqlite.prepare('SELECT approved_at FROM admission_ticket_details WHERE ticket_id=?').get(id).approved_at,before);
+ assert.equal((await call('tickets')).body.tickets.find(t=>t.id===id).token,undefined);
+});
+test('корпоративный администратор и менеджер не могут подтвердить оплату вместо Михаила',async t=>{
+ const {env,call,sqlite}=await fixture(t);
+ sqlite.prepare("INSERT INTO residents VALUES ('corporate',22)").run();env.ADMIN_USERNAMES='admin,corporate';
+ const id=(await call('create',{name:'Гость на проверку',category:'Гость'})).body.id;
+ await call('payment-request',{id,amountRub:7000});
+ const request=sqlite.prepare("SELECT id FROM admission_requests WHERE kind='payment'").get();
+ for(const user of [{id:2},{id:22,username:'corporate'},{id:99,username:'admin'}]) {
+   const r=await decideAdmissionRequest(env,request.id,true,user.id);assert.equal(r.ok,false);
+   await handleAdmissionCallback(callback(user.id,'adm:y:'+request.id),env);
+   assert.equal((await call('share',{id})).status,403);
+   assert.equal((await call('status',{id,status:'active'},user)).status,user.id===99 ? 401 : 403);
+ }
+ assert.equal((await call('me',undefined,{id:22,username:'corporate'})).body.canApprove,false);
+});
+test('отклонённая оплата отправляется повторно, прежняя кнопка не подтверждает новую заявку',async t=>{
+ const {env,call,sqlite}=await fixture(t);
+ const id=(await call('create',{name:'Повторная оплата',category:'Гость'})).body.id;
+ await call('payment-request',{id,amountRub:7000});
+ const first=sqlite.prepare("SELECT id FROM admission_requests WHERE kind='payment'").get();
+ await handleAdmissionCallback(callback(1,'adm:n:'+first.id),env);
+ assert.equal((await call('tickets')).body.tickets.find(t=>t.id===id).paymentState,'rejected');
+ await call('payment-request',{id,amountRub:7000});
+ const second=sqlite.prepare("SELECT id FROM admission_requests WHERE kind='payment' AND state='pending'").get();
+ assert.notEqual(first.id,second.id);
+ await handleAdmissionCallback(callback(1,'adm:y:'+first.id),env);assert.equal((await call('share',{id})).status,403);
+ await handleAdmissionCallback(callback(1,'adm:y:'+second.id),env);assert.equal((await call('share',{id})).status,200);
+});
+test('сбой Telegram не теряет заявку; повтор доставляет одно уведомление; поддельный callback не активирует билет',async t=>{
+ const {env,call,sqlite,messages}=await fixture(t), normalFetch=globalThis.fetch;let failure=true;
+ t.mock.method(globalThis,'fetch',async(url,opts)=>failure ? Response.json({ok:false}, {status:500}) : normalFetch(url,opts));
+ const id=(await call('create',{name:'Оплата после сбоя',category:'Гость'})).body.id;
+ assert.equal((await call('payment-request',{id,amountRub:7000})).status,503);
+ assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM admission_requests WHERE kind='payment'").get().n,1);
+ failure=false;assert.equal((await call('payment-request',{id,amountRub:7000})).status,200);
+ assert.equal((await call('payment-request',{id,amountRub:7000})).status,200);
+ assert.equal(messages.filter(m=>m.method==='sendMessage'&&m.body.chat_id===1).length,1);
+ const request=sqlite.prepare("SELECT id FROM admission_requests WHERE kind='payment'").get();failure=true;
+ await assert.rejects(handleAdmissionCallback(callback(1,'adm:y:'+request.id),env));
+ assert.equal((await call('share',{id})).status,403);
+ assert.equal(sqlite.prepare('SELECT state FROM admission_requests WHERE id=?').get(request.id).state,'pending');
+});
+test('два менеджера видят один счётчик, одновременный вход списывается один раз',async t=>{
+ const {call,sqlite,tokens}=await fixture(t);sqlite.prepare("INSERT INTO admission_staff VALUES ('premiya-2026-demo',3,'Второй','second','approved','2026-11-19',NULL,NULL)").run();
+ const results=await Promise.all([call('check-in',{token:tokens.active}),call('check-in',{token:tokens.active},{id:3})]);
+ assert.deepEqual(results.map(r=>r.body.decision).sort(),['green','red']);
+ assert.equal((await call('tickets')).body.stats.admitted,1);assert.equal((await call('tickets',undefined,{id:3})).body.stats.admitted,1);
+});
+test('одновременные решения владельца применяют ровно один результат; отменённый билет не активируется старой кнопкой',async t=>{
+ const {env,call,sqlite}=await fixture(t);
+ const id=(await call('create',{name:'Одновременное решение',category:'Гость'})).body.id;await call('payment-request',{id,amountRub:7000});
+ const request=sqlite.prepare("SELECT id FROM admission_requests WHERE kind='payment'").get();
+ const results=await Promise.all([decideAdmissionRequest(env,request.id,true,1),decideAdmissionRequest(env,request.id,false,1)]);
+ assert.equal(results.filter(r=>r.already).length,1);assert.equal(results[0].state,results[1].state);
+ const another=(await call('create',{name:'Отменённая оплата',category:'Гость'})).body.id;await call('payment-request',{id:another,amountRub:7000});
+ const pending=sqlite.prepare("SELECT id FROM admission_requests WHERE ticket_id=?").get(another);
+ await call('status',{id:another,status:'cancelled'},'admin');
+ const r=await decideAdmissionRequest(env,pending.id,true,1);assert.equal(r.ok,false);
+ assert.equal((await call('share',{id:another})).status,403);
+});
+test('интерфейс менеджера: добавление, сообщение об оплате, получение приглашения и общий счётчик без таблицы',async t=>{
+ const {env,call,sqlite}=await fixture(t),ui=await browserFixture(env,{id:2,first_name:'Анна'},{url:'https://codrosta.club/admission'});
+ assert.equal(ui.nodes.get('guest-panel').hidden,false);assert.equal(ui.nodes.get('show-create').hidden,false);
+ assert.equal(ui.nodes.has('sync-payments'),false);assert.equal(ui.nodes.get('requests-panel').hidden,true);
+ const form=ui.nodes.get('create-form');form.testEntries=[['name','Гость из интерфейса'],['company','Тестовая компания'],['category','Гость + игра']];
+ await form.onsubmit({preventDefault(){}});
+ const id=sqlite.prepare("SELECT id FROM admission_tickets WHERE person_name='Гость из интерфейса'").get().id;
+ function texts(n){return [n.textContent,...n.children.flatMap(texts)];}
+ function buttons(){const row=ui.nodes.get('guest-list').children.find(r=>texts(r).includes('Гость из интерфейса'));return row.children[2].children;}
+ assert.equal(buttons().some(b=>b.textContent==='Отправить билет'),false);
+ await buttons().find(b=>b.textContent==='Сообщить об оплате').onclick();
+ assert.equal(ui.nodes.get('payment-amount').value,10000);ui.nodes.get('payment-comment').value='Перевод по СБП';
+ await ui.nodes.get('payment-form').onsubmit({preventDefault(){}});
+ assert.equal((await call('share',{id})).status,403);
+ const request=sqlite.prepare("SELECT id FROM admission_requests WHERE ticket_id=?").get(id);
+ await handleAdmissionCallback(callback(1,'adm:y:'+request.id),env);
+ ui.nodes.get('refresh-guests').onclick();await ui.settle();
+ await buttons().find(b=>b.textContent==='Отправить билет').onclick();
+ assert.equal(ui.nodes.get('share-panel').hidden,false);
+ assert.match(ui.nodes.get('share-message').value,/https:\/\/codrosta.club\/admission\?view=ticket#t=[a-f0-9]{64}/);
+ assert.match(ui.nodes.get('share-telegram').href,/^https:\/\/t.me\/share\/url/);
+ assert.equal(ui.intervals[0].ms,5000);
+ await call('check-in',{id});ui.intervals[0].fn();await ui.settle();
+ assert.equal(ui.nodes.get('stat-admitted').textContent,1);
+});
+test('Михаил выбирает две роли в боте; корпоративному и чужому аккаунту выбор организатора не предлагается',async t=>{
+ const {env,sqlite,messages}=await fixture(t);
+ await handleAdmissionCallback(callback(1,'adm:roles'),env);
+ const choices=messages.at(-1).body.reply_markup.inline_keyboard.flat();
+ assert.deepEqual(choices.map(b=>b.text),['Зайти как организатор','Зайти как менеджер']);
+ assert.match(choices[0].web_app.url,/viewRole=organizer$/);assert.match(choices[1].web_app.url,/viewRole=manager$/);
+ sqlite.prepare("INSERT INTO residents VALUES ('corporate',22)").run();env.ADMIN_USERNAMES='admin,corporate';
+ await handleAdmissionCallback(callback(22,'adm:roles'),env);
+ assert.equal(messages.at(-1).body.reply_markup.inline_keyboard.flat().length,1);
+ assert.equal(messages.at(-1).body.reply_markup.inline_keyboard[0][0].text,'🎟 Открыть систему билетов');
+ await handleAdmissionCallback(callback(3,'adm:roles'),env);
+ assert.equal(messages.at(-1).body.reply_markup.inline_keyboard[0][0].callback_data,'adm:request');
+});
+test('режим менеджера Михаила ограничен на сервере: добавление и отправка доступны, подтверждения закрыты',async t=>{
+ const {call,sqlite}=await fixture(t);
+ const me=await call('me',undefined,'admin','manager');assert.equal(me.body.role,'host');assert.equal(me.body.canApprove,false);assert.equal(me.body.managerPreview,true);
+ assert.equal((await call('me',undefined,'admin')).body.canApprove,true);
+ for(const path of ['staff','requests']) assert.equal((await call(path,undefined,'admin','manager')).status,403);
+ const id=(await call('create',{name:'ТЕСТ режима менеджера',category:'Гость'},'admin','manager')).body.id;
+ assert.ok(id);assert.equal((await call('share',{id},'admin','manager')).status,403);
+ assert.equal((await call('status',{id,status:'active'},'admin','manager')).status,403);
+ await call('payment-request',{id,amountRub:7000},'admin','manager');
+ const request=sqlite.prepare('SELECT id FROM admission_requests WHERE ticket_id=?').get(id);
+ assert.equal((await call('requests',{id:request.id,approve:true},'admin','manager')).status,403);
+ assert.equal((await call('requests',{id:request.id,approve:true},'admin')).status,200);
+ assert.equal((await call('share',{id},'admin','manager')).status,200);
+ assert.equal((await call('me',undefined,'host','organizer')).body.canApprove,false);
+});
+test('интерфейс Михаила в режиме менеджера скрывает подтверждения и показывает общий список',async t=>{
+ const {env}=await fixture(t),ui=await browserFixture(env,{id:1,username:'admin'},{url:'https://codrosta.club/admission?viewRole=manager'});
+ assert.equal(ui.nodes.get('manager-preview').hidden,false);assert.equal(ui.nodes.get('requests-panel').hidden,true);
+ assert.equal(ui.nodes.get('staff-panel').hidden,true);assert.equal(ui.nodes.get('show-create').hidden,false);
+ assert.equal(ui.nodes.get('guest-panel').hidden,false);
+ const owner=await browserFixture(env,{id:1,username:'admin'},{url:'https://codrosta.club/admission?viewRole=organizer'});
+ assert.equal(owner.nodes.get('manager-preview').hidden,true);assert.equal(owner.nodes.get('requests-panel').hidden,false);
 });

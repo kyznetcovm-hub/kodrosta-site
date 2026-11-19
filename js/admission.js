@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
-  var role = null, event = null, tickets = [], stream = null, busy = false, scanGeneration = 0;
+  var role = null, canApprove = false, paymentTarget = null, event = null, tickets = [], stream = null, busy = false, scanGeneration = 0;
   var tgApp = window.Telegram && window.Telegram.WebApp;
   if (tgApp && tgApp.initData) { tgApp.ready(); tgApp.expand(); }
   sessionStorage.removeItem('admission-host-key');
@@ -21,6 +21,7 @@
     var headers = {};
     var tg = window.Telegram && window.Telegram.WebApp;
     if (tg && tg.initData) headers.authorization = 'tma ' + tg.initData;
+    if (new URLSearchParams(location.search).get('viewRole') === 'manager') headers['x-admission-view'] = 'manager';
     if (body !== undefined) headers['content-type'] = 'application/json';
     var response = await fetch('/api/admission/' + path, { method: body === undefined ? 'GET' : 'POST', headers: headers,
       body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store' });
@@ -31,22 +32,21 @@
   }
   function setEvent(value) { event = value; show('demo-banner', event.demo); }
   function selectTab(scanner) {
-    show('scan-panel', scanner); show('guest-panel', !scanner || role === 'host');
+    show('scan-panel', scanner); show('guest-panel', !scanner);
     $('tab-guests').setAttribute('aria-selected', String(!scanner));
     $('tab-scan').setAttribute('aria-selected', String(scanner));
     $('workspace-title').textContent = scanner ? 'Встречаем гостей' : 'Гости и приглашения';
     if (!scanner) stopCamera();
   }
   async function enter() {
-    var data = await api('me'); role = data.role; setEvent(data.event);
+    var data = await api('me'); role = data.role; canApprove = !!data.canApprove; setEvent(data.event);
+    show('manager-preview',!!data.managerPreview);
     show('login', false); show('workspace', true); show('ticket-view', false);
-    show('tab-guests', role === 'admin'); show('show-create', role === 'admin');
-    show('sheet-sync', role === 'admin'); show('staff-panel', role === 'admin');
-    $('sync-help').textContent = data.syncSource + '. Изменения оплат применяются после обновления списка.';
-    $('sync-payments').textContent = data.syncSource.indexOf('Тестовый снимок') === 0 ? 'Загрузить тестовый снимок' : 'Обновить из таблицы';
-    $('list-title').textContent = role === 'host' ? 'Поиск без QR-кода' : 'Список гостей';
-    $('list-help').textContent = role === 'host' ? 'Сверь имя гостя перед ручной регистрацией прохода.' : 'Приглашение становится действительным после подтверждения участия.';
-    selectTab(role === 'host' || new URLSearchParams(location.search).get('mode') === 'hostess'); notice(''); await refresh();
+    show('tab-guests', true); show('show-create', true);
+    show('staff-panel', canApprove); show('requests-panel', canApprove);
+    $('list-title').textContent = 'Все гости';
+    $('list-help').textContent = 'Добавь гостя и сообщи об оплате. Михаил подтвердит её — после этого появится билет для отправки.';
+    selectTab(new URLSearchParams(location.search).get('mode') === 'hostess'); notice(''); await refresh();
   }
   async function refresh() {
     var data = await api('tickets'); tickets = data.tickets;
@@ -54,7 +54,23 @@
     $('stat-admitted').textContent = data.stats.admitted;
     $('stat-expected').textContent = data.stats.expected;
     renderGuests();
-    if (role === 'admin') await refreshStaff();
+    if (canApprove) { await refreshStaff(); await refreshRequests(); }
+  }
+  async function refreshRequests() {
+    var data = await api('requests'), root = $('requests-list'); root.replaceChildren();
+    if (!data.requests.length) root.append(element('p', 'Все заявки обработаны', 'muted'));
+    data.requests.forEach(function (r) {
+      var row = element('article', '', 'guest-row'), info = element('div');
+      info.append(element('h3', r.kind === 'access' ? 'Авторизация: ' + r.manager : 'Оплата: ' + r.guest));
+      info.append(element('p', r.kind === 'access' ? 'Telegram ID ' + r.telegramId + ' · Сверь аккаунт перед подтверждением.' : ticketPackage(r.category) + ' · ' + (r.amountKopeks/100).toLocaleString('ru-RU') + ' ₽ · ' + r.manager));
+      if (r.comment) info.append(element('p',r.comment));
+      var buttons = element('div','','row-actions');
+      [true,false].forEach(function (approve) { buttons.append(action(approve ? r.kind === 'access' ? 'Да' : 'Оплата прошла' : 'Нет', async function () {
+        if (!window.confirm((approve ? 'Подтвердить' : 'Отклонить') + ' заявку ' + (r.guest || r.manager) + '?')) return;
+        await api('requests',{id:r.id,approve:approve}); await refresh();
+      })); });
+      row.append(info,buttons); root.append(row);
+    });
   }
   async function refreshStaff() {
     var data = await api('staff'), root = $('staff-list'); root.replaceChildren();
@@ -76,8 +92,9 @@
   async function showAccess(request) {
     var data = await api('access', request ? {} : undefined);
     show('login', true); show('telegram-login', false); show('access-panel', true);
-    show('request-access', data.state === 'none');
-    $('access-message').textContent = data.state === 'none' ? 'Запроси доступ. Организатор увидит твой Telegram-аккаунт и подтвердит его.' : data.state === 'pending' ? 'Заявка отправлена. После подтверждения организатором нажми «Проверить доступ».' : data.state === 'revoked' ? 'Доступ закрыт организатором. Свяжись с ним для повторного допуска.' : 'Доступ подтверждён. Нажми «Проверить доступ».';
+    show('request-access', data.state === 'none' || data.state === 'revoked' || data.notificationPending);
+    $('request-access').textContent = data.state === 'revoked' ? 'Подать заявку ещё раз' : data.notificationPending ? 'Повторить отправку заявки' : 'Запросить доступ';
+    $('access-message').textContent = data.state === 'none' ? 'Запроси доступ. Михаил получит сообщение с кнопками «Да» и «Нет».' : data.state === 'pending' ? data.notificationPending ? 'Заявка сохранена, но уведомление не доставлено. Повтори отправку.' : 'Заявка отправлена Михаилу в Telegram. После подтверждения нажми «Проверить доступ».' : data.state === 'revoked' ? 'Доступ не подтверждён. Можно подать заявку ещё раз.' : 'Доступ подтверждён. Нажми «Проверить доступ».';
   }
   function action(label, handler, className) {
     var b = element('button', label, className || 'outline'); b.type = 'button';
@@ -90,24 +107,32 @@
     if (!filtered.length) { root.append(element('p', 'Гости не найдены', 'empty')); return; }
     filtered.forEach(function (t) {
       var row = element('article', '', 'guest-row'), info = element('div');
-      info.append(element('h3', t.name), element('p', (t.company || 'Компания не указана') + ' · ' + t.category));
+      info.append(element('h3', t.name), element('p', (t.company || 'Компания не указана') + ' · ' + ticketPackage(t.category)));
       var state = element('div');
-      state.append(element('span', t.status === 'cancelled' ? 'Отменён' : t.status === 'pending' ? 'Ожидает подтверждения' : t.checkedInAt ? 'Уже в зале' : 'Вход разрешён', 'badge ' + t.status));
+      state.append(element('span', t.status === 'cancelled' ? 'Отменён' : t.status === 'pending' ? t.paymentState === 'pending' ? 'Ждём подтверждения оплаты' : 'Ожидает оплаты' : t.checkedInAt ? 'Уже в зале' : 'Оплачен · вход разрешён', 'badge ' + t.status));
       if (t.checkedInAt) state.append(element('p', 'Проход: ' + time(t.checkedInAt) + ' МСК'));
       var buttons = element('div', '', 'row-actions');
-      if (role === 'admin') {
-        var link = element('a', 'Билет'); link.href = ticketUrl(t.token); link.target = '_blank'; link.rel = 'noopener noreferrer'; buttons.append(link);
-        buttons.append(action('Скопировать ссылку', async function () {
-          try { await navigator.clipboard.writeText(ticketUrl(t.token)); notice('Ссылка на приглашение скопирована.'); }
-          catch (_) { notice('Открой билет и скопируй адрес из адресной строки.'); }
+      if (t.status === 'active') {
+        buttons.append(action('Отправить билет', async function () {
+          var shared = await api('share',{id:t.id});
+          $('share-message').value = shared.message + '\n\n' + shared.url;
+          $('share-telegram').href = 'https://t.me/share/url?url=' + encodeURIComponent(shared.url) + '&text=' + encodeURIComponent(shared.message);
+          $('open-shared-ticket').href = shared.url; show('share-panel',true); $('share-panel').scrollIntoView({behavior:'smooth',block:'center'});
         }));
-        if (t.sourceId) info.append(element('p', t.sourceId + ' · Оплата из таблицы', 'muted'));
-        if (!t.sourceId && t.status !== 'active') buttons.append(action('Подтвердить', async function () { await api('status', { id: t.id, status: 'active' }); await refresh(); }));
-        if (!t.sourceId && t.status !== 'cancelled') buttons.append(action('Отменить', async function () {
+      }
+      if (t.status === 'pending' && t.expectedRub && (t.paymentState !== 'pending' || t.notificationPending)) {
+        buttons.append(action(t.notificationPending ? 'Повторить отправку оплаты' : 'Сообщить об оплате', async function () {
+          paymentTarget = t.id; $('payment-guest').textContent = t.name + ' · ' + ticketPackage(t.category);
+          $('payment-amount').value = t.expectedRub; $('payment-amount').min = t.expectedRub; $('payment-comment').value = '';
+          show('payment-form',true); $('payment-form').scrollIntoView({behavior:'smooth',block:'center'});
+        }));
+      }
+      if (t.paymentState === 'rejected' && t.status === 'pending') info.append(element('p','Михаил не подтвердил оплату. Уточни поступление и отправь заявку повторно.','muted'));
+      if (canApprove && t.status !== 'cancelled') buttons.append(action('Отменить', async function () {
           if (!window.confirm('Отменить билет гостя «' + t.name + '»?')) return;
           await api('status', { id: t.id, status: 'cancelled' }); await refresh();
-        }));
-      } else {
+      }));
+      if (t.status === 'active' && !t.checkedInAt) {
         buttons.append(action('Зарегистрировать', async function () {
           if (!window.confirm('Гость «' + t.name + '» перед тобой? Зарегистрировать проход?')) return;
           await checkIn({ id: t.id }); $('decision').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -246,23 +271,22 @@
   }
   $('tab-guests').onclick = function () { selectTab(false); }; $('tab-scan').onclick = function () { selectTab(true); };
   $('search').oninput = renderGuests; $('start-camera').onclick = startCamera; $('stop-camera').onclick = stopCamera;
-  $('sync-payments').onclick = async function () {
-    var button = this; button.disabled = true;
-    try {
-      var result = await api('sync', {}), r = result.report;
-      await refresh();
-      notice(r.source + '. Новых билетов: ' + r.created + '. Готовы к входу: ' + r.eligible + '. Ожидают оплаты или уточнения: ' + r.waiting + '.'
-        + (r.revoked ? ' Приостановлено билетов: ' + r.revoked + '.' : '')
-        + (r.issues.length ? ' ' + r.issues.slice(0,5).map(function (x) { return x.id + ': ' + x.reason; }).join('; ') : ''));
-    } catch (err) { notice(err.message); } finally { button.disabled = false; }
+  $('refresh-guests').onclick = function () { refresh().catch(function(err){notice(err.message);}); };
+  $('payment-form').onsubmit = async function(ev) {
+    ev.preventDefault(); var button = this.querySelector('button'); button.disabled = true;
+    try { await api('payment-request',{id:paymentTarget,amountRub:Number($('payment-amount').value),comment:$('payment-comment').value}); show('payment-form',false); await refresh(); notice('Заявка на подтверждение оплаты отправлена Михаилу в Telegram.'); }
+    catch(err) { notice(err.message); await refresh().catch(function(){}); } finally { button.disabled = false; }
   };
+  $('cancel-payment').onclick = function(){show('payment-form',false);};
+  $('close-share').onclick = function(){show('share-panel',false);};
+  $('copy-invitation').onclick = async function(){try{await navigator.clipboard.writeText($('share-message').value);notice('Приглашение скопировано. Отправь его гостю.');}catch(_){$('share-message').select();notice('Скопируй выделенное приглашение.');}};
   $('refresh-staff').onclick = function () { refreshStaff().catch(function (err) { notice(err.message); }); };
   $('request-access').onclick = async function () { this.disabled = true; try { await showAccess(true); } catch (err) { notice(err.message); } finally { this.disabled = false; } };
   $('retry-access').onclick = async function () { this.disabled = true; try { await enter(); } catch (err) { if (err.status === 401 || err.status === 403) await showAccess(false).catch(function (e) { notice(e.message); }); else notice(err.message); } finally { this.disabled = false; } };
   $('show-create').onclick = function () { show('create-form', $('create-form').hidden); };
   $('create-form').onsubmit = async function (ev) {
     ev.preventDefault(); var b = this.querySelector('button'); b.disabled = true;
-    try { await api('create', Object.fromEntries(new FormData(this))); this.reset(); show('create-form', false); await refresh(); notice('Гость добавлен. Подтверди участие, чтобы разрешить вход.'); }
+    try { await api('create', Object.fromEntries(new FormData(this))); this.reset(); show('create-form', false); await refresh(); notice('Гость добавлен. Когда поступят деньги, нажми у гостя «Сообщить об оплате».'); }
     catch (err) { notice(err.message); } finally { b.disabled = false; }
   };
   $('manual-code').onsubmit = function (ev) { ev.preventDefault(); var token = parseCode($('scan-code').value); if (!token) { decision('red', 'Это не билет премии'); return; } checkIn({ token: token }); };
@@ -281,5 +305,5 @@
       try { var demo = await fetch('/api/admission-demo/info', { cache: 'no-store' }); if (demo.ok && (await demo.json()).demo) { show('demo-login', true); show('demo-banner', true); show('telegram-login', false); } } catch (_) {}
     } catch (err) { notice(err.message); }
   })();
-  setInterval(function () { if (role && !document.hidden) refresh().catch(function (err) { if (err.status === 401 || err.status === 403) { role = null; stopCamera(); show('workspace',false); show('login',true); showAccess(false).catch(function (e) { notice(e.message); }); } else notice('Нет связи с базой. Новые проходы нужно проверять после восстановления связи.'); }); }, 15000);
+  setInterval(function () { if (role && !document.hidden) refresh().catch(function (err) { if (err.status === 401 || err.status === 403) { role = null; stopCamera(); show('workspace',false); show('login',true); showAccess(false).catch(function (e) { notice(e.message); }); } else notice('Нет связи с базой. Новые проходы нужно проверять после восстановления связи.'); }); }, 5000);
 })();
