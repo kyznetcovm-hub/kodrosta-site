@@ -351,7 +351,8 @@
 /* ---------- Коктейльный дресс-код ---------- */
 .p-dresscode { padding: 40px 0; background: #fff; }
 .p-dresscode .container { max-width: 960px; }
-.p-dresscode h2 { margin: 0 0 14px; font-size: clamp(26px, 3vw, 34px); line-height: 1.15; color: var(--navy); }
+.p-dresscode h2 { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; font-size: clamp(26px, 3vw, 34px); line-height: 1.15; color: var(--navy); }
+.p-dresscode-icon { width: 36px; height: 40px; flex-shrink: 0; }
 .p-dresscode-intro { max-width: 760px; margin: 0; font-size: 17px; line-height: 1.55; }
 .p-dresscode-details { margin-top: 22px; border-top: 1px solid var(--grey); }
 .p-dresscode-details summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; list-style: none; cursor: pointer; color: var(--navy); font-size: 16px; font-weight: 700; }
