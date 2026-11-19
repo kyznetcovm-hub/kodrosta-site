@@ -1,6 +1,7 @@
 // Персональные билеты премии. Просмотр билета никогда не регистрирует проход.
 // Администратор: существующий вход Telegram. Хостес: отдельный секрет события.
 import { authenticate } from './office.js';
+import { ADMISSION_SOURCE_SCHEMA, syncAdmissionFromSheet } from './admission-sync.js';
 
 export const ADMISSION_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS admission_tickets (
@@ -14,7 +15,7 @@ export const ADMISSION_SCHEMA = [
 const ready = new WeakMap();
 export function ensureAdmission(env) {
   if (!ready.has(env.DB)) ready.set(env.DB, (async () => {
-    for (const sql of ADMISSION_SCHEMA) await env.DB.prepare(sql).run();
+    for (const sql of [...ADMISSION_SCHEMA, ADMISSION_SOURCE_SCHEMA]) await env.DB.prepare(sql).run();
   })().catch(err => { ready.delete(env.DB); throw err; }));
   return ready.get(env.DB);
 }
@@ -77,11 +78,17 @@ export async function handleAdmissionApi(request, env, path) {
     const user = await access(request, env);
     if (!user) return json({ error: 'Нужен доступ организатора или хостес' }, 401);
     await ensureAdmission(env);
-    if (path === '/api/admission/me' && request.method === 'GET') return json({ event, role: user.role });
+    if (path === '/api/admission/me' && request.method === 'GET') return json({ event, role: user.role,
+      syncSource: env.ADMISSION_SOURCE_LABEL || 'Google-таблица оплат' });
+    if (path === '/api/admission/sync' && request.method === 'POST') {
+      if (user.role !== 'admin') return json({ error: 'Только организатор может обновлять оплаты' }, 403);
+      try { return json({ ok:true, report:await syncAdmissionFromSheet(env,event.id) }); }
+      catch (err) { return json({ error:err.message || 'Не удалось обновить оплаты. Билеты не изменены.' }, 503); }
+    }
     if (path === '/api/admission/tickets' && request.method === 'GET') {
-      const rows = (await env.DB.prepare('SELECT * FROM admission_tickets WHERE event_id = ? ORDER BY created_at, id')
+      const rows = (await env.DB.prepare('SELECT t.*,s.source_id FROM admission_tickets t LEFT JOIN admission_sheet_tickets s ON s.ticket_id=t.id WHERE t.event_id = ? ORDER BY t.created_at,t.id')
         .bind(event.id).all()).results;
-      return json({ event, tickets: rows.map(t => ({ ...publicTicket(t), ...(user.role === 'admin' ? { token: t.token } : {}) })),
+      return json({ event, tickets: rows.map(t => ({ ...publicTicket(t), ...(user.role === 'admin' ? { token: t.token, sourceId:t.source_id || null } : {}) })),
         stats: { total: rows.length, admitted: rows.filter(t => t.checked_in_at).length,
           expected: rows.filter(t => t.status === 'active' && !t.checked_in_at).length } });
     }
@@ -98,6 +105,9 @@ export async function handleAdmissionApi(request, env, path) {
     if (path === '/api/admission/status' && request.method === 'POST') {
       if (user.role !== 'admin') return json({ error: 'Только организатор может менять билет' }, 403);
       if (!['active', 'cancelled'].includes(body.status)) return json({ error: 'Некорректный статус' }, 400);
+      const source = await env.DB.prepare('SELECT source_id FROM admission_sheet_tickets WHERE ticket_id=? AND event_id=?')
+        .bind(String(body.id || ''),event.id).first();
+      if (source) return json({ error:'Этот билет управляется оплатой в таблице. Измени статус там и обнови список.' },409);
       const result = await env.DB.prepare('UPDATE admission_tickets SET status = ? WHERE id = ? AND event_id = ?')
         .bind(body.status, String(body.id || ''), event.id).run();
       return result.meta.changes ? json({ ok: true }) : json({ error: 'Билет не найден' }, 404);

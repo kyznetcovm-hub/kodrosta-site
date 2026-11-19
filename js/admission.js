@@ -36,6 +36,9 @@
     var data = await api('me'); role = data.role; setEvent(data.event);
     show('login', false); show('workspace', true); show('ticket-view', false);
     show('tab-guests', role === 'admin'); show('show-create', role === 'admin');
+    show('sheet-sync', role === 'admin');
+    $('sync-help').textContent = data.syncSource + '. Изменения оплат применяются после обновления списка.';
+    $('sync-payments').textContent = data.syncSource.indexOf('Тестовый снимок') === 0 ? 'Загрузить тестовый снимок' : 'Обновить из таблицы';
     $('list-title').textContent = role === 'host' ? 'Поиск без QR-кода' : 'Список гостей';
     $('list-help').textContent = role === 'host' ? 'Сверь имя гостя перед ручной регистрацией прохода.' : 'Приглашение становится действительным после подтверждения участия.';
     selectTab(role === 'host'); notice(''); await refresh();
@@ -69,8 +72,9 @@
           try { await navigator.clipboard.writeText(ticketUrl(t.token)); notice('Ссылка на приглашение скопирована.'); }
           catch (_) { notice('Открой билет и скопируй адрес из адресной строки.'); }
         }));
-        if (t.status !== 'active') buttons.append(action('Подтвердить', async function () { await api('status', { id: t.id, status: 'active' }); await refresh(); }));
-        if (t.status !== 'cancelled') buttons.append(action('Отменить', async function () {
+        if (t.sourceId) info.append(element('p', t.sourceId + ' · Оплата из таблицы', 'muted'));
+        if (!t.sourceId && t.status !== 'active') buttons.append(action('Подтвердить', async function () { await api('status', { id: t.id, status: 'active' }); await refresh(); }));
+        if (!t.sourceId && t.status !== 'cancelled') buttons.append(action('Отменить', async function () {
           if (!window.confirm('Отменить билет гостя «' + t.name + '»?')) return;
           await api('status', { id: t.id, status: 'cancelled' }); await refresh();
         }));
@@ -195,6 +199,16 @@
   }
   $('tab-guests').onclick = function () { selectTab(false); }; $('tab-scan').onclick = function () { selectTab(true); };
   $('search').oninput = renderGuests; $('start-camera').onclick = startCamera; $('stop-camera').onclick = stopCamera;
+  $('sync-payments').onclick = async function () {
+    var button = this; button.disabled = true;
+    try {
+      var result = await api('sync', {}), r = result.report;
+      await refresh();
+      notice(r.source + '. Новых билетов: ' + r.created + '. Готовы к входу: ' + r.eligible + '. Ожидают оплаты или уточнения: ' + r.waiting + '.'
+        + (r.revoked ? ' Приостановлено билетов: ' + r.revoked + '.' : '')
+        + (r.issues.length ? ' ' + r.issues.slice(0,5).map(function (x) { return x.id + ': ' + x.reason; }).join('; ') : ''));
+    } catch (err) { notice(err.message); } finally { button.disabled = false; }
+  };
   $('show-create').onclick = function () { show('create-form', $('create-form').hidden); };
   $('create-form').onsubmit = async function (ev) {
     ev.preventDefault(); var b = this.querySelector('button'); b.disabled = true;

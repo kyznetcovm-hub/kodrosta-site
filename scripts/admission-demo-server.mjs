@@ -2,12 +2,14 @@
 // Запуск: node scripts/admission-demo-server.mjs
 import http from 'node:http';
 import { readFile, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { dirname, resolve, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHmac, randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/index.js';
 import { ensureAdmission, admissionEvent } from '../src/admission.js';
+import { syncAdmissionFromSheet } from '../src/admission-sync.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 await mkdir(resolve(ROOT, '.wrangler'), { recursive: true });
@@ -18,11 +20,23 @@ const DB = { prepare(sql) { const st = sqlite.prepare(sql); let values = []; ret
   async first() { return st.get(...values) ?? null; },
   async all() { return { results: st.all(...values) }; },
   async run() { return { meta: { changes: Number(st.run(...values).changes) } }; },
-}; } };
+}; }, async batch(statements) {
+  sqlite.exec('BEGIN');
+  try { const results=[]; for (const statement of statements) results.push(await statement.run()); sqlite.exec('COMMIT'); return results; }
+  catch (err) { sqlite.exec('ROLLBACK'); throw err; }
+} };
+const snapshotPath = resolve(ROOT,'.wrangler/admission-sheet-snapshot.json');
+const snapshotExists = existsSync(snapshotPath);
 const env = { DB, BOT_TOKEN: randomBytes(32).toString('hex'), ADMIN_USERNAMES: 'demo_admin',
-  ADMISSION_HOST_KEY: randomBytes(32).toString('hex'), ADMISSION_EVENT_ID: 'premiya-2026-demo' };
+  ADMISSION_HOST_KEY: randomBytes(32).toString('hex'), ADMISSION_EVENT_ID: snapshotExists ? 'premiya-2026-sheet-demo' : 'premiya-2026-demo' };
+if (snapshotExists) {
+  const initial = JSON.parse(await readFile(snapshotPath,'utf8'));
+  env.ADMISSION_SOURCE_LABEL = 'Тестовый снимок таблицы от ' + new Date(initial.fetchedAt).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'}) + ' МСК (не живая синхронизация)';
+  env.ADMISSION_READ_SHEET = async () => JSON.parse(await readFile(snapshotPath,'utf8')).values;
+}
 await ensureAdmission(env);
-if (!sqlite.prepare('SELECT COUNT(*) AS n FROM admission_tickets').get().n) {
+if (snapshotExists) await syncAdmissionFromSheet(env,admissionEvent(env).id);
+if (!snapshotExists && !sqlite.prepare('SELECT COUNT(*) AS n FROM admission_tickets WHERE event_id=?').get(admissionEvent(env).id).n) {
   const guests = [
     ['Анна Смирнова', 'Мастерская «Форма»', 'Номинант', 'active'],
     ['Илья Петров', 'Архитектура будущего', 'Резидент', 'active'],
