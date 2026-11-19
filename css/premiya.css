@@ -288,6 +288,15 @@
 .p-game-photo { margin: 0; position: relative; padding: 0 18px 18px 0; }
 .p-game-photo::before { content: ""; position: absolute; left: 18px; top: 18px; right: 0; bottom: 0; background: var(--red); }
 .p-game-photo img { position: relative; display: block; width: 100%; height: auto; }
+.p-game-author { display: flex; align-items: center; gap: 16px; margin-top: 24px; color: var(--navy); }
+.p-game-author-frame { display: block; position: relative; flex: 0 0 auto; padding: 0 6px 6px 0; }
+.p-game-author-frame::before { content: ""; position: absolute; left: 6px; top: 6px; right: 0; bottom: 0; background: var(--sky); }
+.p-game-author-portrait { display: block; position: relative; width: 72px; height: 80px; overflow: hidden; }
+.p-game-author-portrait img { display: block; width: 200px; max-width: none; height: auto; transform: translate(-59px, -53px); }
+.p-game-author p { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.p-game-author span { font-size: 13px; line-height: 1.4; }
+.p-game-author strong { font-size: 18px; font-weight: 700; line-height: 1.25; }
+.p-game-author .p-game-author-bio { max-width: 360px; margin-top: 3px; }
 .p-game-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 56px; }
 .p-game-cols > div { border-top: 8px solid var(--c); background: var(--grey); padding: 22px 24px 8px; }
 .p-game-cols h3 { font-size: 22px; margin: 0 0 12px; color: var(--navy); }
@@ -339,8 +348,48 @@
 .page-premiya .btn--ghost { color: var(--navy); border-color: var(--navy); }
 .page-premiya .form-status { border-radius: 0; }
 
+/* ---------- Коктейльный дресс-код ---------- */
+.p-dresscode { padding: 40px 0; background: #fff; }
+.p-dresscode .container { max-width: 960px; }
+.p-dresscode h2 { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; font-size: clamp(26px, 3vw, 34px); line-height: 1.15; color: var(--navy); }
+.p-dresscode-icon { width: 36px; height: 40px; flex-shrink: 0; }
+.p-dresscode-intro { max-width: 760px; margin: 0; font-size: 17px; line-height: 1.55; }
+.p-dresscode-details { margin-top: 22px; border-top: 1px solid var(--grey); }
+.p-dresscode-details summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; list-style: none; cursor: pointer; color: var(--navy); font-size: 16px; font-weight: 700; }
+.p-dresscode-details summary::-webkit-details-marker { display: none; }
+.p-dresscode-details summary::after { content: "+"; flex: 0 0 24px; font-size: 28px; line-height: 1; text-align: center; font-weight: 500; }
+.p-dresscode-details[open] summary::after { content: "\2212"; }
+.p-dresscode-details summary:hover { color: var(--red); }
+.p-dresscode-details summary:focus-visible { outline: 2px solid var(--navy); outline-offset: 4px; }
+.p-dresscode-hide, .p-dresscode-details[open] .p-dresscode-show { display: none; }
+.p-dresscode-details[open] .p-dresscode-hide { display: inline; }
+.p-dresscode-guide { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 40px; padding-top: 16px; }
+.p-dresscode-column h3 { margin: 0 0 20px; font-size: 22px; }
+.p-dresscode-column ul { display: grid; gap: 22px; margin: 0; padding: 0; list-style: none; }
+.p-dresscode-column li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 16px; align-items: center; }
+.p-dresscode-column svg { display: block; width: 44px; height: 44px; fill: none; stroke: var(--navy); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.p-dresscode-column:nth-child(2) svg { stroke: var(--red); }
+.p-dresscode-column strong { display: block; font-size: 16px; line-height: 1.35; }
+.p-dresscode-column li span { display: block; margin-top: 4px; font-size: 14px; line-height: 1.5; }
+.p-dresscode-note { grid-column: 1 / -1; margin: 0; padding-top: 20px; border-top: 1px solid var(--grey); font-size: 15px; line-height: 1.5; }
+
+/* ---------- Организаторы и партнёры ---------- */
+.page-premiya .p-organizers { padding: 32px 0; background: #fff; }
+.p-organizers .container { max-width: 960px; }
+.p-organizers-title { margin: 0 0 20px; font-size: 22px; line-height: 1.2; color: var(--navy); }
+.p-organizers-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; padding-top: 20px; border-top: 1px solid var(--grey); }
+.p-organizer-role { margin: 0 0 12px; color: var(--navy); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.p-organizer-logo { display: flex; align-items: center; height: 64px; }
+.p-organizer-logo img { display: block; width: 150px; max-width: 100%; height: auto; }
+.p-organizer-logo--club { gap: 10px; }
+.p-organizer-logo--club img { width: 57px; height: 48px; flex: 0 0 auto; object-fit: contain; }
+.p-organizer-name { font-size: 20px; font-weight: 700; line-height: 1.15; }
+.p-organizer-logo--tsum img { width: 190px; }
+.p-organizer-description { max-width: 300px; margin: 8px 0 0; color: var(--navy); font-size: 12px; line-height: 1.45; }
+
 /* ---------- Адаптив ---------- */
 @media (max-width: 1040px) {
+  .p-organizers-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .p-podcast-grid { grid-template-columns: 1fr; }
   .p-awards-grid { grid-template-columns: 1fr; gap: 36px; }
   .p-ticket-grid { grid-template-columns: 1fr; max-width: 640px; }
@@ -370,6 +419,8 @@
   .p-lb-nav { width: 38px; height: 54px; margin-top: -27px; }
 }
 @media (max-width: 560px) {
+  .p-dresscode-guide { grid-template-columns: 1fr; gap: 32px; }
+  .p-organizers-grid { grid-template-columns: 1fr; gap: 24px; }
   .p-nom-list { grid-template-columns: 1fr; }
   .p-game-stats { grid-template-columns: 1fr; gap: 14px; }
   .p-game-stats li { flex-direction: row; align-items: baseline; gap: 14px; padding-top: 10px; }

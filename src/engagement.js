@@ -208,6 +208,7 @@ function adminMenuKeyboard() {
     inline_keyboard: [
       [{ text: "📱 Офис в кармане", web_app: { url: OFFICE_URL } }],
       [{ text: "🎲 Рандомайзер", web_app: { url: SITE_URL + "/randomizer" } }],
+      [{ text: "🎟 Билеты премии", web_app: { url: SITE_URL + "/admission" } }],
 
       [{ text: "🟦 РЕДАКТИРОВАТЬ САЙТ 🟦", callback_data: "noop" }],
       [{ text: "01 · О клубе", callback_data: "content:about" }, { text: "02 · Цифры клуба", callback_data: "content:numbers" }],

@@ -65,6 +65,21 @@ async function fetchSheetRows(accessToken, sheetId, tabName) {
   return data.values;
 }
 
+// Ограниченный диапазон другой таблицы: те же серверные права только на чтение.
+export async function readGoogleSheetRange(env, sheetId, range) {
+  if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) throw new Error('На сервере не настроен доступ к Google-таблице.');
+  if (!/^[\w-]{16,}$/.test(sheetId || '')) throw new Error('Не задана таблица оплат.');
+  let token;
+  try { token = await getGoogleAccessToken(env); } catch (_) { throw new Error('Не удалось авторизовать сервер в Google Sheets.'); }
+  const response = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '/values/' + encodeURIComponent(range) + '?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER', {
+    headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(20000),
+  });
+  if (response.status === 403 || response.status === 404) throw new Error('Серверу нужен доступ на чтение к таблице оплат.');
+  if (!response.ok) throw new Error('Google-таблица временно недоступна. Билеты не изменены.');
+  const data = await response.json();
+  return data.values || [];
+}
+
 // Свежий снимок для регламента продления: не зависит от утренней копии в D1.
 export async function readResidentsSheetRows(env) {
   if (!env.GOOGLE_SERVICE_ACCOUNT_JSON || !env.GOOGLE_SHEET_ID) {
