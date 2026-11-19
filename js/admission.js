@@ -13,6 +13,10 @@
   function element(tag, text, className) { var e = document.createElement(tag); if (text) e.textContent = text; if (className) e.className = className; return e; }
   function time(value) { return new Date(value).toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
   function ticketUrl(token) { return location.origin + '/admission?view=ticket#t=' + token; }
+  function ticketPackage(category) {
+    var packages = { 'Гость':'Премия', 'Гость + игра':'Премия + игра', 'Гость + подкаст':'Премия + подкаст', 'Гость + игра + подкаст':'Премия + игра + подкаст' };
+    return packages[category] || 'Премия · ' + category;
+  }
   async function api(path, body) {
     var headers = {};
     var tg = window.Telegram && window.Telegram.WebApp;
@@ -206,7 +210,7 @@
     show('login', false); show('workspace', false); show('ticket-view', false);
     var data = await api('ticket', { token: ticketToken }); setEvent(data.event); guestTicket = data.ticket;
     $('ticket-name').textContent = guestTicket.name; $('ticket-company').textContent = guestTicket.company;
-    $('ticket-category').textContent = guestTicket.category;
+    $('ticket-category').textContent = ticketPackage(guestTicket.category);
     $('ticket-state').textContent = guestTicket.status === 'cancelled' ? 'Билет отменён. Свяжись с организатором.' : guestTicket.status === 'pending'
       ? 'Участие ожидает подтверждения организатором.' : guestTicket.checkedInAt ? 'По этому билету уже зарегистрирован вход.' : 'Персональное приглашение';
     show('ticket-view', true);
@@ -217,20 +221,27 @@
   }
   async function saveTicket() {
     if (!qrImage || !guestTicket) return;
-    var canvas = document.createElement('canvas'); canvas.width = 960; canvas.height = 1440;
-    var ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 960, 1440);
-    ctx.fillStyle = '#001b7d'; ctx.fillRect(0, 0, 960, 520);
-    ctx.fillStyle = '#8af1ac'; ctx.font = 'bold 25px Arial'; ctx.fillText('КОД РОСТА · ТРЁХЛЕТИЕ СООБЩЕСТВА', 60, 65);
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 128px Arial'; ctx.fillText('ЖИВОЙ', 60, 210);
-    ctx.fillStyle = '#14b9ff'; ctx.fillText('КОД', 60, 330);
-    ctx.fillStyle = '#fff'; ctx.font = '32px Arial'; ctx.fillText('Премия «Предприниматель года»', 60, 400);
-    ctx.font = '26px Arial'; ctx.fillText('27 ноября 2026 · Казань · ЦУМ', 60, 460);
-    ctx.textAlign = 'center'; ctx.fillStyle = '#001b7d'; ctx.font = 'bold 28px Arial'; ctx.fillText(guestTicket.category, 480, 575);
+    var canvas = document.createElement('canvas'); canvas.width = 960; canvas.height = 1640;
+    var ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 960, 1640);
+    ctx.fillStyle = '#001b7d'; ctx.fillRect(0, 0, 960, 470);
+    ctx.fillStyle = '#8af1ac'; ctx.font = 'bold 25px Arial'; ctx.fillText('КОД РОСТА · ТРЁХЛЕТИЕ СООБЩЕСТВА', 60, 55);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 112px Arial'; ctx.fillText('ЖИВОЙ', 60, 180);
+    ctx.fillStyle = '#14b9ff'; ctx.fillText('КОД', 60, 285);
+    ctx.fillStyle = '#fff'; ctx.font = '32px Arial'; ctx.fillText('Премия «Предприниматель года»', 60, 345);
+    ctx.font = 'bold 30px Arial'; ctx.fillText('27 ноября 2026 · Начало в 18:30', 60, 400);
+    ctx.font = '28px Arial'; ctx.fillText('ЦУМ · ул. Московская, 2', 60, 444);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#536080'; ctx.font = '24px Arial'; ctx.fillText('ТВОЙ БИЛЕТ', 480, 524);
     function fit(text, size, y) { ctx.font = 'bold ' + size + 'px Arial'; while (ctx.measureText(text).width > 840 && size > 15) { size--; ctx.font = 'bold ' + size + 'px Arial'; } ctx.fillText(text, 480, y); }
-    fit(guestTicket.name, 46, 655); fit(guestTicket.company, 28, 710);
-    var img = new Image(); img.src = qrImage; await img.decode(); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 225, 760, 510, 510);
-    ctx.font = '26px Arial'; ctx.fillText('Покажи QR-код хостес на входе', 480, 1310);
-    if (event.demo) { ctx.fillStyle = '#ff3624'; ctx.font = 'bold 28px Arial'; ctx.fillText('ТЕСТОВЫЙ БИЛЕТ · НЕ ДЛЯ ВХОДА НА ПРЕМИЮ', 480, 1385); }
+    ctx.fillStyle = '#8af1ac'; ctx.fillRect(60, 548, 840, 64);
+    ctx.fillStyle = '#001b7d'; fit(ticketPackage(guestTicket.category), 34, 590);
+    fit(guestTicket.name, 46, 684); fit(guestTicket.company, 28, 734);
+    var img = new Image(); img.src = qrImage; await img.decode(); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 225, 770, 510, 510);
+    ctx.font = '26px Arial'; ctx.fillText('Покажи QR-код хостес на входе · Один билет — один гость', 480, 1316);
+    ctx.fillStyle = '#edf0f8'; ctx.fillRect(60, 1350, 840, 210);
+    ctx.fillStyle = '#001b7d'; ctx.font = 'bold 30px Arial'; ctx.fillText('Дресс-код — коктейльный', 480, 1402);
+    ctx.fillStyle = '#536080'; ctx.font = '26px Arial'; ctx.fillText('Вопросы по мероприятию', 480, 1456);
+    ctx.fillStyle = '#001b7d'; ctx.font = 'bold 30px Arial'; ctx.fillText('Telegram: @Kodrosta · t.me/Kodrosta', 480, 1508);
+    if (event.demo) { ctx.fillStyle = '#ff3624'; ctx.font = 'bold 28px Arial'; ctx.fillText('ТЕСТОВЫЙ БИЛЕТ · НЕ ДЛЯ ВХОДА НА ПРЕМИЮ', 480, 1610); }
     var a = document.createElement('a'); a.download = 'Priglashenie-' + guestTicket.id + '.png'; a.href = canvas.toDataURL('image/png'); a.click();
   }
   $('tab-guests').onclick = function () { selectTab(false); }; $('tab-scan').onclick = function () { selectTab(true); };
