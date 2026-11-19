@@ -40,6 +40,7 @@
   }
   async function enter() {
     var data = await api('me'); role = data.role; canApprove = !!data.canApprove; setEvent(data.event);
+    $('workspace').setAttribute('data-role',canApprove ? 'organizer' : 'manager');
     show('manager-preview',!!data.managerPreview);
     show('login', false); show('workspace', true); show('ticket-view', false);
     show('tab-guests', true); show('show-create', true);
