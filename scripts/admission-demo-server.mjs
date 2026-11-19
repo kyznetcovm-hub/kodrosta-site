@@ -19,15 +19,16 @@ const DB = { prepare(sql) { const st = sqlite.prepare(sql); let values = []; ret
   bind(...args) { values = args; return this; },
   async first() { return st.get(...values) ?? null; },
   async all() { return { results: st.all(...values) }; },
-  async run() { return { meta: { changes: Number(st.run(...values).changes) } }; },
+  run() { return { meta: { changes: Number(st.run(...values).changes) } }; },
 }; }, async batch(statements) {
   sqlite.exec('BEGIN');
-  try { const results=[]; for (const statement of statements) results.push(await statement.run()); sqlite.exec('COMMIT'); return results; }
+  try { const results=[]; for (const statement of statements) results.push(statement.run()); sqlite.exec('COMMIT'); return results; }
   catch (err) { sqlite.exec('ROLLBACK'); throw err; }
 } };
 const snapshotPath = resolve(ROOT,'.wrangler/admission-sheet-snapshot.json');
 const snapshotExists = existsSync(snapshotPath);
 const env = { DB, BOT_TOKEN: randomBytes(32).toString('hex'), ADMIN_USERNAMES: 'demo_admin',
+  ADMISSION_OWNER_USERNAME:'demo_admin', ADMISSION_DEMO_TELEGRAM:async()=>({message_id:1}),
   ADMISSION_EVENT_ID: snapshotExists ? 'premiya-2026-sheet-demo' : 'premiya-2026-demo' };
 if (snapshotExists) {
   const initial = JSON.parse(await readFile(snapshotPath,'utf8'));

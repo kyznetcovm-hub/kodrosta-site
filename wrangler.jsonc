@@ -26,6 +26,7 @@
     "GOOGLE_SHEET_ID": "1vfDKwTRVH3FIcaNZIK_JeBX5CRJH9iDsI7iyN1nqnZE",
     "ADMISSION_SHEET_ID": "1ijK5DZzrNirXqd7W92cMX00obD_AEegX8XmOxiBcq88",
     "ADMISSION_EVENT_ID": "premiya-2026",
+    "ADMISSION_OWNER_USERNAME": "mytolstoy",
     "SUBSCRIPTION_ALERT_USERNAME": "Kodrosta"
   },
   "triggers": {
