@@ -209,6 +209,15 @@
         + (r.issues.length ? ' ' + r.issues.slice(0,5).map(function (x) { return x.id + ': ' + x.reason; }).join('; ') : ''));
     } catch (err) { notice(err.message); } finally { button.disabled = false; }
   };
+  $('host-access').onclick = async function () {
+    this.disabled = true;
+    try {
+      var data = await api('host-access');
+      if (!data.key) throw new Error('Не настроен ключ входа. Обратись к организатору.');
+      try { await navigator.clipboard.writeText(data.key); notice('Ключ хостес скопирован. Передай его сотруднику вместе со ссылкой ' + location.origin + '/admission. Ключ даёт доступ только к проверке входа.'); }
+      catch (_) { $('host-access-fallback').value = data.key; show('host-access-fallback',true); $('host-access-fallback').select(); notice('Скопируй выделенный ключ и передай его хостес вместе со ссылкой ' + location.origin + '/admission.'); }
+    } catch (err) { notice(err.message); } finally { this.disabled = false; }
+  };
   $('show-create').onclick = function () { show('create-form', $('create-form').hidden); };
   $('create-form').onsubmit = async function (ev) {
     ev.preventDefault(); var b = this.querySelector('button'); b.disabled = true;

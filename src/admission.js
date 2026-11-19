@@ -47,8 +47,17 @@ async function sameSecret(a, b) {
   for (let i = 0; i < aa.length; i++) diff |= aa[i] ^ bb[i];
   return diff === 0;
 }
+// Отдельный ключ входа на это событие. Токен Telegram наружу не передаётся.
+// ADMISSION_HOST_KEY остаётся необязательным способом заменить/отозвать старый ключ.
+export async function admissionHostKey(env) {
+  if (env.ADMISSION_HOST_KEY && env.ADMISSION_HOST_KEY.length >= 32) return env.ADMISSION_HOST_KEY;
+  if (!env.BOT_TOKEN) return null;
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.BOT_TOKEN), {name:'HMAC',hash:'SHA-256'}, false, ['sign']);
+  const signature = await crypto.subtle.sign('HMAC',key,new TextEncoder().encode('kodrosta:admission:host:' + admissionEvent(env).id));
+  return Array.from(new Uint8Array(signature), b=>b.toString(16).padStart(2,'0')).join('');
+}
 async function access(request, env) {
-  if (await sameSecret(request.headers.get('x-admission-key'), env.ADMISSION_HOST_KEY))
+  if (request.headers.get('x-admission-key') && await sameSecret(request.headers.get('x-admission-key'), await admissionHostKey(env)))
     return { role: 'host', actor: 'host' };
   const auth = await authenticate(request, env);
   return auth.user ? { role: 'admin', actor: 'admin:' + auth.user.id } : null;
@@ -80,6 +89,10 @@ export async function handleAdmissionApi(request, env, path) {
     await ensureAdmission(env);
     if (path === '/api/admission/me' && request.method === 'GET') return json({ event, role: user.role,
       syncSource: env.ADMISSION_SOURCE_LABEL || 'Google-таблица оплат' });
+    if (path === '/api/admission/host-access' && request.method === 'GET') {
+      if (user.role !== 'admin') return json({error:'Ключ хостес доступен только организатору'},403);
+      return json({key:await admissionHostKey(env)});
+    }
     if (path === '/api/admission/sync' && request.method === 'POST') {
       if (user.role !== 'admin') return json({ error: 'Только организатор может обновлять оплаты' }, 403);
       try { return json({ ok:true, report:await syncAdmissionFromSheet(env,event.id) }); }

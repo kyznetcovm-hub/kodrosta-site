@@ -8,8 +8,8 @@
   <title>Билеты · Живой код</title>
   <link rel="stylesheet" href="/css/admission.css">
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" defer></script>
+  <script src="/js/vendor/qrcode-1.4.4.min.js" defer></script>
+  <script src="/js/vendor/jsqr-1.4.0.js" defer></script>
   <script src="/js/admission.js" defer></script>
 </head>
 <body>
@@ -37,7 +37,7 @@
     <section id="workspace" hidden>
       <div class="workspace-head"><div><p class="eyebrow">Живой код / 27 ноября</p><h1 id="workspace-title">Гости и приглашения</h1></div><button id="logout" class="text-button">Выйти</button></div>
       <nav class="tabs" aria-label="Разделы проверки"><button id="tab-guests" class="outline">Приглашения</button><button id="tab-scan" class="outline">Проверка входа</button></nav>
-      <div id="sheet-sync" hidden><button id="sync-payments" class="outline">Обновить из таблицы</button><p id="sync-help" class="muted">Изменения оплат применяются после обновления списка.</p></div>
+      <div id="sheet-sync" hidden><div class="actions"><button id="sync-payments" class="outline">Обновить из таблицы</button><button id="host-access" class="outline">Скопировать ключ хостес</button></div><p id="sync-help" class="muted">Изменения оплат применяются после обновления списка.</p><input id="host-access-fallback" type="text" readonly hidden aria-label="Ключ хостес для ручного копирования" autocomplete="off"></div>
       <div class="stats"><div><strong id="stat-total">—</strong><span>В списке</span></div><div class="mint"><strong id="stat-admitted">—</strong><span>Уже пришли</span></div><div><strong id="stat-expected">—</strong><span>Ожидаем</span></div></div>
       <section id="scan-panel" hidden>
         <div class="scanner-layout"><div>

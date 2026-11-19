@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { createHmac } from 'node:crypto';
 import worker from '../src/index.js';
-import { ensureAdmission } from '../src/admission.js';
+import { ensureAdmission, admissionHostKey } from '../src/admission.js';
 import { parseAdmissionSheet, syncAdmissionRows } from '../src/admission-sync.js';
 const TOKEN = 'test-only-bot-token', HOST_KEY = 'test-host-key-with-more-than-32-characters';
 function admin() {
@@ -143,4 +143,17 @@ test('API синхронизации: только организатор; сб�
   env.ADMISSION_READ_SHEET=async()=>{throw new Error('Источник недоступен');};
   assert.equal((await call('sync',{},'admin')).status,503);
   assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM admission_sheet_tickets').get().n,1);
+});
+test('ключ хостес отдельный для события, доступен организатору и не раскрывает токен бота',async t=>{
+ const {env,call}=await fixture(t);delete env.ADMISSION_HOST_KEY;
+ const key=await admissionHostKey(env);
+ assert.match(key,/^[a-f0-9]{64}$/);assert.notEqual(key,env.BOT_TOKEN);
+ assert.notEqual(key,await admissionHostKey({...env,ADMISSION_EVENT_ID:'other-event'}));
+ assert.equal(await admissionHostKey({}),null);
+ const access=await call('host-access',undefined,'admin');assert.equal(access.body.key,key);
+ assert.equal((await call('host-access',undefined,'guest')).status,401);
+ const response=await worker.fetch(new Request('https://codrosta.club/api/admission/host-access',{headers:{'x-admission-key':key}}),env,{});
+ assert.equal(response.status,403);
+ const me=await worker.fetch(new Request('https://codrosta.club/api/admission/me',{headers:{'x-admission-key':key}}),env,{});
+ assert.equal((await me.json()).role,'host');
 });

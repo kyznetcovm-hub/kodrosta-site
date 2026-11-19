@@ -92,7 +92,7 @@ const server = http.createServer(async (req, res) => {
     }
     const name = url.pathname === '/' || url.pathname === '/admission' ? '/admission.html' : url.pathname;
     // Код сервера, SQLite и конфигурация через HTTP не раздаются.
-    if (!(name === '/admission.html' || name === '/css/admission.css' || name === '/js/admission.js' || /^\/assets\/premiya\/[\w-]+\.svg$/.test(name))) return reply(res, 404, { error: 'Страница не найдена' });
+    if (!(name === '/admission.html' || name === '/css/admission.css' || name === '/js/admission.js' || /^\/js\/vendor\/(?:qrcode-1\.4\.4\.min|jsqr-1\.4\.0)\.js$/.test(name) || /^\/assets\/premiya\/[\w-]+\.svg$/.test(name))) return reply(res, 404, { error: 'Страница не найдена' });
     const content = await readFile(resolve(ROOT, '.' + name));
     res.writeHead(200, { 'content-type': TYPES[extname(name)] || 'application/octet-stream', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }); res.end(content);
   } catch (_) { reply(res, 500, { error: 'Ошибка локальной демонстрации' }); }
