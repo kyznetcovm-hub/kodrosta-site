@@ -206,16 +206,17 @@ test('бот: прямая ссылка, /hostess и /menu открывают х
 });
 
 // UI исполняется вместе с настоящим Worker и SQLite; Telegram подменён только на границе SDK.
-async function browserFixture(env,user) {
+async function browserFixture(env,user,options={}) {
  const html=readFileSync(new URL('../admission.html',import.meta.url),'utf8'), nodes=new Map();
  function node() { return {hidden:false,textContent:'',value:'',children:[],append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},setAttribute(){},scrollIntoView(){}}; }
  for (const match of html.matchAll(/id="([^"]+)"/g)) nodes.set(match[1],node());
- const document={hidden:false,getElementById(id){assert.ok(nodes.has(id),'реальный HTML содержит '+id);return nodes.get(id);},createElement:node,addEventListener(){}};
+ const drawn=[], canvasContext={fillRect(){},fillText(text){drawn.push(text);},measureText(text){return {width:text.length*16};},drawImage(){}};
+ const document={hidden:false,getElementById(id){assert.ok(nodes.has(id),'реальный HTML содержит '+id);return nodes.get(id);},createElement(tag){const n=node();if(tag==='canvas'){n.getContext=()=>canvasContext;n.toDataURL=()=>'data:image/png;base64,dGVzdA==';}n.click=()=>{};return n;},addEventListener(){}};
  const sdk={initData:admin(user).slice(4),platform:'ios',ready(){},expand(){},isVersionAtLeast(){return true;},closeScanQrPopup(){},showScanQrPopup(_,callback){this.scan=callback;}};
- const context={document,window:{Telegram:{WebApp:sdk},addEventListener(){},confirm(){return true;}},sessionStorage:{removeItem(){}},location:new URL('https://codrosta.club/admission?mode=hostess'),URL,URLSearchParams,navigator:{},setInterval(){},fetch(url,options={}){return worker.fetch(new Request(new URL(url,'https://codrosta.club'),options),env,{});}};
+ const context={document,window:{Telegram:{WebApp:sdk},qrcode(){return {addData(){},make(){},createDataURL(){return 'data:image/gif;base64,dGVzdA==';}};},addEventListener(){},confirm(){return true;}},Image:class {async decode(){}},sessionStorage:{removeItem(){}},location:new URL(options.url || 'https://codrosta.club/admission?mode=hostess'),URL,URLSearchParams,navigator:{},setInterval(){},fetch(url,options={}){return worker.fetch(new Request(new URL(url,'https://codrosta.club'),options),env,{});}};
  vm.runInNewContext(readFileSync(new URL('../js/admission.js',import.meta.url),'utf8'),context);
  async function settle(){for(let i=0;i<30;i++)await new Promise(resolve=>setImmediate(resolve));}
- await settle();return {nodes,sdk,settle};
+ await settle();return {nodes,sdk,settle,drawn};
 }
 test('экран хостес: запрос доступа, подтверждение организатором и вход одной кнопкой',async t=>{
  const {env,call}=await fixture(t), ui=await browserFixture(env,{id:3,first_name:'Анна'});
@@ -236,4 +237,15 @@ test('сканер Telegram: проверяет тестовый QR и игно�
  assert.equal(sqlite.prepare("SELECT checked_in_by FROM admission_tickets WHERE id='active'").get().checked_in_by,'host:2');
  await ui.nodes.get('start-camera').onclick();ui.sdk.scan('https://codrosta.club/admission#t='+tokens.active);
  await ui.settle();assert.equal(ui.nodes.get('decision').className,'decision red');
+});
+test('приглашение: четыре купленных пакета на странице и в PNG, обязательные сведения и просмотр без прохода',async t=>{
+ const {env,sqlite,tokens}=await fixture(t);
+ for(const [tariff,expected] of [['Гость','Премия'],['Гость + игра','Премия + игра'],['Гость + подкаст','Премия + подкаст'],['Гость + игра + подкаст','Премия + игра + подкаст']]) {
+   sqlite.prepare("UPDATE admission_tickets SET category=? WHERE id='active'").run(tariff);
+   const ui=await browserFixture(env,{id:2},{url:'https://codrosta.club/admission?view=ticket#t='+tokens.active});
+   assert.equal(ui.nodes.get('ticket-category').textContent,expected);
+   ui.nodes.get('save-ticket').onclick();await ui.settle();
+   for(const text of [expected,'27 ноября 2026 · Начало в 18:30','ЦУМ · ул. Московская, 2','Дресс-код — коктейльный','Telegram: @Kodrosta · t.me/Kodrosta']) assert.ok(ui.drawn.includes(text),text);
+ }
+ assert.equal(sqlite.prepare("SELECT checked_in_at FROM admission_tickets WHERE id='active'").get().checked_in_at,null);
 });
