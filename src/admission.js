@@ -1,6 +1,6 @@
 // Персональные билеты премии. Просмотр билета никогда не регистрирует проход.
-// Администратор: существующий вход Telegram. Хостес: отдельный секрет события.
-import { authenticate } from './office.js';
+// Организатор и хостес входят по подписанному аккаунту Telegram.
+import { authenticate, verifyInitData } from './office.js';
 import { ADMISSION_SOURCE_SCHEMA, syncAdmissionFromSheet } from './admission-sync.js';
 
 export const ADMISSION_SCHEMA = [
@@ -11,6 +11,13 @@ export const ADMISSION_SCHEMA = [
     checked_in_at TEXT, checked_in_by TEXT, created_at TEXT NOT NULL
   )`,
   'CREATE INDEX IF NOT EXISTS admission_event ON admission_tickets(event_id)',
+  `CREATE TABLE IF NOT EXISTS admission_staff (
+    event_id TEXT NOT NULL, telegram_id INTEGER NOT NULL,
+    person_name TEXT NOT NULL, username TEXT NOT NULL DEFAULT '',
+    state TEXT NOT NULL CHECK(state IN ('pending','approved','revoked')),
+    requested_at TEXT NOT NULL, decided_at TEXT, decided_by TEXT,
+    PRIMARY KEY(event_id,telegram_id)
+  )`,
 ];
 const ready = new WeakMap();
 export function ensureAdmission(env) {
@@ -38,29 +45,19 @@ function publicTicket(t) {
 function randomToken() {
   return Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
 }
-async function sameSecret(a, b) {
-  if (!a || !b || b.length < 32 || a.length > 256) return false;
-  const hash = value => crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-  const [x, y] = await Promise.all([hash(a), hash(b)]);
-  let diff = 0;
-  const aa = new Uint8Array(x), bb = new Uint8Array(y);
-  for (let i = 0; i < aa.length; i++) diff |= aa[i] ^ bb[i];
-  return diff === 0;
-}
-// Отдельный ключ входа на это событие. Токен Telegram наружу не передаётся.
-// ADMISSION_HOST_KEY остаётся необязательным способом заменить/отозвать старый ключ.
-export async function admissionHostKey(env) {
-  if (env.ADMISSION_HOST_KEY && env.ADMISSION_HOST_KEY.length >= 32) return env.ADMISSION_HOST_KEY;
-  if (!env.BOT_TOKEN) return null;
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.BOT_TOKEN), {name:'HMAC',hash:'SHA-256'}, false, ['sign']);
-  const signature = await crypto.subtle.sign('HMAC',key,new TextEncoder().encode('kodrosta:admission:host:' + admissionEvent(env).id));
-  return Array.from(new Uint8Array(signature), b=>b.toString(16).padStart(2,'0')).join('');
+async function telegramUser(request, env) {
+  const auth = request.headers.get('authorization') || '';
+  return verifyInitData(auth.startsWith('tma ') ? auth.slice(4) : '', env.BOT_TOKEN);
 }
 async function access(request, env) {
-  if (request.headers.get('x-admission-key') && await sameSecret(request.headers.get('x-admission-key'), await admissionHostKey(env)))
-    return { role: 'host', actor: 'host' };
   const auth = await authenticate(request, env);
-  return auth.user ? { role: 'admin', actor: 'admin:' + auth.user.id } : null;
+  if (auth.user) return { role: 'admin', actor: 'admin:' + auth.user.id };
+  const user = await telegramUser(request, env);
+  if (!user) return null;
+  await ensureAdmission(env);
+  const staff = await env.DB.prepare('SELECT state FROM admission_staff WHERE event_id=? AND telegram_id=?')
+    .bind(admissionEvent(env).id,user.id).first();
+  return staff?.state === 'approved' ? {role:'host',actor:'host:' + user.id} : null;
 }
 const categories = ['Гость', 'Резидент', 'Номинант', 'Партнёр', 'VIP'];
 export async function handleAdmissionApi(request, env, path) {
@@ -84,14 +81,37 @@ export async function handleAdmissionApi(request, env, path) {
         .bind(event.id, body.token).first();
       return ticket ? json({ event, ticket: publicTicket(ticket) }) : json({ error: 'Билет не найден' }, 404);
     }
+    if (path === '/api/admission/access' && ['GET','POST'].includes(request.method)) {
+      const tg = await telegramUser(request,env);
+      if (!tg) return json({error:'Открой вход для хостес через Telegram-бота.'},401);
+      await ensureAdmission(env);
+      if (request.method === 'POST') {
+        const name = [tg.first_name,tg.last_name].filter(Boolean).join(' ').slice(0,120) || 'Telegram ID ' + tg.id;
+        await env.DB.prepare(`INSERT INTO admission_staff (event_id,telegram_id,person_name,username,state,requested_at)
+          VALUES (?,?,?,?,'pending',?) ON CONFLICT(event_id,telegram_id) DO UPDATE
+          SET person_name=excluded.person_name,username=excluded.username`)
+          .bind(event.id,tg.id,name,String(tg.username || '').slice(0,64),new Date().toISOString()).run();
+      }
+      const staff = await env.DB.prepare('SELECT state FROM admission_staff WHERE event_id=? AND telegram_id=?').bind(event.id,tg.id).first();
+      return json({state:staff?.state || 'none'});
+    }
     const user = await access(request, env);
     if (!user) return json({ error: 'Нужен доступ организатора или хостес' }, 401);
     await ensureAdmission(env);
     if (path === '/api/admission/me' && request.method === 'GET') return json({ event, role: user.role,
       syncSource: env.ADMISSION_SOURCE_LABEL || 'Google-таблица оплат' });
-    if (path === '/api/admission/host-access' && request.method === 'GET') {
-      if (user.role !== 'admin') return json({error:'Ключ хостес доступен только организатору'},403);
-      return json({key:await admissionHostKey(env)});
+    if (path === '/api/admission/staff' && ['GET','POST'].includes(request.method)) {
+      if (user.role !== 'admin') return json({error:'Только организатор управляет командой входа'},403);
+      if (request.method === 'POST') {
+        if (!Number.isSafeInteger(body.telegramId) || body.telegramId <= 0 || !['approved','revoked'].includes(body.state))
+          return json({error:'Проверь сотрудника и действие'},400);
+        const result = await env.DB.prepare('UPDATE admission_staff SET state=?,decided_at=?,decided_by=? WHERE event_id=? AND telegram_id=?')
+          .bind(body.state,new Date().toISOString(),user.actor,event.id,body.telegramId).run();
+        return result.meta.changes ? json({ok:true}) : json({error:'Заявка сотрудника не найдена'},404);
+      }
+      const staff = (await env.DB.prepare(`SELECT telegram_id AS telegramId,person_name AS name,username,state FROM admission_staff
+        WHERE event_id=? ORDER BY CASE state WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,requested_at`).bind(event.id).all()).results;
+      return json({staff});
     }
     if (path === '/api/admission/sync' && request.method === 'POST') {
       if (user.role !== 'admin') return json({ error: 'Только организатор может обновлять оплаты' }, 403);

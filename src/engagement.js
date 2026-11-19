@@ -189,6 +189,7 @@ export async function handleTelegramUpdate(update, env) {
   if (text.startsWith("/events")) return handleListEventsCommand(msg, env);
   if (text.startsWith("/delevent")) return handleDeleteEventCommand(msg, env, text);
   if (/^Дата\s*[:：]/im.test(text)) return handleNewEventCommand(msg, env, text);
+  if (/^\/hostess(?:@\w+)?(?:\s|$)/i.test(text)) return handleHostessCommand(msg, env);
   if (text.startsWith("/menu")) return handleMenu(msg, env);
   if (text.startsWith("/office")) return handleOfficeCommand(msg, env);
   if (text.startsWith("/start")) return handleStart(msg, env);
@@ -209,6 +210,7 @@ function adminMenuKeyboard() {
       [{ text: "📱 Офис в кармане", web_app: { url: OFFICE_URL } }],
       [{ text: "🎲 Рандомайзер", web_app: { url: SITE_URL + "/randomizer" } }],
       [{ text: "🎟 Билеты премии", web_app: { url: SITE_URL + "/admission" } }],
+      [{ text: "📷 Вход для хостес", web_app: { url: SITE_URL + "/admission?mode=hostess" } }],
 
       [{ text: "🟦 РЕДАКТИРОВАТЬ САЙТ 🟦", callback_data: "noop" }],
       [{ text: "01 · О клубе", callback_data: "content:about" }, { text: "02 · Цифры клуба", callback_data: "content:numbers" }],
@@ -285,10 +287,17 @@ function backButtonRow() {
 // живут в разных слоях интерфейса Telegram, одним сообщением их не заменить,
 // поэтому шлём два: сначала снимаем старую клавиатуру, потом показываем меню.
 async function handleMenu(msg, env) {
-  if (!isAdmin(msg.from.username, env)) return;
+  if (!isAdmin(msg.from.username, env)) return handleHostessCommand(msg, env);
   if (env.DB) await clearPendingEdit(env.DB, msg.from.id);
   await sendMessage(env, msg.from.id, "Меню", { remove_keyboard: true });
   return sendMessage(env, msg.from.id, "Что нужно сделать?", adminMenuKeyboard());
+}
+
+async function handleHostessCommand(msg, env) {
+  if (msg.chat?.type !== 'private') return;
+  return sendMessage(env, msg.from.id, 'Вход для хостес — по вашему аккаунту Telegram. При первом открытии запросите доступ у организатора.', {
+    inline_keyboard: [[{text:'📷 Вход для хостес',web_app:{url:SITE_URL + '/admission?mode=hostess'}}]],
+  });
 }
 
 // Шаблон нового мероприятия. Направление (сайт клуба или «Туризм») выбирается
@@ -1043,6 +1052,7 @@ async function handleContact(msg, env) {
 async function handleStart(msg, env) {
   // Диплинк вида t.me/<бот>?start=e_<eventId> — запись на мероприятие.
   const param = (msg.text || "").split(/\s+/)[1] || "";
+  if (param === 'hostess') return handleHostessCommand(msg, env);
   if (param.startsWith("e_")) {
     return handleEventRegPrompt(msg, env, param.slice(2));
   }

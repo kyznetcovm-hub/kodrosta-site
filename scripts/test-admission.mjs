@@ -2,12 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { createHmac } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
 import worker from '../src/index.js';
-import { ensureAdmission, admissionHostKey } from '../src/admission.js';
+import { ensureAdmission } from '../src/admission.js';
 import { parseAdmissionSheet, syncAdmissionRows } from '../src/admission-sync.js';
 const TOKEN = 'test-only-bot-token', HOST_KEY = 'test-host-key-with-more-than-32-characters';
-function admin() {
-  const p = new URLSearchParams({ auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id: 1, username: 'admin' }) });
+function admin(user = {id:1,username:'admin'}, authDate = Math.floor(Date.now() / 1000)) {
+  const p = new URLSearchParams({ auth_date: String(authDate), user: JSON.stringify(user) });
   const text = [...p.entries()].sort(([a], [b]) => a < b ? -1 : 1).map(([k,v]) => k + '=' + v).join('\n');
   const secret = createHmac('sha256', 'WebAppData').update(TOKEN).digest();
   p.set('hash', createHmac('sha256', secret).update(text).digest('hex')); return 'tma ' + p;
@@ -18,14 +20,15 @@ async function fixture(t) {
   const DB = { prepare(sql) { const st = sqlite.prepare(sql); let v = []; return { bind(...x) { v = x; return this; }, async first() { return st.get(...v) ?? null; }, async all() { return { results: st.all(...v) }; }, async run() { return { meta: { changes: Number(st.run(...v).changes) } }; } }; }, async batch(statements) {
     sqlite.exec('BEGIN'); try { for (const st of statements) await st.run(); sqlite.exec('COMMIT'); } catch (err) { sqlite.exec('ROLLBACK'); throw err; }
   } };
-  const env = { DB, BOT_TOKEN: TOKEN, ADMIN_USERNAMES: 'admin', ADMISSION_HOST_KEY: HOST_KEY };
+  const env = { DB, BOT_TOKEN: TOKEN, ADMIN_USERNAMES: 'admin' };
   await ensureAdmission(env);
+  sqlite.prepare("INSERT INTO admission_staff VALUES ('premiya-2026-demo',2,'Хостес','host','approved','2026-11-19',NULL,NULL)").run();
   for (const [id, status, event] of [['active','active','premiya-2026-demo'], ['pending','pending','premiya-2026-demo'], ['cancelled','cancelled','premiya-2026-demo'], ['other','active','other-event']])
     sqlite.prepare('INSERT INTO admission_tickets (id,event_id,token,person_name,company,category,status,created_at) VALUES (?,?,?,?,?,?,?,?)')
       .run(id,event, id.padEnd(64, '0').replace(/[^a-f0-9]/g, 'a'), 'Тестовый гость', 'Тестовая компания', 'Гость',status,'2026-11-19T00:00:00Z');
   const tokens = Object.fromEntries(sqlite.prepare('SELECT id,token FROM admission_tickets').all().map(r => [r.id,r.token]));
   async function call(path, body, role = 'host') {
-    const headers = role === 'admin' ? { authorization: admin() } : role === 'host' ? { 'x-admission-key': HOST_KEY } : {};
+    const headers = typeof role === 'object' ? {authorization:admin(role)} : role === 'admin' ? { authorization: admin() } : role === 'host' ? { authorization:admin({id:2,username:'host'}) } : {};
     if (body !== undefined) headers['content-type'] = 'application/json';
     const r = await worker.fetch(new Request('https://codrosta.club/api/admission/' + path, { headers, method: body === undefined ? 'GET' : 'POST', body: body === undefined ? undefined : JSON.stringify(body) }), env, {});
     return { status: r.status, body: await r.json(), headers: r.headers };
@@ -144,16 +147,93 @@ test('API синхронизации: только организатор; сб�
   assert.equal((await call('sync',{},'admin')).status,503);
   assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM admission_sheet_tickets').get().n,1);
 });
-test('ключ хостес отдельный для события, доступен организатору и не раскрывает токен бота',async t=>{
- const {env,call}=await fixture(t);delete env.ADMISSION_HOST_KEY;
- const key=await admissionHostKey(env);
- assert.match(key,/^[a-f0-9]{64}$/);assert.notEqual(key,env.BOT_TOKEN);
- assert.notEqual(key,await admissionHostKey({...env,ADMISSION_EVENT_ID:'other-event'}));
- assert.equal(await admissionHostKey({}),null);
- const access=await call('host-access',undefined,'admin');assert.equal(access.body.key,key);
- assert.equal((await call('host-access',undefined,'guest')).status,401);
- const response=await worker.fetch(new Request('https://codrosta.club/api/admission/host-access',{headers:{'x-admission-key':key}}),env,{});
+test('Telegram: заявка, одобрение, вход без ключа и отзыв уже открытой сессии',async t=>{
+ const {call,sqlite}=await fixture(t), user={id:3,username:'new_host',first_name:'Анна',last_name:'Тестовая'};
+ assert.equal((await call('access',undefined,user)).body.state,'none');
+ assert.equal((await call('tickets',undefined,user)).status,401);
+ assert.equal((await call('access',{telegramId:1,state:'approved'},user)).body.state,'pending');
+ assert.equal((await call('staff',undefined,user)).status,401);
+ const list=await call('staff',undefined,'admin');assert.equal(list.body.staff[0].telegramId,3);
+ assert.equal(list.body.staff[0].name,'Анна Тестовая');
+ assert.equal((await call('staff',{telegramId:3,state:'approved'},'admin')).status,200);
+ assert.equal((await call('me',undefined,user)).body.role,'host');
+ assert.equal((await call('tickets',undefined,user)).body.tickets[0].token,undefined);
+ assert.equal((await call('staff',{telegramId:2,state:'approved'},user)).status,403);
+ assert.equal((await call('check-in',{id:'active'},user)).body.decision,'green');
+ assert.equal(sqlite.prepare("SELECT checked_in_by FROM admission_tickets WHERE id='active'").get().checked_in_by,'host:3');
+ await call('staff',{telegramId:3,state:'revoked'},'admin');
+ assert.equal((await call('tickets',undefined,user)).status,401);
+ assert.equal((await call('check-in',{id:'pending'},user)).status,401);
+ assert.equal((await call('access',{},user)).body.state,'revoked');
+ assert.equal((await call('staff',{telegramId:3,state:'approved'},'admin')).status,200);
+ assert.equal((await call('me',undefined,{id:3,username:'changed_name'})).body.role,'host');
+ assert.equal((await call('me',undefined,{id:4,username:'new_host'})).status,401);
+});
+test('Telegram: подмена ID, просроченная подпись и прежний общий ключ доступа не дают',async t=>{
+ const {env,call}=await fixture(t);
+ for (const headers of [
+   {'x-admission-key':HOST_KEY},
+   {authorization:admin({id:2,username:'host'}).replace('%22id%22%3A2','%22id%22%3A3')},
+   {authorization:admin({id:2,username:'host'},Math.floor(Date.now()/1000)-25*3600)},
+ ]) {
+   const r=await worker.fetch(new Request('https://codrosta.club/api/admission/me',{headers}),env,{});assert.equal(r.status,401);
+ }
+ assert.equal((await call('access',{},'guest')).status,401);
+ assert.equal((await call('host-access',undefined,'admin')).status,404);
+ assert.equal((await call('staff',{telegramId:99,state:'approved'},'admin')).status,404);
+ assert.equal((await call('staff',{telegramId:'2',state:'approved'},'admin')).status,400);
+});
+test('Telegram: допуск хостес ограничен событием и не даёт входа в офис',async t=>{
+ const {env,call}=await fixture(t);
+ const response=await worker.fetch(new Request('https://codrosta.club/api/office/me',{headers:{authorization:admin({id:2,username:'host'})}}),env,{});
  assert.equal(response.status,403);
- const me=await worker.fetch(new Request('https://codrosta.club/api/admission/me',{headers:{'x-admission-key':key}}),env,{});
- assert.equal((await me.json()).role,'host');
+ env.ADMISSION_EVENT_ID='another-event';
+ assert.equal((await call('me')).status,401);
+ assert.equal((await call('access',undefined,'host')).body.state,'none');
+});
+
+test('бот: прямая ссылка, /hostess и /menu открывают хостес без запроса телефона',async t=>{
+ const {env}=await fixture(t), {handleTelegramUpdate}=await import('../src/engagement.js'), messages=[];
+ t.mock.method(globalThis,'fetch',async(url,options)=>{
+   assert.match(String(url),/api\.telegram\.org/);messages.push(JSON.parse(options.body));return Response.json({ok:true});
+ });
+ for (const text of ['/start hostess','/hostess','/menu']) {
+   await handleTelegramUpdate({message:{from:{id:3,first_name:'Хостес'},chat:{id:3,type:'private'},text}},env);
+   const sent=messages.at(-1);assert.equal(sent.chat_id,3);
+   assert.equal(sent.reply_markup.inline_keyboard[0][0].web_app.url,'https://codrosta.club/admission?mode=hostess');
+   assert.equal(sent.reply_markup.keyboard,undefined);
+ }
+});
+
+// UI исполняется вместе с настоящим Worker и SQLite; Telegram подменён только на границе SDK.
+async function browserFixture(env,user) {
+ const html=readFileSync(new URL('../admission.html',import.meta.url),'utf8'), nodes=new Map();
+ function node() { return {hidden:false,textContent:'',value:'',children:[],append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},setAttribute(){},scrollIntoView(){}}; }
+ for (const match of html.matchAll(/id="([^"]+)"/g)) nodes.set(match[1],node());
+ const document={hidden:false,getElementById(id){assert.ok(nodes.has(id),'реальный HTML содержит '+id);return nodes.get(id);},createElement:node,addEventListener(){}};
+ const sdk={initData:admin(user).slice(4),platform:'ios',ready(){},expand(){},isVersionAtLeast(){return true;},closeScanQrPopup(){},showScanQrPopup(_,callback){this.scan=callback;}};
+ const context={document,window:{Telegram:{WebApp:sdk},addEventListener(){},confirm(){return true;}},sessionStorage:{removeItem(){}},location:new URL('https://codrosta.club/admission?mode=hostess'),URL,URLSearchParams,navigator:{},setInterval(){},fetch(url,options={}){return worker.fetch(new Request(new URL(url,'https://codrosta.club'),options),env,{});}};
+ vm.runInNewContext(readFileSync(new URL('../js/admission.js',import.meta.url),'utf8'),context);
+ async function settle(){for(let i=0;i<30;i++)await new Promise(resolve=>setImmediate(resolve));}
+ await settle();return {nodes,sdk,settle};
+}
+test('экран хостес: запрос доступа, подтверждение организатором и вход одной кнопкой',async t=>{
+ const {env,call}=await fixture(t), ui=await browserFixture(env,{id:3,first_name:'Анна'});
+ assert.equal(ui.nodes.get('access-panel').hidden,false);assert.equal(ui.nodes.get('request-access').hidden,false);
+ await ui.nodes.get('request-access').onclick();assert.equal(ui.nodes.get('request-access').hidden,true);
+ assert.match(ui.nodes.get('access-message').textContent,/Заявка отправлена/);
+ await call('staff',{telegramId:3,state:'approved'},'admin');await ui.nodes.get('retry-access').onclick();
+ assert.equal(ui.nodes.get('login').hidden,true);assert.equal(ui.nodes.get('scan-panel').hidden,false);
+ assert.equal(ui.nodes.get('sheet-sync').hidden,true);assert.equal(ui.nodes.get('staff-panel').hidden,true);
+});
+test('сканер Telegram: проверяет тестовый QR и игнорирует повторный callback камеры',async t=>{
+ const {env,tokens,sqlite}=await fixture(t), ui=await browserFixture(env,{id:2,username:'host'});
+ await ui.nodes.get('start-camera').onclick();const callback=ui.sdk.scan;assert.equal(typeof callback,'function');
+ assert.equal(callback('https://foreign.example/admission#t='+tokens.active),false);
+ assert.equal(callback('https://codrosta.club/admission?view=ticket#t='+tokens.active),true);
+ assert.equal(callback('https://codrosta.club/admission#t='+tokens.active),true);
+ await ui.settle();assert.equal(ui.nodes.get('decision').className,'decision green');
+ assert.equal(sqlite.prepare("SELECT checked_in_by FROM admission_tickets WHERE id='active'").get().checked_in_by,'host:2');
+ await ui.nodes.get('start-camera').onclick();ui.sdk.scan('https://codrosta.club/admission#t='+tokens.active);
+ await ui.settle();assert.equal(ui.nodes.get('decision').className,'decision red');
 });

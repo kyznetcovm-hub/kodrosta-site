@@ -28,13 +28,16 @@ const DB = { prepare(sql) { const st = sqlite.prepare(sql); let values = []; ret
 const snapshotPath = resolve(ROOT,'.wrangler/admission-sheet-snapshot.json');
 const snapshotExists = existsSync(snapshotPath);
 const env = { DB, BOT_TOKEN: randomBytes(32).toString('hex'), ADMIN_USERNAMES: 'demo_admin',
-  ADMISSION_HOST_KEY: randomBytes(32).toString('hex'), ADMISSION_EVENT_ID: snapshotExists ? 'premiya-2026-sheet-demo' : 'premiya-2026-demo' };
+  ADMISSION_EVENT_ID: snapshotExists ? 'premiya-2026-sheet-demo' : 'premiya-2026-demo' };
 if (snapshotExists) {
   const initial = JSON.parse(await readFile(snapshotPath,'utf8'));
   env.ADMISSION_SOURCE_LABEL = 'Тестовый снимок таблицы от ' + new Date(initial.fetchedAt).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'}) + ' МСК (не живая синхронизация)';
   env.ADMISSION_READ_SHEET = async () => JSON.parse(await readFile(snapshotPath,'utf8')).values;
 }
 await ensureAdmission(env);
+sqlite.prepare(`INSERT INTO admission_staff (event_id,telegram_id,person_name,username,state,requested_at)
+  VALUES (?,826002,'Тестовая хостес','demo_host','approved',?) ON CONFLICT(event_id,telegram_id) DO UPDATE SET state='approved'`)
+  .run(admissionEvent(env).id,new Date().toISOString());
 if (snapshotExists) await syncAdmissionFromSheet(env,admissionEvent(env).id);
 if (!snapshotExists && !sqlite.prepare('SELECT COUNT(*) AS n FROM admission_tickets WHERE event_id=?').get(admissionEvent(env).id).n) {
   const guests = [
@@ -53,8 +56,8 @@ if (!snapshotExists && !sqlite.prepare('SELECT COUNT(*) AS n FROM admission_tick
     (id,event_id,token,person_name,company,category,status,created_at) VALUES (?,?,?,?,?,?,?,?)`)
     .run('demo-' + (i + 1), admissionEvent(env).id, randomBytes(32).toString('hex'), ...guests[i], new Date().toISOString());
 }
-function initData() {
-  const p = new URLSearchParams({ auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id: 826001, username: 'demo_admin' }) });
+function initData(role) {
+  const p = new URLSearchParams({ auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id: role === 'host' ? 826002 : 826001, username: role === 'host' ? 'demo_host' : 'demo_admin' }) });
   const check = [...p.entries()].sort(([a], [b]) => a < b ? -1 : 1).map(([k, v]) => k + '=' + v).join('\n');
   const secret = createHmac('sha256', 'WebAppData').update(env.BOT_TOKEN).digest();
   p.set('hash', createHmac('sha256', secret).update(check).digest('hex')); return p.toString();
@@ -82,8 +85,7 @@ const server = http.createServer(async (req, res) => {
       // Тестовые роли существуют только в этом локальном сервере, не в Worker.
       const session = sessions.get((req.headers.cookie || '').match(/(?:^|;\s*)admission_demo=([a-f0-9]+)/)?.[1]);
       if (session && session.expires > Date.now()) {
-        if (session.role === 'admin') { headers.set('authorization', 'tma ' + initData()); headers.delete('x-admission-key'); }
-        else { headers.set('x-admission-key', env.ADMISSION_HOST_KEY); headers.delete('authorization'); }
+        headers.set('authorization', 'tma ' + initData(session.role)); headers.delete('x-admission-key');
       }
       const response = await worker.fetch(new Request('https://codrosta.club' + req.url, {
         method: req.method, headers, ...(req.method === 'POST' ? { body: raw } : {}),
