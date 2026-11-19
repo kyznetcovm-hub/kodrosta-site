@@ -15,12 +15,17 @@ import { runSubscriptionNotifications } from "./subscription-notifications.js";
 import { buildMetrikaDigest, fetchBlogViews } from "./metrika.js";
 import { handleOfficeApi } from "./office.js";
 import { handleRandomizerApi } from "./randomizer.js";
+import { handleAdmissionApi } from "./admission.js";
 
 const SITE_URL = "https://codrosta.club";
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    if (url.pathname.startsWith("/api/admission/")) {
+      return handleAdmissionApi(request, env, url.pathname);
+    }
 
     if (url.pathname === "/api/submit" && request.method === "POST") {
       return handleSubmit(request, env);
