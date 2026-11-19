@@ -210,7 +210,7 @@ function adminMenuKeyboard() {
     inline_keyboard: [
       [{ text: "📱 Офис в кармане", web_app: { url: OFFICE_URL } }],
       [{ text: "🎲 Рандомайзер", web_app: { url: SITE_URL + "/randomizer" } }],
-      [{ text: "🎟 Билеты премии", web_app: { url: SITE_URL + "/admission" } }],
+      [{ text: "🎟 Билеты премии", callback_data: "adm:roles" }],
       [{ text: "📷 Вход для хостес", web_app: { url: SITE_URL + "/admission?mode=hostess" } }],
 
       [{ text: "🟦 РЕДАКТИРОВАТЬ САЙТ 🟦", callback_data: "noop" }],

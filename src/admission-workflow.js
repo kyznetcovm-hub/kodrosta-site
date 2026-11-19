@@ -101,6 +101,12 @@ export async function requestAdmissionAccess(env,user) {
 }
 export async function sendAdmissionEntry(env,user) {
   await ensureAdmissionWorkflow(env);
+  if (await isAdmissionOwner(env,user.id)) {
+    return telegram(env,'sendMessage',{chat_id:user.id,text:'Как открыть систему билетов?',reply_markup:{inline_keyboard:[
+      [{text:'Зайти как организатор',web_app:{url:'https://codrosta.club/admission?viewRole=organizer'}}],
+      [{text:'Зайти как менеджер',web_app:{url:'https://codrosta.club/admission?viewRole=manager'}}],
+    ]}});
+  }
   const staff = await env.DB.prepare('SELECT state FROM admission_staff WHERE event_id=? AND telegram_id=?').bind(admissionWorkflowEvent(env),user.id).first();
   const allowed = await isAdmissionOwner(env,user.id) || staff?.state === 'approved';
   // Корпоративный администратор уже имеет прежний доступ к билетам, но оплаты подтверждает только Михаил.
@@ -150,6 +156,11 @@ export async function decideAdmissionRequest(env, id, approve, ownerId) {
   return {ok:true,state};
 }
 export async function handleAdmissionCallback(cq,env) {
+  if (cq.data === 'adm:roles') {
+    if (!Number.isSafeInteger(cq.from?.id) || cq.from.id <= 0 || cq.message?.chat?.id !== cq.from.id) return true;
+    await telegram(env,'answerCallbackQuery',{callback_query_id:cq.id});
+    await sendAdmissionEntry(env,cq.from);return true;
+  }
   if (cq.data === 'adm:request' || cq.data === 'adm:open') {
     if (!Number.isSafeInteger(cq.from?.id) || cq.from.id <= 0 || cq.message?.chat?.id !== cq.from.id) return true;
     await telegram(env,'answerCallbackQuery',{callback_query_id:cq.id});

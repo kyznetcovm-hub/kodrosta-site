@@ -52,7 +52,11 @@ async function telegramUser(request, env) {
 }
 async function access(request, env) {
   const auth = await authenticate(request, env);
-  if (auth.user) return { role: 'admin', actor: 'admin:' + auth.user.id, telegramId:auth.user.id, tg:auth.user };
+  if (auth.user) {
+    const previewManager = request.headers.get('x-admission-view') === 'manager' && await isAdmissionOwner(env,auth.user.id);
+    return { role:previewManager ? 'host' : 'admin', actor:(previewManager ? 'manager-preview:' : 'admin:') + auth.user.id,
+      telegramId:auth.user.id,tg:auth.user,previewManager };
+  }
   const user = await telegramUser(request, env);
   if (!user) return null;
   await ensureAdmission(env);
@@ -97,8 +101,8 @@ export async function handleAdmissionApi(request, env, path) {
     const user = await access(request, env);
     if (!user) return json({ error: 'Нужен подтверждённый доступ к системе билетов' }, 401);
     await ensureAdmission(env);
-    const owner = await isAdmissionOwner(env,user.telegramId);
-    if (path === '/api/admission/me' && request.method === 'GET') return json({ event, role: user.role, canApprove:owner });
+    const owner = !user.previewManager && await isAdmissionOwner(env,user.telegramId);
+    if (path === '/api/admission/me' && request.method === 'GET') return json({ event, role: user.role, canApprove:owner,managerPreview:!!user.previewManager });
     if (path === '/api/admission/staff' && ['GET','POST'].includes(request.method)) {
       if (!owner) return json({error:'Только Михаил управляет доступом'},403);
       if (request.method === 'POST') {

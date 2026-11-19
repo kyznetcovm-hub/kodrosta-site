@@ -21,6 +21,7 @@
     var headers = {};
     var tg = window.Telegram && window.Telegram.WebApp;
     if (tg && tg.initData) headers.authorization = 'tma ' + tg.initData;
+    if (new URLSearchParams(location.search).get('viewRole') === 'manager') headers['x-admission-view'] = 'manager';
     if (body !== undefined) headers['content-type'] = 'application/json';
     var response = await fetch('/api/admission/' + path, { method: body === undefined ? 'GET' : 'POST', headers: headers,
       body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store' });
@@ -39,6 +40,7 @@
   }
   async function enter() {
     var data = await api('me'); role = data.role; canApprove = !!data.canApprove; setEvent(data.event);
+    show('manager-preview',!!data.managerPreview);
     show('login', false); show('workspace', true); show('ticket-view', false);
     show('tab-guests', true); show('show-create', true);
     show('staff-panel', canApprove); show('requests-panel', canApprove);

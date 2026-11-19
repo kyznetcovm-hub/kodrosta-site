@@ -33,8 +33,9 @@ async function fixture(t) {
     sqlite.prepare('INSERT INTO admission_tickets (id,event_id,token,person_name,company,category,status,created_at) VALUES (?,?,?,?,?,?,?,?)')
       .run(id,event, id.padEnd(64, '0').replace(/[^a-f0-9]/g, 'a'), 'Тестовый гость', 'Тестовая компания', 'Гость',status,'2026-11-19T00:00:00Z');
   const tokens = Object.fromEntries(sqlite.prepare('SELECT id,token FROM admission_tickets').all().map(r => [r.id,r.token]));
-  async function call(path, body, role = 'host') {
+  async function call(path, body, role = 'host',view) {
     const headers = typeof role === 'object' ? {authorization:admin(role)} : role === 'admin' ? { authorization: admin() } : role === 'host' ? { authorization:admin({id:2,username:'host'}) } : {};
+    if (view) headers['x-admission-view']=view;
     if (body !== undefined) headers['content-type'] = 'application/json';
     const r = await worker.fetch(new Request('https://codrosta.club/api/admission/' + path, { headers, method: body === undefined ? 'GET' : 'POST', body: body === undefined ? undefined : JSON.stringify(body) }), env, {});
     return { status: r.status, body: await r.json(), headers: r.headers };
@@ -385,4 +386,40 @@ test('интерфейс менеджера: добавление, сообще�
  assert.equal(ui.intervals[0].ms,5000);
  await call('check-in',{id});ui.intervals[0].fn();await ui.settle();
  assert.equal(ui.nodes.get('stat-admitted').textContent,1);
+});
+test('Михаил выбирает две роли в боте; корпоративному и чужому аккаунту выбор организатора не предлагается',async t=>{
+ const {env,sqlite,messages}=await fixture(t);
+ await handleAdmissionCallback(callback(1,'adm:roles'),env);
+ const choices=messages.at(-1).body.reply_markup.inline_keyboard.flat();
+ assert.deepEqual(choices.map(b=>b.text),['Зайти как организатор','Зайти как менеджер']);
+ assert.match(choices[0].web_app.url,/viewRole=organizer$/);assert.match(choices[1].web_app.url,/viewRole=manager$/);
+ sqlite.prepare("INSERT INTO residents VALUES ('corporate',22)").run();env.ADMIN_USERNAMES='admin,corporate';
+ await handleAdmissionCallback(callback(22,'adm:roles'),env);
+ assert.equal(messages.at(-1).body.reply_markup.inline_keyboard.flat().length,1);
+ assert.equal(messages.at(-1).body.reply_markup.inline_keyboard[0][0].text,'🎟 Открыть систему билетов');
+ await handleAdmissionCallback(callback(3,'adm:roles'),env);
+ assert.equal(messages.at(-1).body.reply_markup.inline_keyboard[0][0].callback_data,'adm:request');
+});
+test('режим менеджера Михаила ограничен на сервере: добавление и отправка доступны, подтверждения закрыты',async t=>{
+ const {call,sqlite}=await fixture(t);
+ const me=await call('me',undefined,'admin','manager');assert.equal(me.body.role,'host');assert.equal(me.body.canApprove,false);assert.equal(me.body.managerPreview,true);
+ assert.equal((await call('me',undefined,'admin')).body.canApprove,true);
+ for(const path of ['staff','requests']) assert.equal((await call(path,undefined,'admin','manager')).status,403);
+ const id=(await call('create',{name:'ТЕСТ режима менеджера',category:'Гость'},'admin','manager')).body.id;
+ assert.ok(id);assert.equal((await call('share',{id},'admin','manager')).status,403);
+ assert.equal((await call('status',{id,status:'active'},'admin','manager')).status,403);
+ await call('payment-request',{id,amountRub:7000},'admin','manager');
+ const request=sqlite.prepare('SELECT id FROM admission_requests WHERE ticket_id=?').get(id);
+ assert.equal((await call('requests',{id:request.id,approve:true},'admin','manager')).status,403);
+ assert.equal((await call('requests',{id:request.id,approve:true},'admin')).status,200);
+ assert.equal((await call('share',{id},'admin','manager')).status,200);
+ assert.equal((await call('me',undefined,'host','organizer')).body.canApprove,false);
+});
+test('интерфейс Михаила в режиме менеджера скрывает подтверждения и показывает общий список',async t=>{
+ const {env}=await fixture(t),ui=await browserFixture(env,{id:1,username:'admin'},{url:'https://codrosta.club/admission?viewRole=manager'});
+ assert.equal(ui.nodes.get('manager-preview').hidden,false);assert.equal(ui.nodes.get('requests-panel').hidden,true);
+ assert.equal(ui.nodes.get('staff-panel').hidden,true);assert.equal(ui.nodes.get('show-create').hidden,false);
+ assert.equal(ui.nodes.get('guest-panel').hidden,false);
+ const owner=await browserFixture(env,{id:1,username:'admin'},{url:'https://codrosta.club/admission?viewRole=organizer'});
+ assert.equal(owner.nodes.get('manager-preview').hidden,true);assert.equal(owner.nodes.get('requests-panel').hidden,false);
 });
