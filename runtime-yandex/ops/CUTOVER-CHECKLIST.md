@@ -13,6 +13,7 @@
 - [x] Health-check и Caddy-блок подготовлены.
 - [x] DNS-токен Cloudflare с DNS Write проверен созданием/удалением TXT.
 - [x] Staging `prod-test.codrosta.club` на реальной БД и боте: HTTPS Let's Encrypt, страницы и форма — 200; Михаил подтвердил открытие в браузере.
+- [x] D1 export перепроверен 21 ноября: 2 153 229 байт, sha256 совпал с дампом 22:17, новых строк нет; API работает при немедленном polling.
 - [ ] A-записи `codrosta.club`/`www` и финальная синхронизация — на cutover после 27 ноября.
 
 ## Важные ограничения
@@ -50,7 +51,10 @@
    - Снять custom domain `codrosta.club`/`www` с Worker `kodrosta-site`.
    - Удалить cron-триггеры Worker.
    - Убедиться, что старая D1 больше не пишется.
-2. **Финальный D1 export** потоком на ВМ, без файла на Mac.
+2. **Финальный D1 export**: POST `{"output_format":"polling"}`, взять
+   `at_bookmark`, сразу поллить тот же endpoint с `current_bookmark` до
+   `result.result.signed_url`, скачать на ВМ. Один POST без повторного старта,
+   иначе job отменяется; файл на Mac не создавать.
 3. **Импорт:** `TRUNCATE` 22 таблиц `kodrosta_site`, импорт дампа, проверка
    количества/сумм и QR-токенов. Сверка обязательна.
 4. **Caddy:** добавить блок `Caddyfile.codrosta-block` в тот же inode,
