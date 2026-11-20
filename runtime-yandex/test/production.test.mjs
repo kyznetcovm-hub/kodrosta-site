@@ -1,11 +1,12 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp, rm, writeFile} from 'node:fs/promises';
-import {join} from 'node:path';
+import {mkdtemp, readFile, readdir, rm, writeFile} from 'node:fs/promises';
+import {join, resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {assetCandidates, contentTypeFor, sanitizeHtml} from '../production-static.mjs';
 import {dueCrons} from '../scheduler.mjs';
 import {allowedOrigins, buildSslConfig, loadEnv} from '../env-production.mjs';
+import {translate} from '../postgres.mjs';
 
 const baseEnv = {
   DATABASE_URL: 'postgresql://site_app:test@localhost:5432/kodrosta_site',
@@ -89,4 +90,18 @@ test('allowed origins include www for the main domain', () => {
   assert.equal(origins.has('https://codrosta.club'), true);
   assert.equal(origins.has('https://www.codrosta.club'), true);
   assert.equal(origins.has('https://evil.example'), false);
+});
+
+test('all schema migrations translate to PostgreSQL', async () => {
+  const dir = resolve(import.meta.dirname, '../../migrations');
+  const files = (await readdir(dir)).filter((name) => name.endsWith('.sql')).sort();
+  assert.ok(files.length >= 18);
+  for (const file of files) {
+    const out = translate(await readFile(resolve(dir, file), 'utf8')).text;
+    assert.ok(out.trim().length > 0, file);
+    const code = out.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.equal(/AUTOINCREMENT/i.test(code), false, file);
+    assert.equal(/INSERT\s+OR\s+IGNORE/i.test(code), false, file);
+    assert.equal(/PRAGMA\s+/i.test(code), false, file);
+  }
 });
