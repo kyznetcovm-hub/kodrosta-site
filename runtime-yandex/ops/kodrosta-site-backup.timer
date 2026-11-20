@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily Kodrosta site backup
+Requires=kodrosta-site-backup.service
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+Unit=kodrosta-site-backup.service
+
+[Install]
+WantedBy=timers.target

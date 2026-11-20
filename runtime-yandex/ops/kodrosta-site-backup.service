@@ -1,0 +1,10 @@
+[Unit]
+Description=Kodrosta site PostgreSQL logical backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/kodrosta-site-backup.sh
+Nice=10
+IOSchedulingClass=best-effort
