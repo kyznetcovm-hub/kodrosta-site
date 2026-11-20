@@ -84,11 +84,12 @@ function send(res, response, head = false) {
   }
   if (!headers['x-content-type-options']) headers['x-content-type-options'] = 'nosniff';
   if (!headers['referrer-policy']) headers['referrer-policy'] = 'strict-origin-when-cross-origin';
-  res.writeHead(response.status, headers);
   const cookies = typeof response.headers.getSetCookie === 'function' ? response.headers.getSetCookie() : [];
-  if (cookies.length) res.setHeader('set-cookie', cookies);
+  if (cookies.length) headers['set-cookie'] = cookies;
+  res.writeHead(response.status, headers);
   if (head) {
     res.end();
+    response.body?.cancel?.().catch(() => {});
     return;
   }
   response
