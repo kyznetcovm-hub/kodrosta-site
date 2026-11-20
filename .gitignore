@@ -9,3 +9,6 @@ scripts/*.session
 scripts/*.session-journal
 scripts/residents.csv
 scripts/out/
+.preview-public/
+public/
+node_modules/
