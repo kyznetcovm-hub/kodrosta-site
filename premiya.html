@@ -336,7 +336,6 @@
     <div class="container">
       <span class="p-eyebrow">Билеты</span>
       <h2 class="p-h2">Выберите свой формат участия</h2>
-      <p class="p-deadline"><b>Цены актуальны до 10 ноября.</b> Дальше планируем повышение. <span class="js-deadline-left"></span></p>
       <div class="p-ticket-grid">
         <article class="p-ticket c-b">
           <span class="p-ticket-label">Гость</span>
@@ -828,14 +827,6 @@ document.addEventListener('DOMContentLoaded', function () {
       else window.open('https://t.me/Kodrosta', '_blank');   // событие ещё не загрузилось / не опубликовано
     });
   });
-  // Цены на билеты действуют до 10 ноября 2026 включительно — показываем, сколько осталось дней
-  var left = document.querySelector('.js-deadline-left');
-  if (left) {
-    var days = Math.ceil((new Date(2026, 10, 10, 23, 59, 59) - new Date()) / 86400000);
-    if (days > 0) left.textContent = 'Осталось ' + days + ' ' + (days % 10 === 1 && days % 100 !== 11 ? 'день' : (days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 12 || days % 100 > 14) ? 'дня' : 'дней')) + '.';
-    else { var b = left.parentNode; b.innerHTML = '<b>Срок действия этих цен истёк.</b> Актуальную стоимость уточняйте у менеджера.'; }
-  }
-
   // ---- Фото: крупный просмотр ----
   var figs = Array.prototype.slice.call(document.querySelectorAll('.p-ph'));
   var lb = document.getElementById('p-lightbox');
