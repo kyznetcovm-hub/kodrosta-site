@@ -1,6 +1,6 @@
 # Cutover checklist — codrosta.club
 
-Состояние на 20 ноября 2026. Production ещё на Cloudflare; DNS и основной сайт не менялись.
+Состояние на 21 ноября 2026. Production переключён на Yandex Cloud; старый Worker/D1 оставлены на наблюдение.
 
 ## Готово
 
