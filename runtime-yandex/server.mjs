@@ -104,7 +104,7 @@ export const server=http.createServer(async(req,res)=>{
     for await(const chunk of req){size+=chunk.length;if(size>65536)return send(json({error:'Request too large'},413));chunks.push(chunk);}
     const headers=new Headers();for(const[key,value]of Object.entries(req.headers))if(value)headers.set(key,Array.isArray(value)?value.join(','):value);
     let response=await dispatch(new Request(url,{method:req.method,headers,...(!['GET','HEAD'].includes(req.method)?{body:Buffer.concat(chunks)}:{})}));
-    if(response.headers.get('content-type')?.includes('application/json')) {
+    if(/application\/json|text\/(?:html|calendar)/.test(response.headers.get('content-type')||'')) {
       const body=(await response.text()).replaceAll('https://codrosta.club',ORIGIN);
       response=new Response(body,{status:response.status,headers:response.headers});
     }

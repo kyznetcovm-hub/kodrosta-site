@@ -16,7 +16,7 @@ try {
   const ready=await call('/health/ready');assert.equal(ready.status,200);assert.equal(ready.body.database,'postgresql');pass('Russian preview and PostgreSQL ready');
   const events=await call('/api/events');assert.equal(events.status,200);assert(events.body.length>0);assert(events.body.every(e=>e.id.startsWith('preview-')));
   const content=await call('/api/content');assert(Object.keys(content.body).length>=40);
-  assert((await call('/calendar.ics')).body.includes('BEGIN:VEVENT'));pass('Public events, content and calendar');
+  const calendar=(await call('/calendar.ics')).body;assert(calendar.includes('BEGIN:VEVENT'));assert(!calendar.includes('https://codrosta.club'));pass('Public events, content and calendar');
   const page=await call('/premiya');assert.equal(page.status,200);assert(page.body.includes('Дресс-код — коктейльный'));assert(!page.body.includes('Срок действия этих цен истёк'));assert(page.body.includes('Тестовая версия в Яндексе'));pass('Current prize page and preview banner');
   for(const path of ['/src/index.js','/.env','/package.json','/runtime-yandex/server.mjs','/migrations/0001_engagement.sql'])assert.equal((await call(path)).status,404);
   assert.equal((await call('/api/telegram-webhook',{})).status,404);
@@ -43,6 +43,11 @@ try {
   assert.equal(next.status,201,JSON.stringify(next.body));
   assert.equal((await call('/api/admission/payment-request',{id:next.body.id,amountRub:7000,comment:'Тестовая оплата'},host)).status,200);
   const requests=await call('/api/admission/requests',undefined,admin);assert.equal(requests.status,200,JSON.stringify(requests.body));
+  const request=await db.prepare("SELECT id FROM admission_requests WHERE ticket_id=? AND state='pending'").bind(next.body.id).first();assert(request);
+  assert.equal((await call('/api/admission/requests',{id:request.id,approve:true},host)).status,403);
+  const approved=await call('/api/admission/requests',{id:request.id,approve:true},admin);assert.equal(approved.status,200,JSON.stringify(approved.body));
+  assert.equal((await db.prepare('SELECT status FROM admission_tickets WHERE id=?').bind(next.body.id).first()).status,'active');
+  const again=await call('/api/admission/requests',{id:request.id,approve:true},admin);assert.equal(again.status,200);assert.equal(again.body.already,true);
   assert.equal((await call('/api/admission/tickets',undefined,host)).status,200);pass('Manager payment request, owner queue and ticket list');
   await db.pool.query('CREATE TABLE IF NOT EXISTS preview_atomic_test (id text PRIMARY KEY)');const key=randomUUID();
   await assert.rejects(db.batch([db.prepare('INSERT INTO preview_atomic_test(id) VALUES(?)').bind(key),db.prepare('INSERT INTO preview_atomic_test(id) VALUES(?)').bind(key)]));
