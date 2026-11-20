@@ -9,15 +9,15 @@ export const REQUIRED = [
   'ADMISSION_EVENT_ID',
   'ADMISSION_OWNER_USERNAME',
   'ADMISSION_SHEET_ID',
+  'RESIDENTS_CHAT_ID',
+];
+
+export const OPTIONAL = [
   'GOOGLE_SERVICE_ACCOUNT_JSON',
   'GOOGLE_SHEET_ID',
   'METRIKA_TOKEN',
   'METRIKA_REPORT_KEY',
   'EXPORT_KEY',
-  'RESIDENTS_CHAT_ID',
-];
-
-export const OPTIONAL = [
   'SUBSCRIPTION_ALERT_USERNAME',
   'ZADACHNIK_CRON_URL',
   'COOLING_WARN_DAYS',
@@ -45,13 +45,15 @@ export function loadEnv(source = process.env) {
   }
 
   const googleJson = trim(source.GOOGLE_SERVICE_ACCOUNT_JSON);
-  try {
-    const parsed = JSON.parse(googleJson);
-    if (!parsed || typeof parsed !== 'object') throw new Error('not an object');
-  } catch {
-    const error = new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON');
-    error.code = 'ENV_INVALID';
-    throw error;
+  if (googleJson) {
+    try {
+      const parsed = JSON.parse(googleJson);
+      if (!parsed || typeof parsed !== 'object') throw new Error('not an object');
+    } catch {
+      const error = new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON');
+      error.code = 'ENV_INVALID';
+      throw error;
+    }
   }
 
   const eventId = trim(source.ADMISSION_EVENT_ID);

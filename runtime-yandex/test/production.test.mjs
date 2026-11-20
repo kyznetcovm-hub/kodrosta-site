@@ -72,6 +72,20 @@ test('production env requires real values and rejects demo event', () => {
   assert.throws(() => loadEnv({...baseEnv, RESIDENTS_CHAT_ID: 'abc'}), /numeric/);
 });
 
+test('optional integrations can be disabled until keys arrive', () => {
+  const env = loadEnv({
+    ...baseEnv,
+    GOOGLE_SERVICE_ACCOUNT_JSON: '',
+    GOOGLE_SHEET_ID: '',
+    METRIKA_TOKEN: '',
+    METRIKA_REPORT_KEY: '',
+    EXPORT_KEY: '',
+  });
+  assert.equal(env.GOOGLE_SERVICE_ACCOUNT_JSON, '');
+  assert.equal(env.METRIKA_TOKEN, '');
+  assert.equal(env.EXPORT_KEY, '');
+});
+
 test('PostgreSQL TLS requires CA or explicit require mode', async () => {
   assert.deepEqual(buildSslConfig({PGSSL: 'require'}), {rejectUnauthorized: false});
   assert.throws(() => buildSslConfig({}), /PG_CA_PATH/);
