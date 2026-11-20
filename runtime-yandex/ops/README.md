@@ -17,3 +17,22 @@ sudo systemctl status kodrosta-site-backup.service
 Нужен `/opt/kodrosta-site-prod/private/backup.env` с `DATABASE_URL` роли
 `site_migrations` (права 600) и CA `/etc/kodrosta/yandex-ca.pem`.
 Хранятся 14 дней; managed-бэкапы кластера — отдельно, 14 дней.
+
+## Мониторинг после cutover
+
+`kodrosta-site-health` проверяет `/health/ready`, `/` и `/api/events` каждые
+2 минуты; при сбое пишет в journal и отправляет сообщение в `CHAT_ID` через
+`BOT_TOKEN` из `/opt/kodrosta-site-prod/private/app.env`. Повторный алерт не
+чаще раза в 15 минут.
+
+```bash
+sudo install -m 700 runtime-yandex/ops/kodrosta-site-health.sh /usr/local/sbin/kodrosta-site-health.sh
+sudo install -m 644 runtime-yandex/ops/kodrosta-site-health.service /etc/systemd/system/kodrosta-site-health.service
+sudo install -m 644 runtime-yandex/ops/kodrosta-site-health.timer /etc/systemd/system/kodrosta-site-health.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now kodrosta-site-health.timer
+```
+
+Включать только после переключения DNS: до cutover основной домен обслуживает
+Cloudflare и проверка будет давать ложные сбои.
+
