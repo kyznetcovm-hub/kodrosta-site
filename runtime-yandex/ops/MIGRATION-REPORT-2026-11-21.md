@@ -6,9 +6,9 @@
 
 **Сделано.** Основной сайт, премия, допуск/билеты, ERP и анкета обслуживаются с Yandex Cloud; DNS-зона осталась в Cloudflare, но A-записи переведены на ВМ без проксирования. PostgreSQL `kodrosta_site` с 22 таблицами и 7 640 строками; форма, Telegram-вебхук, планировщик, health-check и бэкапы работают. Старый Worker/D1 сохранены для отката, старый сайт отключён.
 
-**Проверено.** DNS/A/NS, HTTPS и страницы; независимая от Cloudflare раздача; импорт и сверка данных; форма с реальным ботом; планировщик; health/backup timers; публичный путь вебхука; локальные интеграционные тесты (52 из 53); отсутствие demo-API; исходники/образ/бэкапы.
+**Проверено.** DNS/A/NS, HTTPS и страницы; независимая от Cloudflare раздача; импорт и сверка данных; форма с реальным ботом; планировщик; health/backup timers; публичный путь вебхука; локальные интеграционные тесты (52 из 53); demo-API 404 и удаление demo-панелей из production; исходники/образ/бэкапы.
 
-**Осталось / не проверено.** Production-тест билета с однократным проходом не выполнен: синтетическая авторизация владельца получила 401, тестовый билет не создан, реальные билеты не расходовались. Подтверждение оплаты и права сотрудников на production не проверены. Локальный QR round-trip тест падает (1 из 53). В production HTML осталась скрытая demo-разметка «Я организатор / Я хостес». Точный месячный расход Yandex не снят из биллинга. Полное восстановление финального дампа и rollback-учения не проводились.
+**Осталось / не проверено.** Production-тест билета с однократным проходом не выполнен: синтетическая авторизация владельца получила 401, тестовый билет не создан, реальные билеты не расходовались. Подтверждение оплаты и права сотрудников на production не проверены. Локальный QR round-trip тест падает (1 из 53). Точный месячный расход Yandex не снят из биллинга. Полное восстановление финального дампа и rollback-учения не проводились.
 
 ## 1. Адреса и DNS
 
@@ -31,14 +31,14 @@
 |---|---|
 | Репозиторий | `https://github.com/kyznetcovm-hub/kodrosta-site` |
 | Ветка | `codex/yandex-site-preview` |
-| HEAD ветки | `d2d3361` (ops-коммиты после выкладки) |
-| Код приложения в образе | `95f8107` (PostgreSQL runtime DDL no-op; схема только миграциями) |
-| Образ | `kodrosta-site-prod:2026-11-20`, image id `sha256:64ed2cd791ba2f6d945ed7d1ae05f9761538be02f2346be3958e0c64ff438687`, собран 21.11.2026 00:26 MSK |
+| HEAD ветки | `ba21f32` |
+| Код приложения в образе | `ba21f32` (включает 95f8107; PostgreSQL runtime DDL no-op и удаление demo-панелей) |
+| Образ | `kodrosta-site-prod:2026-11-20`, image id `sha256:fc64e69fdc3b4d3c616dff094c926a4507574966843aa477253ac58e315a235b`, собран 21.11.2026 00:59 MSK |
 | Контейнер | `kodrosta-site-prod`, host network |
 | Код внутри образа | `/app` (`/app/src`, `/app/runtime-yandex`, `/app/migrations`, `/app/public-production`) |
 | Конфиг на ВМ | `/opt/kodrosta-site-prod/private/app.env` (600; значения не приводятся) |
 | Caddy | `/opt/kodrosta/d717f4b34864cac915735ad989900928eb1752ed/infra/Caddyfile` |
-| Российская копия исходников | `/secure/kodrosta-site-branch.bundle` — 18 897 255 байт, sha256 `aef0745228e15dbc6abe8e63757bb8c4d3fad3c107e3fe1fb5d272b509bb515c`; `/secure/kodrosta-site-source.tar.gz` — 128 513 байт, 69 файлов, sha256 `4b08cf8bb31ada925a0d6bbbe1b5e75688f15a2e4551bdd4b7c7b04a06325d6a` |
+| Российская копия исходников | `/secure/kodrosta-site-branch.bundle` — 18 907 288 байт, sha256 `6d6affd6c552ba54640052bf802feb28f8547a13ec96ce2ca6c7c5fec1a45b5e`; `/secure/kodrosta-site-source.tar.gz` — 14 877 069 байт, 235 файлов, sha256 `3ee7a8b55bdd2c4401211aca5e468190e6546d19310e392681242a6e62608eb5` |
 | Образ на ВМ | тот же image id; исходники также внутри образа |
 
 GitHub — внешний хостинг; отдельная российская Git-площадка (SourceCraft) **не настроена**. Российская копия исходников есть в виде bundle и tar.gz на ВМ, плюс образ. SHA-256 ключевых файлов в контейнере: `server-production.mjs` — `a403b466…`, `postgres.mjs` — `850409ba…`, `src/index.js` — `67a94fda…`.
@@ -104,7 +104,7 @@ GitHub — внешний хостинг; отдельная российска�
 
 - `/api/admission-demo/*` на production возвращает **404**; demo-сессий нет.
 - `runtime-yandex/server-production.mjs` не содержит demo-маршрутов/сессий/подмены fetch; `env-production.mjs` запрещает `ADMISSION_EVENT_ID`, оканчивающийся на `-demo`.
-- **Найдено отклонение:** production `/admission` HTML содержит скрытые `#demo-banner`, `#demo-login` с кнопками «Я организатор» и «Я хостес», `#manager-preview`. Они скрыты (`hidden`) и не активируются, потому что demo-API 404, но требование «отсутствуют» буквально не выполнено. Нужно вырезать demo-разметку из production-сборки `public-production/admission.html` или отдавать production-only HTML.
+- **Исправлено 21.11:** production-сборка вырезает demo-панели из `admission.html` (`stripDemoMarkup`); проверка `/admission` — 0 совпадений с `demo-banner`/`demo-login`/`manager-preview`/«Я организатор»/«Я хостес», `/api/admission-demo/info` — 404. В исходном `admission.html` и preview demo-разметка сохраняется, в production её нет.
 - Реальная авторизация: Telegram WebApp initData, HMAC-SHA256 `WebAppData` + bot token, срок 24 часа; staff — `admission_staff` со `state='approved'`; владелец — по `ADMISSION_OWNER_USERNAME` через `residents.chat_id`; админы офиса — `ADMIN_USERNAMES`. Локальные тесты auth/ролей проходят.
 - Google-интеграция: `GOOGLE_*` не заполнены, синхронизация с Google Sheet новых билетов/резидентов **не работает**; это не заглушка, а отключённая опция. Metrika тоже не настроена. Существующие билеты/QR от этого не зависят.
 - Preview `site-preview.codrosta.club` остаётся отдельным demo/preview-приложением и не является рабочей версией.
@@ -121,9 +121,9 @@ GitHub — внешний хостинг; отдельная российска�
 
 ### Код
 
-- GitHub-ветка `codex/yandex-site-preview`, HEAD `d2d3361`; код приложения `95f8107`.
-- Образ `sha256:64ed2cd…` на ВМ.
-- Российская копия: `/secure/kodrosta-site-branch.bundle` (18 897 255, sha256 `aef07452…`) и `/secure/kodrosta-site-source.tar.gz` (128 513, 69 файлов, sha256 `4b08cf8b…`).
+- GitHub-ветка `codex/yandex-site-preview`, HEAD `ba21f32`; код приложения `ba21f32`.
+- Образ `sha256:fc64e69f…` на ВМ.
+- Российская копия: `/secure/kodrosta-site-branch.bundle` (18 907 288, sha256 `6d6affd6…`) и `/secure/kodrosta-site-source.tar.gz` (14 877 069, 235 файлов, sha256 `3ee7a8b5…`).
 
 ### Данные
 
@@ -174,7 +174,7 @@ GitHub — внешний хостинг; отдельная российска�
 1. Production-тест билета с однократным проходом не выполнен (401 на синтетической авторизации); реальные билеты не расходовались.
 2. Выпуск билета, подтверждение оплаты и права сотрудников на production не проверены.
 3. Локальный QR round-trip тест падает; production QR не проверен.
-4. В production `/admission` осталась скрытая demo-разметка «Я организатор / Я хостес»; функционально не активна, но требование «отсутствует» не выполнено.
+4. Demo-разметка удалена из production-сборки 21.11; source/preview сохраняет demo; production `/admission` — 0, demo API 404. **Исправлено.**
 5. Точный месячный расход Yandex не снят из биллинга.
 6. Полное восстановление финального дампа и rollback-учение не проводились.
 7. Нет подтверждения доступа без VPN с нескольких российских ISP; есть проверка с российской ВМ и сообщение Михаила с телефона.
@@ -189,7 +189,7 @@ GitHub — внешний хостинг; отдельная российска�
 - Форма: `POST /api/submit` → 200 `{"ok":true}`; Telegram-сообщение; тестовые `touches` удалены (7 шт.).
 - Данные: 22 таблицы / 7 640 строк; residents 298, tickets 3, touches 6 154, sales 50/72 600 000, expenses 19/41 750 000; QR 3×64, 1 checked; агрегат `b51d2d8c…`.
 - D1: финальный 2 153 229, sha256 `a3e08516…`; PG: 196 499, `6cbf2a4b…`; ежедневный 184 081, `c43dbc6b…`.
-- Код: GitHub `kyznetcovm-hub/kodrosta-site`, branch `codex/yandex-site-preview`, HEAD `d2d3361`, app `95f8107`, image `64ed2cd…`, source bundle/archive hashes выше.
-- Тесты: 53, pass 52, fail 1 (QR); production auth guest 401; demo API 404; webhook public 403/200.
+- Код: GitHub `kyznetcovm-hub/kodrosta-site`, branch `codex/yandex-site-preview`, HEAD `ba21f32`, app `ba21f32`, image `fc64e69f…`, source bundle/archive hashes выше.
+- Тесты: 53, pass 52, fail 1 (QR); production auth guest 401; demo API 404; demo-разметка в `/admission` 0; webhook public 403/200.
 - Планировщик: `scheduler-ran */15 * * * *`; старый cron 0; webhook pending 0, last error 00:11.
 - Timers: `kodrosta-site-health.timer` active, `kodrosta-site-backup.timer` active.
