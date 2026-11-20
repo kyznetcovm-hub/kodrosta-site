@@ -31,6 +31,7 @@ export const OPTIONAL = [
   'RELEASE_SHA',
   'DISABLE_SCHEDULER',
   'ADMISSION_SOURCE_LABEL',
+  'TELEGRAM_WEBHOOK_SECRET',
 ];
 
 const trim = (value) => String(value ?? '').trim();
@@ -104,6 +105,7 @@ export function loadEnv(source = process.env) {
     RELEASE_SHA: trim(source.RELEASE_SHA || 'dev'),
     DISABLE_SCHEDULER: trim(source.DISABLE_SCHEDULER) === '1' || trim(source.DISABLE_SCHEDULER).toLowerCase() === 'true',
     ADMISSION_SOURCE_LABEL: trim(source.ADMISSION_SOURCE_LABEL),
+    TELEGRAM_WEBHOOK_SECRET: trim(source.TELEGRAM_WEBHOOK_SECRET),
   };
 }
 

@@ -115,6 +115,10 @@ async function dispatch(request) {
     const target = 'https://codrosta.club/?utm_source=itpark_rameev&utm_medium=qr&utm_campaign=club_residents&utm_content=hall1_screen_v1';
     return Response.redirect(target, 302);
   }
+  if (url.pathname === '/api/telegram-webhook' && env.TELEGRAM_WEBHOOK_SECRET) {
+    const got = request.headers.get('x-telegram-bot-api-secret-token') || '';
+    if (got !== env.TELEGRAM_WEBHOOK_SECRET) return json({ok: false, error: 'forbidden'}, 403);
+  }
   return worker.fetch(request, env, ctx);
 }
 
