@@ -6,9 +6,9 @@
 
 **Сделано.** Основной сайт, премия, допуск/билеты, ERP и анкета обслуживаются с Yandex Cloud; DNS-зона осталась в Cloudflare, но A-записи переведены на ВМ без проксирования. PostgreSQL `kodrosta_site` с 22 таблицами и 7 640 строками; форма, Telegram-вебхук, планировщик, health-check и бэкапы работают. Старый Worker/D1 сохранены для отката, старый сайт отключён.
 
-**Проверено.** DNS/A/NS, HTTPS и страницы; независимая от Cloudflare раздача; импорт и сверка данных; форма с реальным ботом; планировщик; health/backup timers; публичный путь вебхука; локальные интеграционные тесты (52 из 53); demo-API 404 и удаление demo-панелей из production; исходники/образ/бэкапы.
+**Проверено.** DNS/A/NS, HTTPS и страницы; независимая от Cloudflare раздача; импорт и сверка данных; форма с реальным ботом; планировщик; health/backup timers; публичный путь вебхука; локальные интеграционные тесты (53 из 53, QR исправлен); demo-API 404 и удаление demo-панелей из production; ERP/анкета фактически на PostgreSQL `kodrosta`; финальный дамп восстановлен в dryrun; rollback-сценарий проверен в отдельной SQLite; исходники/образ/бэкапы.
 
-**Осталось / не проверено.** Production-тест билета с однократным проходом не выполнен: синтетическая авторизация владельца получила 401, тестовый билет не создан, реальные билеты не расходовались. Подтверждение оплаты и права сотрудников на production не проверены. Локальный QR round-trip тест падает (1 из 53). Точный месячный расход Yandex не снят из биллинга. Полное восстановление финального дампа и rollback-учения не проводились.
+**Осталось / не проверено.** Production-тест билетов через реальную Telegram-авторизацию не выполнен: синтетический вход не использовался; нужен вход владельца/сотрудника в Mini App. Реальные билеты не расходовались. QR round-trip локально исправлен и проходит (53/53); реальный QR из приглашения ждёт тестового билета/телефона. Google Sheet-синхронизация не восстановлена: `GOOGLE_SERVICE_ACCOUNT_JSON` пуст, старый секрет Cloudflare write-only — нужен ключ от Михаила. Точный месячный расход Yandex не снят. Финальный дамп полностью восстановлен в dryrun, rollback-сценарий проверен в отдельной SQLite. ERP/анкета фактически используют PostgreSQL `kodrosta`, отчёт исправлен.
 
 ## 1. Адреса и DNS
 
@@ -23,7 +23,7 @@
 - NS зоны: `karl.ns.cloudflare.com`, `venus.ns.cloudflare.com`. Зона `codrosta.club` активна в Cloudflare; A-записи `proxied=false`.
 - Веб-трафик страниц **не проходит через Cloudflare**: ответы приходят с IP 130.193.58.254, заголовок `Via: 1.1 Caddy`, `cf-ray` отсутствует. Cloudflare используется как DNS-провайдер.
 - Проверка с российской ВМ (Yandex Cloud): все адреса выше отвечают; `www` — 301; сертификат Let's Encrypt. Михаил сообщил, что открыл основной сайт с телефона и он работает; отдельного замера с нескольких российских ISP без VPN не делалось — **не проверено**.
-- **Важно:** страницы ERP и анкеты отдаются с Yandex, но их данные/API, по конфигурации, остаются на Cloudflare Worker `kodrosta-erp` и D1 `kodrosta-engagement` (`erp_*` не переносились). Фактическую трассировку API-трафика ERP/анкеты я не делал — это **не проверено**; вывод основан на составе Cloudflare-ресурсов и контейнерах на ВМ.
+- **ERP/анкета (проверено 21.11):** страницы/API отдаются контейнерами `kodrosta-intake-registry-1` и `kodrosta-intake-intake-1` на Yandex VM. Оба `DATABASE_URL` указывают на Managed PostgreSQL `kodrosta-residents`, DB `kodrosta`, users `intake_registry`/`intake_app`. Фактические таблицы: `consent_documents`, `intake_audit`, `intake_migrations`, `intake_rate_limits`, `legacy_import_runs`, `legacy_sheet_rows`, `resident_applications`. Старые `erp_*` в D1 и Worker `kodrosta-erp` текущими ERP/анкетой не используются; удалять их без отдельного решения нельзя.
 
 ## 2. Код
 
@@ -31,14 +31,14 @@
 |---|---|
 | Репозиторий | `https://github.com/kyznetcovm-hub/kodrosta-site` |
 | Ветка | `codex/yandex-site-preview` |
-| HEAD ветки | `ba21f32` |
+| HEAD ветки | `8a47a0d` (QR-тест; приложение — `ba21f32`) |
 | Код приложения в образе | `ba21f32` (включает 95f8107; PostgreSQL runtime DDL no-op и удаление demo-панелей) |
 | Образ | `kodrosta-site-prod:2026-11-20`, image id `sha256:fc64e69fdc3b4d3c616dff094c926a4507574966843aa477253ac58e315a235b`, собран 21.11.2026 00:59 MSK |
 | Контейнер | `kodrosta-site-prod`, host network |
 | Код внутри образа | `/app` (`/app/src`, `/app/runtime-yandex`, `/app/migrations`, `/app/public-production`) |
 | Конфиг на ВМ | `/opt/kodrosta-site-prod/private/app.env` (600; значения не приводятся) |
 | Caddy | `/opt/kodrosta/d717f4b34864cac915735ad989900928eb1752ed/infra/Caddyfile` |
-| Российская копия исходников | `/secure/kodrosta-site-branch.bundle` — 18 907 288 байт, sha256 `6d6affd6c552ba54640052bf802feb28f8547a13ec96ce2ca6c7c5fec1a45b5e`; `/secure/kodrosta-site-source.tar.gz` — 14 877 069 байт, 235 файлов, sha256 `3ee7a8b55bdd2c4401211aca5e468190e6546d19310e392681242a6e62608eb5` |
+| Российская копия исходников | `/secure/kodrosta-site-branch.bundle` — 18 909 779 байт, sha256 `4aadd8cb18c4532b75f2f2545117a9a5db1797724f3d1503478d3d1d35111098`; `/secure/kodrosta-site-source.tar.gz` — 14 877 069 байт, 235 файлов, sha256 `3ee7a8b55bdd2c4401211aca5e468190e6546d19310e392681242a6e62608eb5` |
 | Образ на ВМ | тот же image id; исходники также внутри образа |
 
 GitHub — внешний хостинг; отдельная российская Git-площадка (SourceCraft) **не настроена**. Российская копия исходников есть в виде bundle и tar.gz на ВМ, плюс образ. SHA-256 ключевых файлов в контейнере: `server-production.mjs` — `a403b466…`, `postgres.mjs` — `850409ba…`, `src/index.js` — `67a94fda…`.
@@ -90,15 +90,15 @@ GitHub — внешний хостинг; отдельная российска�
 |---|---|---|
 | Контрольная регистрация через `/api/submit` | HTTP 200 `{"ok":true}`, сообщение ушло в «Заявки»; тестовые `touches` удалены | проверено |
 | Получение заявки менеджером | Бот отправил тестовое сообщение в группу «Заявки с Код Роста»; независимо подтвердить прочтение менеджером нельзя | частично |
-| Выпуск билета | На production не проверено; локальный `test-admission.mjs` покрывает создание/подтверждение/отмену | **не проверено на production** |
-| Подтверждение оплаты | На production не проверено; ERP/платежи вне периметра переноса | **не проверено** |
-| Разграничение прав | Production: гость без initData получает 401 на `/api/admission/tickets`; локальные тесты auth/ролей проходят | частично |
-| Однократный проход на тестовом билете | Production-попытка: синтетический initData владельца → 401, тестовый билет не создан, реальные билеты не расходовались. Локальный тест «две одновременные проверки: ровно один зелёный проход» проходит | **не проверено на production**; локально проверено |
-| QR round-trip | Локальный `test-admission-qr.mjs` падает; production QR не проверялся | **есть падение, production не проверено** |
+| Выпуск билета | Локальный `test-admission.mjs` покрывает создание/подтверждение/отмену; production-проверка ждёт реального входа владельца/staff | **не проверено на production** |
+| Подтверждение оплаты | Локальные тесты покрывают payment-request/approve; production-проверка ждёт реального входа | **не проверено на production** |
+| Разграничение прав | Production: гость без initData — 401 на `/api/admission/tickets`; локальные тесты auth/ролей проходят; реальные owner/staff — ждём вход | частично |
+| Однократный проход на тестовом билете | Production-попытка через синтетический initData не использовалась; тестовый билет не создан, реальные билеты не расходовались. Локальный тест «две одновременные проверки: ровно один зелёный проход» проходит | **не проверено на production**; локально проверено |
+| QR round-trip | Локальный `test-admission-qr.mjs` исправлен (jsQR/qrcode через browser-sandbox), проходит; production QR из приглашения ждёт тестового билета/телефона | локально проверено; production — **не проверено** |
 
-Локальный прогон: `node --test scripts/test-admission.mjs scripts/test-office.mjs scripts/test-admission-qr.mjs` — **53 теста, 52 pass, 1 fail** (QR). Тесты используют in-memory SQLite и тестовый Telegram, не production.
+Локальный прогон: `node --test scripts/test-admission.mjs scripts/test-office.mjs scripts/test-admission-qr.mjs` — **53 теста, 53 pass, 0 fail**. Тесты используют in-memory SQLite и тестовый Telegram, не production.
 
-Важно: production-тест билета не создавал тестовый билет и не расходовал действующие билеты. Для независимой проверки однократного прохода нужен отдельный тестовый билет в тестовом событии либо доступ к production Mini App с подтверждённым staff/owner.
+Важно: production-тест билета не создавал тестовый билет и не расходовал действующие билеты. Для независимой проверки нужен реальный вход owner/staff в production Mini App и отдельный тестовый билет; синтетический initData не использовать.
 
 ## 5. Защита рабочей версии
 
@@ -106,7 +106,7 @@ GitHub — внешний хостинг; отдельная российска�
 - `runtime-yandex/server-production.mjs` не содержит demo-маршрутов/сессий/подмены fetch; `env-production.mjs` запрещает `ADMISSION_EVENT_ID`, оканчивающийся на `-demo`.
 - **Исправлено 21.11:** production-сборка вырезает demo-панели из `admission.html` (`stripDemoMarkup`); проверка `/admission` — 0 совпадений с `demo-banner`/`demo-login`/`manager-preview`/«Я организатор»/«Я хостес», `/api/admission-demo/info` — 404. В исходном `admission.html` и preview demo-разметка сохраняется, в production её нет.
 - Реальная авторизация: Telegram WebApp initData, HMAC-SHA256 `WebAppData` + bot token, срок 24 часа; staff — `admission_staff` со `state='approved'`; владелец — по `ADMISSION_OWNER_USERNAME` через `residents.chat_id`; админы офиса — `ADMIN_USERNAMES`. Локальные тесты auth/ролей проходят.
-- Google-интеграция: `GOOGLE_*` не заполнены, синхронизация с Google Sheet новых билетов/резидентов **не работает**; это не заглушка, а отключённая опция. Metrika тоже не настроена. Существующие билеты/QR от этого не зависят.
+- Google Sheet-синхронизация: код `sheets-sync.js` есть; `GOOGLE_SERVICE_ACCOUNT_JSON` пуст, `GOOGLE_SHEET_ID`/`ADMISSION_SHEET_ID` заданы (44 символа). Старый секрет Cloudflare write-only; нужен JSON сервис-аккаунта от Михаила. Без него синхронизация билетов/оплат/резидентов **не восстановлена**. Metrika не настроена.
 - Preview `site-preview.codrosta.club` остаётся отдельным demo/preview-приложением и не является рабочей версией.
 
 ## 6. Telegram и автоматизация
@@ -115,7 +115,7 @@ GitHub — внешний хостинг; отдельная российска�
 - Расписания: один процесс приложения, `DISABLE_SCHEDULER=0`; cron `*/15 * * * *`, `0 3 * * *`, `0 7 * * 1`, `0 6 1 * *` UTC. В логах есть `scheduler-ran */15`. Старый Worker `kodrosta-site` имеет **0 cron**.
 - Синхронизации: event reminders, subscription deliveries, обновление `tg_groups`/`tg_group_members` — в приложении; синхронизация билетов с Google Sheet отключена (нет ключа); ERP-синхронизации остаются на Cloudflare.
 - Двойных уведомлений/записи: старый Worker снят с custom domain, cron пуст, webhook удалён; старая D1 не пишется; заявки и расписания идут только в новое приложение. ERP использует свою Cloudflare-часть отдельно.
-- Остались на Cloudflare: DNS-зона `codrosta.club`; Worker `kodrosta-site` (старый, без трафика); D1 `kodrosta-engagement` (старые данные сайта + `erp_*`); Worker `kodrosta-erp` (ERP/анкета); Workers `zadachnik` + D1 `zadachnik`, `kalorimetr-bot`, `kodrosta-obzor`, `maso-ai-specialist`; API-токены. Подробно — раздел 9.
+- Остались на Cloudflare: DNS-зона `codrosta.club`; Worker `kodrosta-site` (старый, без трафика); D1 `kodrosta-engagement` (старые данные сайта + legacy `erp_*`); Worker `kodrosta-erp` (legacy; текущая ERP/анкета использует PostgreSQL `kodrosta`); Workers `zadachnik` + D1 `zadachnik`, `kalorimetr-bot`, `kodrosta-obzor`, `maso-ai-specialist`; API-токены. Подробно — раздел 9.
 
 ## 7. Копии и возврат
 
@@ -123,20 +123,20 @@ GitHub — внешний хостинг; отдельная российска�
 
 - GitHub-ветка `codex/yandex-site-preview`, HEAD `ba21f32`; код приложения `ba21f32`.
 - Образ `sha256:fc64e69f…` на ВМ.
-- Российская копия: `/secure/kodrosta-site-branch.bundle` (18 907 288, sha256 `6d6affd6…`) и `/secure/kodrosta-site-source.tar.gz` (14 877 069, 235 файлов, sha256 `3ee7a8b5…`).
+- Российская копия: `/secure/kodrosta-site-branch.bundle` (18 909 779, sha256 `4aadd8cb…`) и `/secure/kodrosta-site-source.tar.gz` (14 877 069, 235 файлов, sha256 `3ee7a8b5…`).
 
 ### Данные
 
 | Копия | Размер | SHA-256 / состояние |
 |---|---:|---|
 | Ежедневный `/secure/backups/kodrosta_site-2026-11-20T193402Z.dump` | 184 081 | `c43dbc6b…`, timer active |
-| Предкатовый `/secure/kodrosta_site-final-before-20261121.dump` | 196 499 | `6cbf2a4b…`, `pg_restore --list` OK |
+| Предкатовый `/secure/kodrosta_site-final-before-20261121.dump` | 196 499 | `6cbf2a4b…`, полностью восстановлен в dryrun |
 | D1 финальный `/secure/kodrosta-d1-final-20261121.sql` | 2 153 229 | `a3e08516…` |
 | D1 rehearsal `/secure/kodrosta-d1-rehearsal-20261121.sql` | 2 153 229 | тот же набор |
 | Managed PostgreSQL | 14 дней | автоматические бэкапы кластера |
 
-- Восстановление в отдельной среде `kodrosta_site_dryrun` проверялось на дампе 20.11: residents 298, admission_tickets 3, touches 6 154; затем dryrun очищен. Полное восстановление именно финального 196 499-байтного дампа не повторялось — **не проверено**; проверен только `pg_restore --list`.
-- Rollback: старый Worker/D1 сохранены, custom domain/cron/webhook можно вернуть; DNS-токен есть. Но новые заявки/оплаты после cutover находятся только в PostgreSQL. Для возврата их нужно выгрузить из PG и импортировать в D1 (обратный адаптер) — **не реализовано и не проверено**. Rollback-учение не проводилось. Реальные сроки/потери при откате не подтверждены.
+- Восстановление 21.11: финальный `pg_dump` 196,499 восстановлен в отдельную БД `kodrosta_site_dryrun`; все 22 таблицы, 7 640 строк, QR 3/3 distinct/64/1 checked/агрегат `b51d2d8c…`, sales 50/72 600 000/1 voided, expenses 19/41 750 000/0, `schema_migrations` 21 — совпало.
+- Rollback-сценарий 21.11 в отдельной среде: старый D1 финальный SQL загружен в SQLite; в dryrun созданы тестовые заявка/оплата (touch id 6276, sale id 52, 12 345 коп.), перенесены в SQLite с явными ID; counts 6 154→6 155 и 50→51; тестовые строки из PG удалены. Рабочий домен не переключался, рабочая D1 не менялась. Сценарий сохранения новых данных подтверждён; реальный откат с DNS/Worker не выполнялся.
 - Старую площадку не удаляю до окончания наблюдения (2–4 недели).
 
 ## 8. Эксплуатация
@@ -157,8 +157,8 @@ GitHub — внешний хостинг; отдельная российска�
 | A `erp`, `anketa` | ERP/анкета | Да, DNS only | Нет; страницы на Yandex |
 | A `site-preview` | Preview | Да, DNS only | После решения по preview |
 | Worker `kodrosta-site` | Старый сайт | Нет (custom domain снят, cron 0, webhook удалён) | Можно после наблюдения; сейчас оставлен для отката |
-| D1 `kodrosta-engagement` | Старые данные сайта + `erp_*` | Да, ERP/анкета | Нельзя до миграции ERP; старые данные сайта тоже здесь |
-| Worker `kodrosta-erp` | Backend ERP/анкеты | Да | Нельзя; ERP не мигрирован |
+| D1 `kodrosta-engagement` | Старые данные сайта + legacy `erp_*` | Текущая ERP/анкета — на PostgreSQL `kodrosta`; D1 `erp_*` не используются | Не удалять без подтверждения; старые данные сайта тоже здесь |
+| Worker `kodrosta-erp` | Legacy backend ERP/анкеты | Не используется текущими контейнерами; текущая ERP/анкета на PG `kodrosta` | Не удалять до отдельной проверки |
 | Worker `zadachnik` + D1 `zadachnik` | Задачник | Да | Не удалять; другой проект |
 | Worker `kalorimetr-bot` | Калориметр | Да/не проверено | Не удалять; другой проект |
 | Worker `kodrosta-obzor` | Обзорный сервис | Не проверено | Не удалять до отдельного решения |
@@ -167,18 +167,18 @@ GitHub — внешний хостинг; отдельная российска�
 | Cloudflare API-токены (DNS, Wrangler OAuth) | DNS/ops | Да | DNS-токен отозвать после наблюдения; OAuth нужен для отката; значения не приводятся |
 | R2 / Pages | — | R2 выключен, Pages нет | Удалять нечего |
 
-**Ничего в Cloudflare не удалено.** Старый Worker/D1 сохранены для отката; ERP и другие проекты используют Cloudflare.
+**Ничего в Cloudflare не удалено.** Старый Worker/D1 сохранены для отката; текущая ERP/анкета использует PostgreSQL `kodrosta`, а Cloudflare `kodrosta-erp`/`erp_*` — legacy. Другие проекты используют Cloudflare.
 
 ## 10. Явно не проверено / риски
 
 1. Production-тест билета с однократным проходом не выполнен (401 на синтетической авторизации); реальные билеты не расходовались.
 2. Выпуск билета, подтверждение оплаты и права сотрудников на production не проверены.
-3. Локальный QR round-trip тест падает; production QR не проверен.
+3. QR round-trip локально исправлен и проходит (53/53); реальный QR из production-приглашения ещё не проверен.
 4. Demo-разметка удалена из production-сборки 21.11; source/preview сохраняет demo; production `/admission` — 0, demo API 404. **Исправлено.**
 5. Точный месячный расход Yandex не снят из биллинга.
-6. Полное восстановление финального дампа и rollback-учение не проводились.
+6. Финальный дамп полностью восстановлен в dryrun; rollback-сценарий проверен в отдельной SQLite. Реальный откат с DNS/Worker не выполнялся.
 7. Нет подтверждения доступа без VPN с нескольких российских ISP; есть проверка с российской ВМ и сообщение Михаила с телефона.
-8. Google Sheet/Metrika не настроены; ERP/анкета не мигрированы; их данные остаются на Cloudflare.
+8. Google Sheet-синхронизация не восстановлена: нет `GOOGLE_SERVICE_ACCOUNT_JSON`; Metrika не настроена. ERP/анкета фактически на PostgreSQL `kodrosta`; Cloudflare-часть ERP legacy, не используется текущими контейнерами.
 9. Yandex Monitoring как отдельный сервис не настроен; только systemd health-check.
 10. Российская Git-площадка (SourceCraft) не настроена; есть bundle/архив на ВМ.
 11. Независимое подтверждение получения заявки менеджером не сделано.
@@ -189,7 +189,7 @@ GitHub — внешний хостинг; отдельная российска�
 - Форма: `POST /api/submit` → 200 `{"ok":true}`; Telegram-сообщение; тестовые `touches` удалены (7 шт.).
 - Данные: 22 таблицы / 7 640 строк; residents 298, tickets 3, touches 6 154, sales 50/72 600 000, expenses 19/41 750 000; QR 3×64, 1 checked; агрегат `b51d2d8c…`.
 - D1: финальный 2 153 229, sha256 `a3e08516…`; PG: 196 499, `6cbf2a4b…`; ежедневный 184 081, `c43dbc6b…`.
-- Код: GitHub `kyznetcovm-hub/kodrosta-site`, branch `codex/yandex-site-preview`, HEAD `ba21f32`, app `ba21f32`, image `fc64e69f…`, source bundle/archive hashes выше.
-- Тесты: 53, pass 52, fail 1 (QR); production auth guest 401; demo API 404; demo-разметка в `/admission` 0; webhook public 403/200.
+- Код: GitHub `kyznetcovm-hub/kodrosta-site`, branch `codex/yandex-site-preview`, HEAD `8a47a0d` (QR-тест), app `ba21f32`, image `fc64e69f…`, source bundle/archive hashes выше.
+- Тесты: 53, pass 53, fail 0; production auth guest 401; demo API 404; demo-разметка в `/admission` 0; webhook public 403/200.
 - Планировщик: `scheduler-ran */15 * * * *`; старый cron 0; webhook pending 0, last error 00:11.
 - Timers: `kodrosta-site-health.timer` active, `kodrosta-site-backup.timer` active.
