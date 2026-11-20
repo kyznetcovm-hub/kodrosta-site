@@ -7,6 +7,6 @@ COPY migrations ./migrations
 COPY runtime-yandex ./runtime-yandex
 COPY public-production ./public-production
 USER node
-ENV PORT=8080 NODE_ENV=production NODE_OPTIONS=--max-old-space-size=192
+ENV PORT=8080 NODE_ENV=production NODE_OPTIONS="--max-old-space-size=192 --dns-result-order=ipv4first"
 EXPOSE 8080
 CMD ["node","runtime-yandex/server-production.mjs"]

@@ -44,4 +44,30 @@ Cloudflare и проверка будет давать ложные сбои.
 `caddy validate` и `caddy reload` (или перезапуск Caddy). После проверки
 сертификата и страниц включать health-check timer и планировщик приложения.
 
+## Production app
+
+С Yandex Cloud `api.telegram.org` по умолчанию резолвится в
+`149.154.166.110`, который не отвечает. Рабочий IP — `149.154.167.220`.
+Для контейнера нужен `--add-host`; для процессов на хосте — запись в
+`/etc/hosts`. Node собирается с `--dns-result-order=ipv4first`.
+
+```bash
+sudo docker network inspect kodrosta-site-prod >/dev/null 2>&1 || sudo docker network create kodrosta-site-prod
+sudo docker run -d --name kodrosta-site-prod --restart unless-stopped \
+  --network kodrosta-site-prod --memory=256m --cpus=.5 --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,size=16m --cap-drop ALL \
+  --security-opt no-new-privileges:true \
+  --add-host api.telegram.org:149.154.167.220 \
+  -v /etc/kodrosta/yandex-ca.pem:/ca.pem:ro \
+  --env-file /opt/kodrosta-site-prod/private/app.env \
+  kodrosta-site-prod:2026-11-20
+sudo docker network connect kodrosta-site-prod kodrosta-intake-web-1
+```
+
+`DISABLE_SCHEDULER=1` в env до cutover; после отключения старого cron —
+убрать/поставить 0 и перезапустить контейнер. Вебхук переключать только
+вместе с DNS: `setWebhook` на `https://codrosta.club/api/telegram-webhook`
+с `secret_token` из `TELEGRAM_WEBHOOK_SECRET`.
+
+
 
