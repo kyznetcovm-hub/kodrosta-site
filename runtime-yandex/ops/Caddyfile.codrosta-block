@@ -1,0 +1,16 @@
+# Блок для cutover. Не добавлять в Caddyfile до появления A-записи на ВМ.
+codrosta.club {
+    encode zstd gzip
+    request_body {
+        max_size 1MB
+    }
+    header Strict-Transport-Security "max-age=31536000"
+    header X-Content-Type-Options "nosniff"
+    header Referrer-Policy "strict-origin-when-cross-origin"
+    reverse_proxy kodrosta-site-prod:8080
+}
+
+www.codrosta.club {
+    encode zstd gzip
+    redir https://codrosta.club{uri} permanent
+}

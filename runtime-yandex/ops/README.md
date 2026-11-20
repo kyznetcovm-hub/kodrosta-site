@@ -36,3 +36,12 @@ sudo systemctl enable --now kodrosta-site-health.timer
 Включать только после переключения DNS: до cutover основной домен обслуживает
 Cloudflare и проверка будет давать ложные сбои.
 
+## Caddy на cutover
+
+`Caddyfile.codrosta-block` — готовый блок `codrosta.club` + `www` на
+`kodrosta-site-prod:8080`. Добавлять только после A-записи на ВМ. Caddyfile
+смонтирован read-only: писать в тот же inode через `tee`, затем
+`caddy validate` и `caddy reload` (или перезапуск Caddy). После проверки
+сертификата и страниц включать health-check timer и планировщик приложения.
+
+
