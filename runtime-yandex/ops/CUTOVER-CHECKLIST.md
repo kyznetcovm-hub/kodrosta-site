@@ -11,8 +11,9 @@
 - [x] Токен @KodrostaAssistant_bot в `app.env`; webhook secret_token.
 - [x] Бэкапы: ежедневный timer + проверенное восстановление.
 - [x] Health-check и Caddy-блок подготовлены.
-- [ ] DNS A-записи `codrosta.club`/`www` — нет права `DNS:Edit`.
-- [ ] Финальная синхронизация и cutover — после 27 ноября.
+- [x] DNS-токен Cloudflare с DNS Write проверен созданием/удалением TXT.
+- [x] Staging `prod-test.codrosta.club` на реальной БД и боте: HTTPS Let's Encrypt, страницы и форма — 200.
+- [ ] A-записи `codrosta.club`/`www` и финальная синхронизация — на cutover после 27 ноября.
 
 ## Важные ограничения
 
@@ -24,8 +25,8 @@
   даже если снять custom domain.
 - Caddyfile смонтирован read-only; `sed -i` меняет inode и не виден
   контейнеру. Писать через `tee` в тот же файл или перезапускать Caddy.
-- У OAuth-токена Cloudflare нет `DNS:Edit`; A-записи добавляет Михаил
-  вручную или отдельным токеном.
+- DNS-токен лежит в `~/cloudflare-dns-token.txt` (600); после cutover отозвать.
+- Staging `prod-test` закрыт `noindex`; после cutover убрать A-запись, Caddy-блок и контейнер.
 
 ## Окно
 
@@ -39,7 +40,8 @@
 3. Убедиться, что `app.env` содержит реальный `BOT_TOKEN`, `CHAT_ID`,
    `TELEGRAM_WEBHOOK_SECRET`; `DISABLE_SCHEDULER=1`.
 4. Проверить, что `kodrosta-site-backup.timer` active.
-5. Подтвердить, что Михаил online для A-записи (или дать DNS:Edit).
+5. Убедиться, что DNS-токен на месте и Caddy-блок staging не конфликтует
+   с основным доменом.
 
 ## Cutover
 
