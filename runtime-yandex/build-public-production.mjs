@@ -9,6 +9,14 @@ const target = resolve(root, 'public-production');
 const excluded = ['src/', 'scripts/', 'migrations/', 'functions/', 'runtime-yandex/', 'node_modules/', 'public/', 'public-production/'];
 const allowed = /\.(?:html|css|js|mjs|svg|png|jpe?g|webp|gif|ico|woff2?|ttf|mp4|webm|pdf|xml|txt|webmanifest)$/i;
 
+// production: убираем скрытые demo-панели из страницы билетов; preview-сборка их сохраняет.
+function stripDemoMarkup(html) {
+  return html
+    .replace(/<div id="demo-banner"[\s\S]*?<\/div>\s*/g, '')
+    .replace(/<div id="demo-login"[\s\S]*?<\/div>\s*<\/div>\s*/g, '')
+    .replace(/<p id="manager-preview"[\s\S]*?<\/p>\s*/g, '');
+}
+
 await rm(target, {recursive: true, force: true});
 await mkdir(target, {recursive: true});
 let files = 0;
@@ -24,7 +32,8 @@ for (const name of execFileSync('git', ['ls-files', '-z'], {cwd: root, encoding:
   const destination = resolve(target, name);
   await mkdir(dirname(destination), {recursive: true});
   if (name.endsWith('.html')) {
-    const html = sanitizeHtml(await readFile(source, 'utf8'));
+    let html = sanitizeHtml(await readFile(source, 'utf8'));
+    if (name === 'admission.html') html = stripDemoMarkup(html);
     await writeFile(destination, html);
     bytes += Buffer.byteLength(html);
   } else {

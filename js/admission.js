@@ -8,7 +8,7 @@
   sessionStorage.removeItem('admission-host-key');
   var ticketToken = new URLSearchParams(location.hash.slice(1)).get('t');
   var guestTicket = null, qrImage = null;
-  function show(id, visible) { $(id).hidden = !visible; }
+  function show(id, visible) { var el = $(id); if (!el) return; el.hidden = !visible; }
   function notice(text) { $('notice').textContent = text || ''; show('notice', !!text); }
   function element(tag, text, className) { var e = document.createElement(tag); if (text) e.textContent = text; if (className) e.className = className; return e; }
   function time(value) { return new Date(value).toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
@@ -293,7 +293,7 @@
   $('manual-code').onsubmit = function (ev) { ev.preventDefault(); var token = parseCode($('scan-code').value); if (!token) { decision('red', 'Это не билет премии'); return; } checkIn({ token: token }); };
   $('logout').onclick = async function () { stopCamera(); if (tgApp && tgApp.initData) { tgApp.close(); return; } await fetch('/api/admission-demo/logout', { method: 'POST' }).catch(function () {}); location.href = '/admission'; };
   $('save-ticket').onclick = function () { saveTicket().catch(function () { notice('Не получилось сохранить картинку. Сделай скриншот приглашения.'); }); };
-  ['admin', 'host'].forEach(function (which) { $('demo-' + which).onclick = async function () { try { var response = await fetch('/api/admission-demo/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role: which }) }); if (!response.ok) throw new Error('Не удалось открыть тестовую роль'); await enter(); } catch (err) { notice(err.message); } }; });
+  ['admin', 'host'].forEach(function (which) { var el = $('demo-' + which); if (!el) return; el.onclick = async function () { try { var response = await fetch('/api/admission-demo/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role: which }) }); if (!response.ok) throw new Error('Не удалось открыть тестовую роль'); await enter(); } catch (err) { notice(err.message); } }; });
   document.addEventListener('visibilitychange', function () { if (document.hidden) stopCamera(); });
   window.addEventListener('pagehide', stopCamera);
   (async function () {
