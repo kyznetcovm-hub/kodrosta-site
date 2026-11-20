@@ -71,7 +71,13 @@ export class PostgresD1 {
   }
   async exec(sql) { return this.pool.query(translate(sql).text); }
 }
-export function createDatabase(url) {
-  const pool = new pg.Pool({connectionString:url,max:5,connectionTimeoutMillis:5000,statement_timeout:15000});
+export function createDatabase(url, options = {}) {
+  const pool = new pg.Pool({
+    connectionString: url,
+    max: options.max ?? 5,
+    connectionTimeoutMillis: 5000,
+    statement_timeout: options.statementTimeout ?? 15000,
+    ...(options.ssl ? { ssl: options.ssl } : {}),
+  });
   return new PostgresD1(pool);
 }

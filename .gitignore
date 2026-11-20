@@ -12,4 +12,6 @@ scripts/residents.csv
 scripts/out/
 .preview-public/
 public/
+public-production/
+runtime-yandex/PRODUCTION-CUTOVER.md
 node_modules/
