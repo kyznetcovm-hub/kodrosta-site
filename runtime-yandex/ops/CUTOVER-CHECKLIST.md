@@ -12,7 +12,7 @@
 - [x] Бэкапы: ежедневный timer + проверенное восстановление.
 - [x] Health-check и Caddy-блок подготовлены.
 - [x] DNS-токен Cloudflare с DNS Write проверен созданием/удалением TXT.
-- [x] Staging `prod-test.codrosta.club` на реальной БД и боте: HTTPS Let's Encrypt, страницы и форма — 200.
+- [x] Staging `prod-test.codrosta.club` на реальной БД и боте: HTTPS Let's Encrypt, страницы и форма — 200; Михаил подтвердил открытие в браузере.
 - [ ] A-записи `codrosta.club`/`www` и финальная синхронизация — на cutover после 27 ноября.
 
 ## Важные ограничения
