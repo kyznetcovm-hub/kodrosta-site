@@ -64,7 +64,7 @@ function initData(role) {
 const HUB=`<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Тест сайта в Яндексе</title>
 <style>body{font:18px/1.6 system-ui;color:#001b7d;margin:40px auto;padding:0 24px;max-width:780px}a{color:#001b7d}li{margin:14px 0}code{background:#eee;padding:3px}h1{line-height:1.15}</style>
 <h1>Код Роста — тест в Яндексе</h1><p>Изолированная версия сайта с PostgreSQL. Все участники и билеты здесь вымышленные. Отправка в Telegram и другие рабочие системы отключена.</p>
-<ul><li><a href="/">Главная сайта</a></li><li><a href="/premiya">Страница премии</a></li><li><a href="/admission">Билеты: роли организатора и хостес</a></li><li><a href="/admission#ticket=${'1'.repeat(64)}">Тестовое приглашение</a></li><li><a href="/calendar.ics">Календарь мероприятий</a></li></ul>
+<ul><li><a href="/">Главная сайта</a></li><li><a href="/premiya">Страница премии</a></li><li><a href="/admission">Билеты: роли организатора и хостес</a></li><li><a href="/admission#t=${'1'.repeat(64)}">Тестовое приглашение</a></li><li><a href="/calendar.ics">Календарь мероприятий</a></li></ul>
 <p>Для проверки формы: имя <code>ТЕСТ — Гость</code>, телефон <code>+70000000000</code>, Telegram <code>@demo_user</code>.</p></html>`;
 export async function dispatch(request) {
   const url=new URL(request.url), path=url.pathname;
