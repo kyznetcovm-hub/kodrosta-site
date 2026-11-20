@@ -10,6 +10,8 @@ test('identity, conflict handling and rowid preserve SQLite operations',()=>{
   assert.match(translate('INSERT OR IGNORE INTO event_reminders(x) VALUES(?)').text,/VALUES\(\$1\) ON CONFLICT DO NOTHING$/);
   assert.match(translate('CREATE TABLE IF NOT EXISTS admission_requests (id TEXT PRIMARY KEY)').text,/rowid BIGINT GENERATED ALWAYS AS IDENTITY/);
   assert.match(translate('PRAGMA table_info(events)').text,/information_schema.columns/);
+  assert.equal(translate('SELECT telegram_id AS telegramId FROM admission_staff').text,'SELECT telegram_id AS "telegramId" FROM admission_staff');
+  assert.equal(translate('SELECT CAST(amount AS BIGINT) AS total FROM sales').text,'SELECT CAST(amount AS BIGINT) AS total FROM sales');
 });
 test('failed batch rolls back and releases its connection',async()=>{
   const log=[];const client={async query(sql){log.push(sql);},release(){log.push('release');}};

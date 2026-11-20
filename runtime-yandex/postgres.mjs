@@ -5,6 +5,7 @@ pg.types.setTypeParser(20, value => {
   if (!Number.isSafeInteger(number)) throw new Error('INTEGER exceeds safe JavaScript range');
   return number;
 });
+pg.types.setTypeParser(1700,value=>Number.isSafeInteger(Number(value))?Number(value):value);
 const SERIAL_TABLES = new Set(['residents','touches','cron_runs','event_signups','sales','sales_plan_items','expenses','raffles']);
 
 export function mapSql(sql, convert) {
@@ -27,6 +28,7 @@ export function translate(sql) {
     .replace(/([,(]\s*)end(\s*[,])/gi,'$1"end"$2')
     .replace(/\bend(?=\s*=)/gi,'"end"')
     .replace(/(\b(?:events|excluded|e)\.)end\b/gi,'$1"end"')
+    .replace(/\bAS\s+([A-Za-z_]\w*)/g,(match,name)=>/[a-z][A-Z]/.test(name)?'AS "'+name+'"':match)
     .replace(/CREATE TABLE IF NOT EXISTS admission_requests\s*\(/gi,
       'CREATE TABLE IF NOT EXISTS admission_requests (rowid BIGINT GENERATED ALWAYS AS IDENTITY,')
   );
