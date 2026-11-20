@@ -113,7 +113,7 @@ GitHub — внешний хостинг; отдельная российска�
 
 - Вебхук: `https://codrosta.club/api/telegram-webhook`, secret_token задан. `getWebhookInfo`: pending 0; последняя ошибка `Connection timed out` с **00:11** — до готовности Caddy; новых ошибок нет. Михаил выполнил `/start`, бот ответил — входящий путь подтверждён пользователем. Публичный путь: без секрета 403, с секретом 200.
 - Расписания: один процесс приложения, `DISABLE_SCHEDULER=0`; cron `*/15 * * * *`, `0 3 * * *`, `0 7 * * 1`, `0 6 1 * *` UTC. В логах есть `scheduler-ran */15`. Старый Worker `kodrosta-site` имеет **0 cron**.
-- Синхронизации: event reminders, subscription deliveries, обновление `tg_groups`/`tg_group_members` — в приложении; синхронизация билетов с Google Sheet отключена (нет ключа); ERP-синхронизации остаются на Cloudflare.
+- Синхронизации: event reminders, subscription deliveries, обновление `tg_groups`/`tg_group_members` — в приложении; синхронизация резидентов/продлений с Google Sheet восстановлена 21.11 (ключ в Lockbox/env, 295 строк, 0 изменений); импорт билетов из старой таблицы `syncAdmissionFromSheet` в планировщике не вызывается (legacy); ERP-синхронизации остаются на Cloudflare.
 - Двойных уведомлений/записи: старый Worker снят с custom domain, cron пуст, webhook удалён; старая D1 не пишется; заявки и расписания идут только в новое приложение. ERP использует свою Cloudflare-часть отдельно.
 - Остались на Cloudflare: DNS-зона `codrosta.club`; Worker `kodrosta-site` (старый, без трафика); D1 `kodrosta-engagement` (старые данные сайта + legacy `erp_*`); Worker `kodrosta-erp` (legacy; текущая ERP/анкета использует PostgreSQL `kodrosta`); Workers `zadachnik` + D1 `zadachnik`, `kalorimetr-bot`, `kodrosta-obzor`, `maso-ai-specialist`; API-токены. Подробно — раздел 9.
 
@@ -178,7 +178,7 @@ GitHub — внешний хостинг; отдельная российска�
 5. Точный месячный расход Yandex не снят из биллинга.
 6. Финальный дамп полностью восстановлен в dryrun; rollback-сценарий проверен в отдельной SQLite. Реальный откат с DNS/Worker не выполнялся.
 7. Нет подтверждения доступа без VPN с нескольких российских ISP; есть проверка с российской ВМ и сообщение Михаила с телефона.
-8. Google Sheet-синхронизация не восстановлена: нет `GOOGLE_SERVICE_ACCOUNT_JSON`; Lockbox: `kodrosta-google-sheets` создан пустым, ключ не добавлен; старый ключ Cloudflare write-only; нужен новый ключ для того же сервисного аккаунта. Metrika не настроена. ERP/анкета фактически на PostgreSQL `kodrosta`; Cloudflare-часть ERP legacy, не используется текущими контейнерами.
+8. Google Sheet-синхронизация резидентов/продлений восстановлена 21.11: ключ сервисного аккаунта в Lockbox и production env, `syncResidentsFromSheet` — 295 строк, 0 изменений; `NODE_OPTIONS=--dns-result-order=ipv4first`. Metrika не настроена. ERP/анкета фактически на PostgreSQL `kodrosta`; Cloudflare-часть ERP legacy, не используется текущими контейнерами.
 9. Yandex Monitoring как отдельный сервис не настроен; только systemd health-check.
 10. Российская Git-площадка (SourceCraft) не настроена; есть bundle/архив на ВМ.
 11. Независимое подтверждение получения заявки менеджером не сделано.
