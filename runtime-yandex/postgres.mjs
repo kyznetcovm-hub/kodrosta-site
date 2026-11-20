@@ -46,11 +46,14 @@ function result(data) {
     last_row_id:data.rows?.[0]?.id ?? null} };
 }
 export class PostgresD1 {
-  constructor(pool) { this.pool = pool; }
+  constructor(pool) { this.pool = pool; this.dialect = 'postgres'; }
   prepare(sql) {
     const db = this;
     return { sql, values:[], bind(...values) { return {...this,values}; },
       async execute(client = db.pool) {
+        if (/^\s*(?:CREATE\s+(?:TABLE|INDEX|UNIQUE\s+INDEX)|ALTER\s+TABLE)\b/i.test(String(sql || ''))) {
+          return {success:true,results:[],meta:{changes:0,last_row_id:null}};
+        }
         const query = translate(sql);
         try { return result(await client.query(query.text,query.parameters || this.values)); }
         catch(error) { if (error.code === '42701') error.message = 'duplicate column: ' + error.message; throw error; }
@@ -69,7 +72,12 @@ export class PostgresD1 {
     } catch(error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
   }
-  async exec(sql) { return this.pool.query(translate(sql).text); }
+  async exec(sql) {
+    if (/^\s*(?:CREATE\s+(?:TABLE|INDEX|UNIQUE\s+INDEX)|ALTER\s+TABLE)\b/i.test(String(sql || ''))) {
+      return {success:true,results:[],meta:{changes:0,last_row_id:null}};
+    }
+    return this.pool.query(translate(sql).text);
+  }
 }
 export function createDatabase(url, options = {}) {
   const pool = new pg.Pool({
